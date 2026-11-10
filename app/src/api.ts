@@ -3,6 +3,9 @@
  *
  * Argument objects use camelCase keys (Tauri converts them to the Rust snake_case names):
  * `node`, `sort`, `offset`, `limit`, `width`, `height`, `target`.
+ * Scan events (`scan://progress`, `scan://done`, `scan://error`) all carry `scan_id`, the value
+ * `startScan` resolved to. Starting a scan cancels the previous one, so the UI MUST ignore events
+ * whose `scan_id` is not the latest id it started (a superseded scan may still report "cancelled").
  * Every command rejects with a plain string message on failure
  * (for example "no scan yet" or "unknown node").
  */
@@ -51,6 +54,8 @@ export interface Rect {
 }
 
 export interface ScanProgress {
+  /** Id returned by `startScan`. */
+  scan_id: number;
   files: number;
   dirs: number;
   bytes: number;
@@ -69,11 +74,13 @@ export interface ScanStats {
 }
 
 export interface ScanDone {
+  scan_id: number;
   stats: ScanStats;
   root: NodeView;
 }
 
 export interface ScanErrorEvent {
+  scan_id: number;
   message: string;
 }
 
@@ -81,8 +88,8 @@ export interface ScanErrorEvent {
 export const MAX_CHILDREN = 1000;
 
 export const listDrives = () => invoke<VolumeSummary[]>('list_drives');
-/** `target` is a drive ("C:", "c:\\", "C") or an existing folder path. */
-export const startScan = (target: string) => invoke<void>('start_scan', { target });
+/** Resolves to the scan id. `target` is a drive ("C:", "c:\\", "C") or an existing folder path. */
+export const startScan = (target: string) => invoke<number>('start_scan', { target });
 export const cancelScan = () => invoke<void>('cancel_scan');
 export const getChildren = (node: number, sort: SortKey, offset: number, limit: number) =>
   invoke<NodeView[]>('get_children', { node, sort, offset, limit });

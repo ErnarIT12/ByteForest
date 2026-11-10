@@ -8,6 +8,7 @@ mod state;
 
 fn main() {
     let _log_guard = logging::init();
+    std::panic::set_hook(Box::new(|info| tracing::error!("panic: {info}")));
     tracing::info!("ByteForest starting");
 
     let result = tauri::Builder::default()

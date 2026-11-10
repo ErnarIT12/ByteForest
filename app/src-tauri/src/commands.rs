@@ -8,7 +8,7 @@ use bf_core::{NodeId, NodeView, Rect, SortKey, Tree, TreemapOptions};
 use bf_scan::{CancelToken, ScanError, ScanRoot, VolumeSummary};
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::dto::{ScanDone, ScanErrorEvent};
+use crate::dto::{ScanDone, ScanErrorEvent, ScanProgressEvent};
 use crate::state::AppState;
 
 /// Largest page `get_children` returns.
@@ -26,6 +26,9 @@ pub fn parse_target(arg: &str) -> Result<ScanRoot, String> {
     let path = Path::new(arg);
     if !path.exists() {
         return Err(format!("path does not exist: {arg}"));
+    }
+    if !path.is_dir() {
+        return Err(format!("not a folder: {arg}"));
     }
     let absolute = std::path::absolute(path).map_err(|e| format!("{arg}: {e}"))?;
     Ok(ScanRoot::Folder(absolute))
@@ -69,7 +72,7 @@ fn current_tree(state: &AppState) -> Result<Arc<Tree>, String> {
 }
 
 /// Lists the mounted volumes.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_drives() -> Vec<VolumeSummary> {
     bf_scan::list_volumes()
 }
@@ -80,99 +83,139 @@ pub fn is_elevated() -> bool {
     bf_scan::is_elevated()
 }
 
-/// Starts a scan in the background; progress and the outcome arrive as `scan://*` events.
-/// Any scan that is still running is cancelled first.
-#[tauri::command]
+/// Starts a scan in the background and returns its id. Progress and the outcome arrive as
+/// `scan://*` events tagged with that id. Any scan that is still running is cancelled first.
+#[tauri::command(async)]
 pub fn start_scan(
     app: AppHandle,
     state: State<'_, AppState>,
     target: String,
-) -> Result<(), String> {
+) -> Result<u64, String> {
     let root = parse_target(&target)?;
     let token = CancelToken::new();
-    {
+    let scan_id = {
         let mut slot = state
-            .cancel
+            .scan
             .lock()
             .map_err(|_| "internal error: state poisoned")?;
-        if let Some(previous) = slot.replace(token.clone()) {
+        if let Some(previous) = slot.token.replace(token.clone()) {
             previous.cancel();
         }
-    }
-    tracing::info!("scan started: {root:?}");
-    std::thread::spawn(move || run_scan(app, root, token));
-    Ok(())
+        slot.id += 1;
+        slot.id
+    };
+    tracing::info!("scan {scan_id} started: {root:?}");
+    std::thread::spawn(move || run_scan(app, scan_id, root, token));
+    Ok(scan_id)
 }
 
 /// Body of the scan thread: scans, stores the tree and reports the outcome.
-fn run_scan(app: AppHandle, root: ScanRoot, token: CancelToken) {
+fn run_scan(app: AppHandle, scan_id: u64, root: ScanRoot, token: CancelToken) {
     let progress_app = app.clone();
-    let progress = move |p| {
-        let _ = progress_app.emit("scan://progress", p);
+    let progress_token = token.clone();
+    let progress = move |progress| {
+        // A cancelled or superseded scan stays quiet.
+        if !progress_token.is_cancelled() {
+            let _ = progress_app.emit("scan://progress", ScanProgressEvent { scan_id, progress });
+        }
     };
     let outcome = catch_unwind(AssertUnwindSafe(|| {
-        bf_scan::scan_auto(&root, &progress, &token)
+        let result = bf_scan::scan_auto(&root, &progress, &token);
+        finish_scan(&app, scan_id, &token, result)
     }));
+    if outcome.is_err() {
+        tracing::error!("scan {scan_id} panicked");
+        report(&app, scan_id, |_| {
+            Some(("internal error: scan crashed".to_string(), None))
+        });
+    }
+}
 
-    match outcome {
-        Ok(Ok((tree, stats))) => {
-            // A newer scan may have cancelled this one just as it finished; drop the result.
-            if token.is_cancelled() {
-                emit_error(&app, "cancelled");
-                return;
-            }
+/// Stores the tree and emits the outcome, but only while `scan_id` is still the current scan.
+fn finish_scan(
+    app: &AppHandle,
+    scan_id: u64,
+    token: &CancelToken,
+    result: Result<(Tree, bf_scan::ScanStats), ScanError>,
+) {
+    match result {
+        Ok((tree, stats)) if !token.is_cancelled() => {
             let tree = Arc::new(tree);
-            let root_view = tree.view(tree.root());
-            let state = app.state::<AppState>();
-            match state.tree.write() {
-                Ok(mut slot) => *slot = Some(tree),
-                Err(_) => return emit_error(&app, "internal error: state poisoned"),
-            }
-            tracing::info!("scan done: {} files, {} dirs", stats.files, stats.dirs);
-            let _ = app.emit(
-                "scan://done",
-                ScanDone {
-                    stats,
-                    root: root_view,
-                },
+            let root = tree.view(tree.root());
+            tracing::info!(
+                "scan {scan_id} done: {} files, {} dirs",
+                stats.files,
+                stats.dirs
             );
+            report(app, scan_id, |state| {
+                match state.tree.write() {
+                    Ok(mut slot) => *slot = Some(tree),
+                    Err(_) => return Some(("internal error: state poisoned".to_string(), None)),
+                }
+                Some((
+                    String::new(),
+                    Some(ScanDone {
+                        scan_id,
+                        stats,
+                        root,
+                    }),
+                ))
+            });
         }
-        Ok(Err(ScanError::Cancelled)) => emit_error(&app, "cancelled"),
-        Ok(Err(e)) => {
-            tracing::warn!("scan failed: {e}");
-            emit_error(&app, &e.to_string());
+        Ok(_) | Err(ScanError::Cancelled) => {
+            report(app, scan_id, |_| Some(("cancelled".to_string(), None)))
         }
-        Err(_) => {
-            tracing::error!("scan thread panicked");
-            emit_error(&app, "internal error: scan crashed");
+        Err(e) => {
+            tracing::warn!("scan {scan_id} failed: {e}");
+            report(app, scan_id, |_| Some((e.to_string(), None)));
         }
     }
 }
 
-fn emit_error(app: &AppHandle, message: &str) {
-    let _ = app.emit(
-        "scan://error",
-        ScanErrorEvent {
-            message: message.to_string(),
-        },
-    );
+/// Runs `build` and emits its result while holding the scan lock, so a newer `start_scan`
+/// cannot interleave. Does nothing if `scan_id` is no longer the current scan.
+///
+/// `build` returns an error message and, when the scan succeeded, the done payload.
+fn report(
+    app: &AppHandle,
+    scan_id: u64,
+    build: impl FnOnce(&AppState) -> Option<(String, Option<ScanDone>)>,
+) {
+    let state = app.state::<AppState>();
+    // A poisoned lock only means an earlier panic; the data is still usable.
+    let slot = state
+        .scan
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if slot.id != scan_id {
+        return;
+    }
+    match build(&state) {
+        Some((_, Some(done))) => {
+            let _ = app.emit("scan://done", done);
+        }
+        Some((message, None)) => {
+            let _ = app.emit("scan://error", ScanErrorEvent { scan_id, message });
+        }
+        None => {}
+    }
 }
 
 /// Cancels the running scan, if any.
 #[tauri::command]
 pub fn cancel_scan(state: State<'_, AppState>) -> Result<(), String> {
     let slot = state
-        .cancel
+        .scan
         .lock()
         .map_err(|_| "internal error: state poisoned")?;
-    if let Some(token) = slot.as_ref() {
+    if let Some(token) = slot.token.as_ref() {
         token.cancel();
     }
     Ok(())
 }
 
 /// One page of a directory's children, sorted by `sort` (`limit` is capped at 1000).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_children(
     state: State<'_, AppState>,
     node: u32,
@@ -202,7 +245,7 @@ pub fn get_path(state: State<'_, AppState>, node: u32) -> Result<String, String>
 }
 
 /// Treemap rectangles (at most 20 000) of the subtree under `node`, in a `width` x `height` canvas.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_treemap(
     state: State<'_, AppState>,
     node: u32,
@@ -251,7 +294,7 @@ mod tests {
 
     #[test]
     fn existing_folder_becomes_absolute_folder() {
-        match parse_target(r"E:\Projects") {
+        match parse_target(std::env::temp_dir().to_str().unwrap()) {
             Ok(ScanRoot::Folder(p)) => assert!(p.is_absolute()),
             other => panic!("unexpected {other:?}"),
         }
@@ -262,6 +305,15 @@ mod tests {
         assert!(parse_target("").is_err());
         assert!(parse_target("   ").is_err());
         assert!(parse_target(r"E:\no\such\folder\here").is_err());
+    }
+
+    #[test]
+    fn a_file_is_not_a_scan_target() {
+        let file = std::env::temp_dir().join(format!("bf-app-test-{}.txt", std::process::id()));
+        std::fs::write(&file, b"x").unwrap();
+        let err = parse_target(file.to_str().unwrap());
+        std::fs::remove_file(&file).unwrap();
+        assert!(err.unwrap_err().starts_with("not a folder"));
     }
 
     #[test]
