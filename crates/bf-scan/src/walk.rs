@@ -24,11 +24,16 @@ const ATTR_DIRECTORY: u32 = 0x10;
 const ATTR_SPARSE: u32 = 0x200;
 const ATTR_REPARSE_POINT: u32 = 0x400;
 const ATTR_COMPRESSED: u32 = 0x800;
+const ATTR_OFFLINE: u32 = 0x1000;
+const ATTR_RECALL_ON_OPEN: u32 = 0x4_0000;
+const ATTR_RECALL_ON_DATA_ACCESS: u32 = 0x40_0000;
 
 /// Scanner that walks directories with `std::fs`, one rayon task per directory.
 ///
-/// Works on any file system, without elevation, and on plain folders. Reparse points
-/// (junctions, symlinks) are recorded but never entered. Hard links are not de-duplicated.
+/// Works on any file system, without elevation, and on plain folders. Directory reparse
+/// points (junctions, symlinks) are recorded with size 0 and never entered; file reparse
+/// points (WOF-compressed files, cloud files) keep their logical size. Hard links are not
+/// de-duplicated.
 pub struct WalkScanner;
 
 /// State shared by all worker tasks.
@@ -166,11 +171,7 @@ fn process_dir<'s>(
         let is_reparse = attrs & ATTR_REPARSE_POINT != 0;
         let key = shared.next_key.fetch_add(1, Ordering::Relaxed);
 
-        let (size, alloc) = if is_dir || is_reparse {
-            (0, 0)
-        } else {
-            (meta.len(), round_up(meta.len(), shared.cluster))
-        };
+        let (size, alloc) = entry_sizes(attrs, meta.len(), shared.cluster);
         batch.push(EntryRecord {
             key,
             parent_key: dir_key,
@@ -242,7 +243,69 @@ fn flags_from_attributes(attrs: u32) -> NodeFlags {
     flags
 }
 
+/// Logical and allocated size of an entry with attributes `attrs` and length `len`.
+///
+/// Directories (junctions included) count 0. Files, including file reparse points such as
+/// WOF-compressed system files, keep their logical size; their alloc is `len` rounded up to
+/// clusters, except for cloud placeholders whose data is not on the disk (alloc 0).
+fn entry_sizes(attrs: u32, len: u64, cluster: u64) -> (u64, u64) {
+    let not_on_disk = ATTR_OFFLINE | ATTR_RECALL_ON_OPEN | ATTR_RECALL_ON_DATA_ACCESS;
+    if attrs & ATTR_DIRECTORY != 0 {
+        (0, 0)
+    } else if attrs & ATTR_REPARSE_POINT != 0 && attrs & not_on_disk != 0 {
+        (len, 0)
+    } else {
+        (len, round_up(len, cluster))
+    }
+}
+
 /// Rounds `size` up to a multiple of `cluster` (saturating; `cluster` is never 0).
 fn round_up(size: u64, cluster: u64) -> u64 {
     size.div_ceil(cluster).saturating_mul(cluster)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ATTR_ARCHIVE: u32 = 0x20;
+
+    #[test]
+    fn directories_have_no_size() {
+        assert_eq!(entry_sizes(ATTR_DIRECTORY, 4096, 4096), (0, 0));
+        // A directory reparse point (junction) as well.
+        assert_eq!(
+            entry_sizes(ATTR_DIRECTORY | ATTR_REPARSE_POINT, 4096, 4096),
+            (0, 0)
+        );
+    }
+
+    #[test]
+    fn plain_files_round_alloc_up_to_clusters() {
+        assert_eq!(entry_sizes(ATTR_ARCHIVE, 10, 4096), (10, 4096));
+        assert_eq!(entry_sizes(0, 0, 4096), (0, 0));
+    }
+
+    #[test]
+    fn file_reparse_points_keep_their_logical_size() {
+        // WOF-compressed system files and hydrated cloud files.
+        assert_eq!(entry_sizes(ATTR_REPARSE_POINT, 5000, 4096), (5000, 8192));
+    }
+
+    #[test]
+    fn cloud_placeholders_take_no_space() {
+        for bit in [
+            ATTR_OFFLINE,
+            ATTR_RECALL_ON_OPEN,
+            ATTR_RECALL_ON_DATA_ACCESS,
+        ] {
+            assert_eq!(
+                entry_sizes(ATTR_REPARSE_POINT | bit, 5000, 4096),
+                (5000, 0),
+                "bit {bit:#x}"
+            );
+        }
+        // The placeholder rule only applies to reparse points.
+        assert_eq!(entry_sizes(ATTR_OFFLINE, 5000, 4096), (5000, 8192));
+    }
 }
