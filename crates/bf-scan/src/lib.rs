@@ -12,7 +12,9 @@ mod elevation;
 mod mft;
 mod mft_layout;
 mod mft_merge;
+mod mft_probe;
 mod progress;
+mod volume_io;
 mod volumes;
 mod walk;
 
@@ -24,6 +26,8 @@ pub use auto::scan_auto;
 pub use cancel::CancelToken;
 pub use elevation::is_elevated;
 pub use mft::MftScanner;
+#[doc(hidden)]
+pub use mft_probe::probe_mft;
 pub use progress::{Phase, ScanProgress};
 pub use volumes::{VolumeSummary, list_volumes};
 pub use walk::WalkScanner;
