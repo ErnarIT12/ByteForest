@@ -1,0 +1,20 @@
+---
+source: crates/bf-core/tests/treemap.rs
+expression: lines
+---
+- " 0 C:           d0 dir  x=0.00 y=0.00 w=400.00 h=300.00"
+- " 3 pagefile.sys d1 file x=1.00 y=1.00 w=275.11 h=151.27"
+- " 1 Users        d1 dir  x=1.00 y=152.27 w=275.11 h=146.73"
+- " 2 Windows      d1 dir  x=276.11 y=1.00 w=122.89 h=298.00"
+- " 4 alice        d2 dir  x=2.00 y=153.27 w=199.90 h=144.73"
+- " 5 bob          d2 dir  x=201.90 y=153.27 w=73.20 h=136.94"
+- " 6 notes.txt    d2 file x=201.90 y=290.21 w=73.20 h=7.79"
+- 12 System32     d2 dir  x=277.11 y=2.00 w=120.89 h=235.45
+- 13 explorer.exe d2 file x=277.11 y=237.45 w=120.89 h=60.55
+- " 7 a.mp4        d3 file x=3.00 y=154.27 w=167.24 h=142.73"
+- " 8 b.doc        d3 file x=170.24 y=154.27 w=30.66 h=103.80"
+- " 9 c.png        d3 file x=170.24 y=258.07 w=30.66 h=38.93"
+- 10 d.zip        d3 file x=202.90 y=154.27 w=71.20 h=131.65
+- 11 e.txt        d3 file x=202.90 y=285.92 w=71.20 h=3.29
+- 14 kernel.dll   d3 file x=278.11 y=3.00 w=118.89 h=133.40
+- 15 ntdll.dll    d3 file x=278.11 y=136.40 w=118.89 h=100.05
