@@ -7,8 +7,10 @@ mod builder;
 mod flags;
 mod record;
 mod tree;
+mod view;
 
 pub use builder::TreeBuilder;
 pub use flags::NodeFlags;
 pub use record::EntryRecord;
 pub use tree::{DirAgg, NodeId, Tree};
+pub use view::{NodeView, SortKey};

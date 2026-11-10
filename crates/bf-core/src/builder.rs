@@ -168,6 +168,7 @@ impl TreeBuilder {
             next_sibling,
             names: self.names,
             dir_index,
+            sorted: (0..aggs.len()).map(|_| Default::default()).collect(),
             aggs,
         }
     }
