@@ -1,3 +1,8 @@
+use crate::attr::{
+    Attrs, TYPE_DATA, TYPE_FILE_NAME, TYPE_STANDARD_INFORMATION, parse_data, parse_file_name,
+    parse_std_info,
+};
+use crate::runs::{Extent, decode_runs};
 use crate::{NtfsError, bytes_at, u16_at, u32_at, u64_at};
 
 /// Flag: the record is in use.
@@ -6,6 +11,12 @@ const FLAG_IN_USE: u16 = 0x1;
 const FLAG_DIR: u16 = 0x2;
 /// The base-record reference keeps its record number in the low 48 bits.
 const RECORD_NUMBER_MASK: u64 = 0x0000_FFFF_FFFF_FFFF;
+
+/// End of the fixed part of the FILE record header; attributes start after it.
+const HEADER_END: usize = 42;
+/// `$FILE_NAME` namespaces we keep: POSIX, Win32, and the shared Win32+DOS name.
+/// Namespace 2 (a DOS 8.3 short name) only duplicates a Win32 name.
+const KEPT_NAMESPACES: [u8; 3] = [0, 1, 3];
 
 /// Fields of the FILE record header that the scanner needs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,4 +99,113 @@ pub fn apply_fixups(record: &mut [u8], bytes_per_sector: u32) -> Result<(), Ntfs
         record[tail..tail + 2].copy_from_slice(original);
     }
     Ok(())
+}
+
+/// One name (hard link) of a file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileName {
+    /// Record number of the parent directory.
+    pub parent: u64,
+    /// `$FILE_NAME` namespace: 0 POSIX, 1 Win32, 3 Win32 and DOS.
+    pub namespace: u8,
+    pub name: String,
+}
+
+/// What the scanner needs from one FILE record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileRecord {
+    pub rec_no: u64,
+    /// Record number of the base record (0 if this record is a base record).
+    pub base_record: u64,
+    pub is_dir: bool,
+    /// Last modification time (FILETIME); 0 if the record has no
+    /// `$STANDARD_INFORMATION` (extension records).
+    pub mtime: i64,
+    /// DOS file attribute flags; 0 if the record has no `$STANDARD_INFORMATION`.
+    pub file_attributes: u32,
+    /// Names without the DOS 8.3 ones. Several entries mean hard links.
+    pub names: Vec<FileName>,
+    /// Logical size, summed over all `$DATA` streams (including alternate ones).
+    pub size: u64,
+    /// Allocated size, summed over all `$DATA` streams. Resident data counts 0
+    /// because it lives inside the MFT record.
+    pub alloc: u64,
+    /// Runs of the unnamed `$DATA` of `$MFT` (record 0 only).
+    pub mft_runs: Option<Vec<Extent>>,
+}
+
+/// Parses an in-use FILE record after `apply_fixups`.
+///
+/// Returns `Ok(None)` when the record is not in use. Attributes other than
+/// `$STANDARD_INFORMATION`, `$FILE_NAME` and `$DATA` are skipped, including
+/// `$ATTRIBUTE_LIST`: the caller merges extension records through
+/// `base_record`. Every offset and length is checked against the used part of
+/// the record, so corrupt input yields an error, never a panic.
+pub fn parse_record(record: &[u8], rec_no: u64) -> Result<Option<FileRecord>, NtfsError> {
+    let header = parse_header(record)?;
+    if !header.in_use {
+        return Ok(None);
+    }
+
+    // `parse_header` does not validate these two fields: bound them here.
+    let used = usize::try_from(header.used_size).unwrap_or(usize::MAX);
+    let region = &record[..used.min(record.len())];
+    let first = usize::from(header.first_attr_offset);
+    if first < HEADER_END || first >= region.len() {
+        return Err(NtfsError::BadAttribute(first));
+    }
+
+    let mut file = FileRecord {
+        rec_no,
+        base_record: header.base_record,
+        is_dir: header.is_dir,
+        mtime: 0,
+        file_attributes: 0,
+        names: Vec::new(),
+        size: 0,
+        alloc: 0,
+        mft_runs: None,
+    };
+    let mut seen_std_info = false;
+
+    for attr in Attrs::new(region, first) {
+        let attr = attr?;
+        let bad = |_: NtfsError| NtfsError::BadAttribute(attr.offset);
+        match attr.type_code {
+            TYPE_STANDARD_INFORMATION if !seen_std_info => {
+                let info = parse_std_info(&attr).map_err(bad)?;
+                file.mtime = info.mtime;
+                file.file_attributes = info.file_attributes;
+                seen_std_info = true;
+            }
+            TYPE_FILE_NAME => {
+                let raw = parse_file_name(&attr).map_err(bad)?;
+                let is_duplicate = file
+                    .names
+                    .iter()
+                    .any(|n| n.parent == raw.parent && n.name == raw.name);
+                if KEPT_NAMESPACES.contains(&raw.namespace) && !is_duplicate {
+                    file.names.push(FileName {
+                        parent: raw.parent,
+                        namespace: raw.namespace,
+                        name: raw.name,
+                    });
+                }
+            }
+            TYPE_DATA => {
+                let data = parse_data(&attr).map_err(bad)?;
+                file.size = file.size.saturating_add(data.size);
+                file.alloc = file.alloc.saturating_add(data.alloc);
+                if rec_no == 0
+                    && !data.named
+                    && file.mft_runs.is_none()
+                    && let Some(runs) = data.runs
+                {
+                    file.mft_runs = Some(decode_runs(runs).map_err(bad)?);
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(Some(file))
 }

@@ -1,6 +1,6 @@
 [package]
 name = "bf-ntfs"
-description = "ByteForest NTFS: volume data, FILE record header and fixups"
+description = "ByteForest NTFS: volume data, FILE records, attributes and data runs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

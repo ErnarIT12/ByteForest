@@ -1,14 +1,17 @@
-//! ByteForest NTFS parsing: volume data, FILE record header and fixups.
+//! ByteForest NTFS parsing: volume data, FILE records, attributes and data runs.
 //!
 //! Everything here reads untrusted bytes from disk, so no function panics:
 //! every access goes through the bounds-checked readers below.
 
+mod attr;
 mod error;
 mod record;
+mod runs;
 mod volume;
 
 pub use error::NtfsError;
-pub use record::{RecordHeader, apply_fixups, parse_header};
+pub use record::{FileName, FileRecord, RecordHeader, apply_fixups, parse_header, parse_record};
+pub use runs::{Extent, decode_runs};
 pub use volume::{VolumeInfo, parse_volume_data};
 
 /// Returns `len` bytes at `off`, or `Truncated` if they are not all in `buf`.
@@ -35,4 +38,9 @@ fn u64_at(buf: &[u8], off: usize) -> Result<u64, NtfsError> {
     Ok(u64::from_le_bytes([
         b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
     ]))
+}
+
+/// Reads a little-endian `i64` at `off`.
+fn i64_at(buf: &[u8], off: usize) -> Result<i64, NtfsError> {
+    Ok(i64::from_le_bytes(u64_at(buf, off)?.to_le_bytes()))
 }
