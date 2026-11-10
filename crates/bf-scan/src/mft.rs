@@ -30,11 +30,14 @@ use windows::Win32::System::Ioctl::{
     NTFS_FILE_RECORD_INPUT_BUFFER, STARTING_VCN_INPUT_BUFFER,
 };
 
+use crate::mft_fallback::{split_ranges, walk_down};
 use crate::mft_layout::{
     BlockPlan, Geometry, MftExtent, block_size, extents_from_runs, file_record_bytes,
     parse_retrieval_pointers, plan_blocks,
 };
-use crate::mft_merge::{ROOT_RECORD, Slot, merge_records, parse_slot, root_name};
+use crate::mft_merge::{
+    ROOT_RECORD, Slot, merge_records, parse_fetched_record, parse_slot, root_name,
+};
 use crate::progress::{Phase, ProgressReporter, ScanProgress};
 use crate::volume_io::{Volume, context, win32_error};
 use crate::{CancelToken, ProgressFn, ScanError, ScanMethod, ScanRoot, ScanStats, Scanner};
@@ -51,6 +54,10 @@ const RP_WORDS: usize = 8192;
 const MAX_RP_CALLS: usize = 4096;
 /// Header of `NTFS_FILE_RECORD_OUTPUT_BUFFER` before the record bytes.
 const FILE_RECORD_HEADER: usize = 12;
+/// Most threads used for record-by-record reading.
+const MAX_RECORD_THREADS: usize = 16;
+/// Record bytes fetched between two progress ticks in record-by-record reading.
+const RECORD_PROGRESS_BYTES: u64 = 1 << 20;
 
 /// Scanner that reads the NTFS Master File Table directly.
 ///
@@ -89,10 +96,29 @@ pub(crate) fn check_letter(letter: char) -> Result<char, ScanError> {
     }
 }
 
+/// How [`scan_volume_with`] reads the MFT.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ReadMode {
+    /// Raw block reads, or record by record if those are not possible.
+    Auto,
+    /// Record by record with `FSCTL_GET_NTFS_FILE_RECORD` only (used by the probe).
+    RecordsOnly,
+}
+
 fn scan_volume(
     letter: char,
     progress: ProgressFn<'_>,
     cancel: &CancelToken,
+) -> Result<(Tree, ScanStats), ScanError> {
+    scan_volume_with(letter, progress, cancel, ReadMode::Auto)
+}
+
+/// Scans drive `letter` through its MFT, reading it as `mode` says.
+pub(crate) fn scan_volume_with(
+    letter: char,
+    progress: ProgressFn<'_>,
+    cancel: &CancelToken,
+    mode: ReadMode,
 ) -> Result<(Tree, ScanStats), ScanError> {
     let start = Instant::now();
     if cancel.is_cancelled() {
@@ -102,13 +128,19 @@ fn scan_volume(
 
     let volume = open_volume(letter, true)?;
     let geo = Geometry::new(&volume_data(&volume)?)?;
-    let extents = mft_extents(letter, &volume, &geo)?;
-    let plan = plan_blocks(&extents, &geo, block_size(&geo))?;
-    let volume = readable_volume(letter, volume, &plan, &geo)?;
 
     let reporter = ProgressReporter::new(progress);
-    let (records, skipped) = read_and_parse(&volume, &plan, &geo, &reporter, cancel)?;
-    drop(volume);
+    let block_reader = match mode {
+        ReadMode::Auto => block_reader(letter, volume, &geo),
+        ReadMode::RecordsOnly => Err(ScanError::BadLayout("block reads disabled".into())),
+    };
+    // Any failure to locate or read the MFT in blocks (for example raw volume reads blocked
+    // by a file-system filter) falls back to fetching the records one by one. The method is
+    // still `Mft`; the probe example shows why the fallback was taken.
+    let (records, skipped) = match block_reader {
+        Ok((volume, plan)) => read_and_parse(&volume, &plan, &geo, &reporter, cancel)?,
+        Err(_) => read_by_records(letter, &geo, &reporter, cancel)?,
+    };
     reporter.finish(Phase::Parsing);
 
     let mut builder = TreeBuilder::new(ROOT_RECORD, &root_name(letter));
@@ -143,6 +175,19 @@ fn scan_volume(
         errors: 0,
     };
     Ok((tree, stats))
+}
+
+/// Locates the MFT extents, plans the block reads and checks that the first block can be
+/// read. Returns the handle to read with and the plan, or why block reads are not possible.
+pub(crate) fn block_reader(
+    letter: char,
+    volume: Volume,
+    geo: &Geometry,
+) -> Result<(Volume, Vec<BlockPlan>), ScanError> {
+    let extents = mft_extents(letter, &volume, geo)?;
+    let plan = plan_blocks(&extents, geo, block_size(geo))?;
+    let volume = readable_volume(letter, volume, &plan, geo)?;
+    Ok((volume, plan))
 }
 
 /// Opens `\\.\X:`; a permission error becomes [`ScanError::AccessDenied`].
@@ -370,7 +415,13 @@ pub(crate) fn record_zero_extents(
 
     let len = usize::try_from(returned).map_or(out_len, |n| n.min(out_len));
     let bytes = words_to_bytes(&out, len);
-    let mut record = file_record_bytes(&bytes, geo.record)?.to_vec();
+    let (rec_no, record) = file_record_bytes(&bytes, geo.record)?;
+    if rec_no != 0 {
+        return Err(ScanError::BadLayout(format!(
+            "FSCTL_GET_NTFS_FILE_RECORD(0) returned record {rec_no}"
+        )));
+    }
+    let mut record = record.to_vec();
     match apply_fixups(&mut record, geo.sector_u32()) {
         // A mismatch means the record came back with its fixups already applied.
         Ok(()) | Err(NtfsError::FixupMismatch) => {}
@@ -383,6 +434,165 @@ pub(crate) fn record_zero_extents(
         .mft_runs
         .ok_or_else(|| ScanError::BadLayout("$MFT record has no data runs".into()))?;
     Ok(extents_from_runs(&runs))
+}
+
+/// Reads every in-use record with `FSCTL_GET_NTFS_FILE_RECORD`, used when raw volume reads
+/// are not possible. Several threads walk disjoint ranges of record numbers downward, each
+/// with its own volume handle.
+///
+/// Returns the in-use records and the number of records that failed (bad records, failed
+/// or invalid FSCTL answers).
+fn read_by_records(
+    letter: char,
+    geo: &Geometry,
+    reporter: &ProgressReporter<'_>,
+    cancel: &CancelToken,
+) -> Result<(Vec<FileRecord>, u64), ScanError> {
+    let count = geo.mft_valid_len / geo.record;
+    if count == 0 {
+        return Err(ScanError::BadLayout("no MFT records to read".into()));
+    }
+    let threads = rayon::current_num_threads().clamp(1, MAX_RECORD_THREADS);
+    let ranges = split_ranges(count, threads);
+
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = ranges
+            .iter()
+            .map(|&(lo, hi)| {
+                scope.spawn(move || read_record_range(letter, geo, lo, hi, reporter, cancel))
+            })
+            .collect();
+
+        let mut records = Vec::new();
+        let mut skipped = 0u64;
+        let mut first_error = None;
+        for worker in workers {
+            match worker.join() {
+                Ok(Ok((mut part, bad))) => {
+                    records.append(&mut part);
+                    skipped += bad;
+                }
+                Ok(Err(e)) => {
+                    first_error.get_or_insert(e);
+                }
+                Err(_) => {
+                    first_error.get_or_insert(ScanError::Io(io::Error::other(
+                        "MFT record reader panicked",
+                    )));
+                }
+            }
+        }
+        if cancel.is_cancelled() {
+            return Err(ScanError::Cancelled);
+        }
+        if let Some(e) = first_error {
+            return Err(e);
+        }
+        Ok((records, skipped))
+    })
+}
+
+/// One worker of [`read_by_records`]: walks `lo..=hi` downward on its own handle.
+fn read_record_range(
+    letter: char,
+    geo: &Geometry,
+    lo: u64,
+    hi: u64,
+    reporter: &ProgressReporter<'_>,
+    cancel: &CancelToken,
+) -> Result<(Vec<FileRecord>, u64), ScanError> {
+    let volume = open_volume(letter, false)?;
+    let mut fetcher = RecordFetcher::new(&volume, geo)?;
+    let sector = geo.sector_u32();
+    let mut records = Vec::new();
+    let mut bad = 0u64;
+    let mut unreported = 0u64;
+
+    let counts = walk_down(
+        lo,
+        hi,
+        |n| fetcher.fetch(n),
+        |rec_no, mut bytes: Vec<u8>| {
+            match parse_fetched_record(&mut bytes, rec_no, sector) {
+                Slot::Used(record) => records.push(record),
+                Slot::Bad => bad += 1,
+                Slot::Free => {}
+            }
+            unreported += geo.record;
+            if unreported >= RECORD_PROGRESS_BYTES {
+                reporter.tick(0, 0, unreported, Phase::Reading);
+                unreported = 0;
+            }
+        },
+        || cancel.is_cancelled(),
+    )
+    .map_err(|e| {
+        ScanError::Io(context(
+            format!("reading MFT records {lo}..={hi} one by one"),
+            e,
+        ))
+    })?;
+    reporter.tick(0, 0, unreported, Phase::Reading);
+    Ok((records, bad + counts.failed))
+}
+
+/// Issues `FSCTL_GET_NTFS_FILE_RECORD` calls on one handle, reusing its output buffer.
+struct RecordFetcher<'a> {
+    volume: &'a Volume,
+    record_size: u64,
+    /// `u64` words keep the output 8-byte aligned.
+    out: Vec<u64>,
+}
+
+impl<'a> RecordFetcher<'a> {
+    fn new(volume: &'a Volume, geo: &Geometry) -> Result<Self, ScanError> {
+        let record_len = usize::try_from(geo.record)
+            .map_err(|_| ScanError::BadLayout("record too large".into()))?;
+        let words = (FILE_RECORD_HEADER + record_len).div_ceil(size_of::<u64>());
+        Ok(Self {
+            volume,
+            record_size: geo.record,
+            out: vec![0u64; words],
+        })
+    }
+
+    /// Asks for record `n`; NTFS answers with the highest in-use record `<= n`. Returns that
+    /// record's number and a copy of its bytes (fixups normally already applied).
+    fn fetch(&mut self, n: u64) -> io::Result<(u64, Vec<u8>)> {
+        let step = || format!("FSCTL_GET_NTFS_FILE_RECORD({n}) on {}", self.volume.path());
+        let input = NTFS_FILE_RECORD_INPUT_BUFFER {
+            FileReferenceNumber: i64::try_from(n).map_err(|_| {
+                context(
+                    step(),
+                    io::Error::new(io::ErrorKind::InvalidInput, "record number"),
+                )
+            })?,
+        };
+        let out_len = self.out.len() * size_of::<u64>();
+        let mut returned = 0u32;
+        // SAFETY: the handle is owned by `self.volume`, which outlives the call. The input
+        // pointer and size describe `input`; the output pointer and size describe `self.out`;
+        // `returned` is a valid out-pointer. The call is synchronous (no OVERLAPPED).
+        unsafe {
+            DeviceIoControl(
+                self.volume.raw(),
+                FSCTL_GET_NTFS_FILE_RECORD,
+                Some(ptr::from_ref(&input).cast()),
+                size_of::<NTFS_FILE_RECORD_INPUT_BUFFER>() as u32,
+                Some(self.out.as_mut_ptr().cast()),
+                out_len as u32,
+                Some(&mut returned),
+                None,
+            )
+        }
+        .map_err(|e| context(step(), win32_error(e)))?;
+
+        let len = usize::try_from(returned).map_or(out_len, |r| r.min(out_len));
+        let bytes = words_to_bytes(&self.out, len);
+        let (rec_no, record) = file_record_bytes(&bytes, self.record_size)
+            .map_err(|e| context(step(), io::Error::other(e.to_string())))?;
+        Ok((rec_no, record.to_vec()))
+    }
 }
 
 /// One block read from the MFT; the data is `buf[start..start + len]`.

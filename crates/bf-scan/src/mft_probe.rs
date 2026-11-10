@@ -9,13 +9,26 @@ use windows::Win32::Storage::FileSystem::{
     FILE_FLAG_NO_BUFFERING, FILE_SHARE_READ, FILE_SHARE_WRITE,
 };
 
+use bf_core::Tree;
+
 use crate::mft::{
-    aligned, check_letter, open_volume, read_alignment, record_zero_extents, retrieval_pointers,
-    test_read, volume_data,
+    ReadMode, aligned, block_reader, check_letter, open_volume, read_alignment,
+    record_zero_extents, retrieval_pointers, scan_volume_with, test_read, volume_data,
 };
 use crate::mft_layout::{Geometry, MftExtent, block_size, plan_blocks};
 use crate::volumes::filesystem_name;
-use crate::{ScanError, is_elevated};
+use crate::{CancelToken, ProgressFn, ScanError, ScanStats, is_elevated};
+
+/// Runs the MFT scanner in record-by-record mode only (`FSCTL_GET_NTFS_FILE_RECORD`), the
+/// fallback used when raw volume reads fail. For the probe example.
+#[doc(hidden)]
+pub fn probe_mft_records(
+    letter: char,
+    progress: ProgressFn<'_>,
+    cancel: &CancelToken,
+) -> Result<(Tree, ScanStats), ScanError> {
+    scan_volume_with(letter, progress, cancel, ReadMode::RecordsOnly)
+}
 
 /// Logs `what` and the outcome of `result`, then passes the result on.
 fn step<T, E: Display>(
@@ -63,6 +76,17 @@ pub fn probe_mft(letter: char, log: &mut dyn FnMut(String)) -> Result<(), ScanEr
     ));
     let geo = step(log, "geometry checks", Geometry::new(&info))?;
 
+    match block_reader(letter, open_volume(letter, true)?, &geo) {
+        Ok((_, plan)) => log(format!(
+            "[ok]   block reader: {} blocks; the scanner reads the MFT in raw blocks",
+            plan.len()
+        )),
+        Err(e) => log(format!(
+            "[FAIL] block reader: {e}
+       -> the scanner falls back to              FSCTL_GET_NTFS_FILE_RECORD record by record"
+        )),
+    }
+
     let rp = step(
         log,
         "FSCTL_GET_RETRIEVAL_POINTERS on $MFT",
@@ -81,11 +105,17 @@ pub fn probe_mft(letter: char, log: &mut dyn FnMut(String)) -> Result<(), ScanEr
     }
     let extents = match (rp, r0) {
         (Ok(e), _) if !e.is_empty() => e,
-        (_, r0) => r0?,
+        (_, Ok(e)) => e,
+        (_, Err(_)) => {
+            log("       no $MFT extents: raw block reads cannot be planned".into());
+            return Ok(());
+        }
     };
 
     let block = block_size(&geo);
-    let plan = step(log, "read plan", plan_blocks(&extents, &geo, block))?;
+    let Ok(plan) = step(log, "read plan", plan_blocks(&extents, &geo, block)) else {
+        return Ok(());
+    };
     let total: usize = plan.iter().map(|b| b.len).sum();
     log(format!(
         "       {} blocks of up to {block} bytes, {total} bytes in all",

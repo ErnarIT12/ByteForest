@@ -136,20 +136,19 @@ pub(crate) fn extents_from_runs(runs: &[Extent]) -> Vec<MftExtent> {
     extents
 }
 
-/// Returns the record bytes from an `NTFS_FILE_RECORD_OUTPUT_BUFFER` for record 0.
-pub(crate) fn file_record_bytes(buf: &[u8], record_size: u64) -> Result<&[u8], ScanError> {
-    let corrupt = || layout_error("corrupt file record output for $MFT");
+/// Parses an `NTFS_FILE_RECORD_OUTPUT_BUFFER`: returns the record number that came back
+/// (low 48 bits of the reference; the sequence number is ignored) and the record bytes.
+pub(crate) fn file_record_bytes(buf: &[u8], record_size: u64) -> Result<(u64, &[u8]), ScanError> {
+    let corrupt = || layout_error("corrupt FSCTL_GET_NTFS_FILE_RECORD output");
     let reference = read_i64(buf, 0).ok_or_else(corrupt)?;
-    // The record number is in the low 48 bits; the sequence number above it is ignored.
-    if reference & 0x0000_FFFF_FFFF_FFFF != 0 {
-        return Err(layout_error("file record query did not return record 0"));
-    }
+    let rec_no = (reference as u64) & 0x0000_FFFF_FFFF_FFFF;
     let len = u64::from(read_u32(buf, 8).ok_or_else(corrupt)?);
     if len != record_size {
         return Err(corrupt());
     }
     let len = usize::try_from(len).map_err(|_| corrupt())?;
-    buf.get(FR_HEADER..FR_HEADER + len).ok_or_else(corrupt)
+    let bytes = buf.get(FR_HEADER..FR_HEADER + len).ok_or_else(corrupt)?;
+    Ok((rec_no, bytes))
 }
 
 /// One read from the volume into a block buffer.
@@ -463,13 +462,13 @@ mod tests {
         let mut buf = vec![0u8; FR_HEADER + 1024];
         buf[8..12].copy_from_slice(&1024u32.to_le_bytes());
         buf[FR_HEADER] = b'F';
-        let rec = file_record_bytes(&buf, 1024).unwrap();
-        assert_eq!((rec.len(), rec[0]), (1024, b'F'));
+        let (rec_no, rec) = file_record_bytes(&buf, 1024).unwrap();
+        assert_eq!((rec_no, rec.len(), rec[0]), (0, 1024, b'F'));
 
-        // Another record number came back.
+        // Another record number, with a sequence number in the top 16 bits.
         let mut other = buf.clone();
-        other[0] = 7;
-        assert!(file_record_bytes(&other, 1024).is_err());
+        other[0..8].copy_from_slice(&0x0003_0000_0000_0007u64.to_le_bytes());
+        assert_eq!(file_record_bytes(&other, 1024).unwrap().0, 7);
         // Wrong length, or a buffer shorter than the claimed length.
         assert!(file_record_bytes(&buf, 4096).is_err());
         assert!(file_record_bytes(&buf[..FR_HEADER + 100], 1024).is_err());

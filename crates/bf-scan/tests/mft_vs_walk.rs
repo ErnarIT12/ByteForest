@@ -2,10 +2,11 @@
 //!
 //! `mft_and_walk_agree_on_system_drive` needs administrator rights and reads the whole system
 //! drive, so it is `#[ignore]`d and also gated on `BF_ADMIN_TESTS=1`. Run it from an elevated
-//! terminal:
+//! terminal. `BF_TEST_DRIVE` picks another drive letter (default: the system drive):
 //!
 //! ```text
-//! $env:BF_ADMIN_TESTS=1; cargo test -p bf-scan --release --test mft_vs_walk -- --include-ignored --nocapture
+//! $env:BF_ADMIN_TESTS=1; $env:BF_TEST_DRIVE='E'
+//! cargo test -p bf-scan --release --test mft_vs_walk -- --include-ignored --nocapture
 //! ```
 
 use bf_core::Tree;
@@ -21,6 +22,15 @@ fn system_drive() -> char {
         .next()
         .expect("SystemDrive is not empty")
         .to_ascii_uppercase()
+}
+
+/// Drive for the admin test: `BF_TEST_DRIVE` (a letter, e.g. `E`) or the system drive.
+fn test_drive() -> char {
+    std::env::var("BF_TEST_DRIVE")
+        .ok()
+        .and_then(|v| v.trim().chars().next())
+        .filter(char::is_ascii_alphabetic)
+        .map_or_else(system_drive, |c| c.to_ascii_uppercase())
 }
 
 fn print_stats(label: &str, tree: &Tree, stats: &ScanStats) {
@@ -45,7 +55,9 @@ fn mft_and_walk_agree_on_system_drive() {
         return;
     }
     assert!(is_elevated(), "this test must run elevated");
-    let root = ScanRoot::Volume(system_drive());
+    let drive = test_drive();
+    println!("drive {drive}:");
+    let root = ScanRoot::Volume(drive);
     let cancel = CancelToken::new();
 
     let (mft_tree, mft_stats) = MftScanner

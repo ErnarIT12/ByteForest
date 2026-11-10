@@ -2,7 +2,7 @@
 //! with hand-built records.
 
 use bf_core::{EntryRecord, NodeFlags};
-use bf_ntfs::{FileRecord, apply_fixups, parse_record};
+use bf_ntfs::{FileRecord, NtfsError, apply_fixups, parse_record};
 
 /// Record number of the volume's root directory.
 pub(crate) const ROOT_RECORD: u64 = 5;
@@ -46,6 +46,24 @@ pub(crate) fn parse_slot(bytes: &mut [u8], rec_no: u64, bytes_per_sector: u32) -
     }
     if apply_fixups(bytes, bytes_per_sector).is_err() {
         return Slot::Bad;
+    }
+    match parse_record(bytes, rec_no) {
+        Ok(Some(record)) => Slot::Used(record),
+        Ok(None) => Slot::Free,
+        Err(_) => Slot::Bad,
+    }
+}
+
+/// Parses a record returned by `FSCTL_GET_NTFS_FILE_RECORD`.
+///
+/// NTFS normally returns such records with the fixups already applied, so the sector tails
+/// no longer hold the update sequence number: a fixup mismatch means "already fixed" and the
+/// bytes are parsed as they are. If the tails do still match, applying the fixups is correct
+/// (and on an already fixed record it only rewrites the same bytes).
+pub(crate) fn parse_fetched_record(bytes: &mut [u8], rec_no: u64, bytes_per_sector: u32) -> Slot {
+    match apply_fixups(bytes, bytes_per_sector) {
+        Ok(()) | Err(NtfsError::FixupMismatch) => {}
+        Err(_) => return Slot::Bad,
     }
     match parse_record(bytes, rec_no) {
         Ok(Some(record)) => Slot::Used(record),
@@ -374,6 +392,46 @@ pub(crate) mod tests {
             r[s * 512 - 2..s * 512].copy_from_slice(&1u16.to_le_bytes());
         }
         r
+    }
+
+    #[test]
+    fn fetched_records_are_accepted_with_or_without_fixups() {
+        // Still protected: the fixups are applied.
+        let mut protected = raw_record(1024, true);
+        assert!(matches!(
+            parse_fetched_record(&mut protected, 7, 512),
+            Slot::Used(r) if r.rec_no == 7
+        ));
+
+        // Already fixed: the tails hold real data (here 0xBEEF), not the sequence number.
+        let mut fixed = raw_record(1024, true);
+        for s in 1..=2 {
+            fixed[s * 512 - 2..s * 512].copy_from_slice(&0xBEEFu16.to_le_bytes());
+        }
+        assert!(matches!(
+            parse_fetched_record(&mut fixed, 8, 512),
+            Slot::Used(r) if r.rec_no == 8
+        ));
+        assert_eq!(
+            &fixed[510..512],
+            &0xBEEFu16.to_le_bytes(),
+            "bytes left as they were"
+        );
+
+        // The same already-fixed record is torn for the raw block reader.
+        let mut fixed_raw = fixed.clone();
+        assert!(matches!(parse_slot(&mut fixed_raw, 8, 512), Slot::Bad));
+
+        let mut deleted = raw_record(1024, false);
+        assert!(matches!(
+            parse_fetched_record(&mut deleted, 9, 512),
+            Slot::Free
+        ));
+        let mut garbage = vec![0xABu8; 1024];
+        assert!(matches!(
+            parse_fetched_record(&mut garbage, 10, 512),
+            Slot::Bad
+        ));
     }
 
     #[test]
