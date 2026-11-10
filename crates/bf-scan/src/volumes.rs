@@ -82,6 +82,20 @@ fn query_volume(letter: char) -> Option<VolumeSummary> {
     })
 }
 
+/// File-system name of drive `letter` (e.g. `NTFS`), or `None` if it cannot be queried.
+pub(crate) fn filesystem_name(letter: char) -> Option<String> {
+    if !letter.is_ascii_alphabetic() {
+        return None;
+    }
+    let root: Vec<u16> = format!("{letter}:\\").encode_utf16().chain([0]).collect();
+    let mut fs = [0u16; BUF_LEN];
+    // SAFETY: `root` is NUL-terminated and outlives the call; `fs` is valid for writes of its
+    // slice length; the other out-parameters are `None`.
+    unsafe { GetVolumeInformationW(PCWSTR(root.as_ptr()), None, None, None, None, Some(&mut fs)) }
+        .ok()?;
+    Some(from_wide(&fs))
+}
+
 /// Cluster size in bytes of the volume that contains `path` (4096 if it cannot be queried).
 pub(crate) fn cluster_size(path: &Path) -> u64 {
     query_cluster_size(path).unwrap_or(DEFAULT_CLUSTER)

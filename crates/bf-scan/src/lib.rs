@@ -1,11 +1,17 @@
 //! ByteForest scanners: turn a volume or folder into a [`bf_core::Tree`].
 //!
-//! [`WalkScanner`] works everywhere by walking directories in parallel. [`list_volumes`] and
-//! [`is_elevated`] help the front ends choose a scanner and describe the machine.
+//! [`MftScanner`] reads the NTFS Master File Table directly (fast; needs administrator rights).
+//! [`WalkScanner`] works everywhere by walking directories in parallel. [`scan_auto`] picks
+//! the best one for a root. [`list_volumes`] and [`is_elevated`] help the front ends describe
+//! the machine.
 #![deny(unsafe_code)]
 
+mod auto;
 mod cancel;
 mod elevation;
+mod mft;
+mod mft_layout;
+mod mft_merge;
 mod progress;
 mod volumes;
 mod walk;
@@ -14,8 +20,10 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
+pub use auto::scan_auto;
 pub use cancel::CancelToken;
 pub use elevation::is_elevated;
+pub use mft::MftScanner;
 pub use progress::{Phase, ScanProgress};
 pub use volumes::{VolumeSummary, list_volumes};
 pub use walk::WalkScanner;
@@ -74,6 +82,9 @@ pub enum ScanError {
     /// The volume is not NTFS.
     #[error("not NTFS")]
     NotNtfs,
+    /// The volume reports NTFS sizes or `$MFT` extents that cannot be read safely.
+    #[error("unusable NTFS layout: {0}")]
+    BadLayout(String),
     /// An I/O error on the root.
     #[error(transparent)]
     Io(#[from] std::io::Error),
