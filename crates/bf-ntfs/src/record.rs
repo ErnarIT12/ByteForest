@@ -12,6 +12,11 @@ const FLAG_DIR: u16 = 0x2;
 /// The base-record reference keeps its record number in the low 48 bits.
 const RECORD_NUMBER_MASK: u64 = 0x0000_FFFF_FFFF_FFFF;
 
+/// Record number of `$BadClus`, whose `$Bad` stream spans the whole volume.
+const BADCLUS_RECORD: u64 = 8;
+/// Name of the `$BadClus` stream that maps bad clusters.
+const BADCLUS_STREAM: &str = "$Bad";
+
 /// End of the fixed part of the FILE record header; attributes start after it.
 const HEADER_END: usize = 42;
 /// `$FILE_NAME` namespaces we keep: POSIX, Win32, and the shared Win32+DOS name.
@@ -125,10 +130,13 @@ pub struct FileRecord {
     pub file_attributes: u32,
     /// Names without the DOS 8.3 ones. Several entries mean hard links.
     pub names: Vec<FileName>,
-    /// Logical size, summed over all `$DATA` streams (including alternate ones).
+    /// Logical size: the unnamed `$DATA` stream plus every alternate stream that is
+    /// not sparse. Sparse alternate streams (such as `$UsnJrnl:$J`) count only in
+    /// `alloc`, and `$BadClus:$Bad` (record 8) counts nowhere.
     pub size: u64,
-    /// Allocated size, summed over all `$DATA` streams. Resident data counts 0
-    /// because it lives inside the MFT record.
+    /// Allocated size, summed over all `$DATA` streams: the compressed size for
+    /// sparse or compressed streams, else the allocated size. Resident data counts
+    /// 0 because it lives inside the MFT record.
     pub alloc: u64,
     /// Runs of the unnamed `$DATA` of `$MFT` (record 0 only).
     pub mft_runs: Option<Vec<Extent>>,
@@ -194,7 +202,19 @@ pub fn parse_record(record: &[u8], rec_no: u64) -> Result<Option<FileRecord>, Nt
             }
             TYPE_DATA => {
                 let data = parse_data(&attr).map_err(bad)?;
-                file.size = file.size.saturating_add(data.size);
+                // `$BadClus:$Bad` is as large as the volume (sparse except for bad clusters,
+                // and often not even flagged sparse): it holds no data, so it counts nothing.
+                if rec_no == BADCLUS_RECORD
+                    && data.named
+                    && attr.name_is(BADCLUS_STREAM).map_err(bad)?
+                {
+                    continue;
+                }
+                // Sparse alternate streams (e.g. `$UsnJrnl:$J`) have a logical size far
+                // beyond their data: only their allocation counts.
+                if !data.named || !data.sparse {
+                    file.size = file.size.saturating_add(data.size);
+                }
                 file.alloc = file.alloc.saturating_add(data.alloc);
                 if rec_no == 0
                     && !data.named

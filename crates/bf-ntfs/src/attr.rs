@@ -108,6 +108,18 @@ impl Attr<'_> {
         self.bytes[9]
     }
 
+    /// Whether the attribute is named exactly `name`. A name that does not fit in the
+    /// attribute is an error.
+    pub fn name_is(&self, name: &str) -> Result<bool, NtfsError> {
+        let off = usize::from(u16_at(self.bytes, 10)?);
+        let len = 2 * usize::from(self.name_len());
+        let (pairs, _) = bytes_at(self.bytes, off, len)?.as_chunks::<2>();
+        Ok(pairs
+            .iter()
+            .map(|pair| u16::from_le_bytes(*pair))
+            .eq(name.encode_utf16()))
+    }
+
     fn flags(&self) -> Result<u16, NtfsError> {
         u16_at(self.bytes, 12)
     }
@@ -162,6 +174,8 @@ pub(crate) fn parse_file_name(attr: &Attr) -> Result<RawFileName, NtfsError> {
 pub(crate) struct DataStream<'a> {
     /// True for an alternate data stream (`:name`).
     pub named: bool,
+    /// True for a sparse non-resident stream (attribute flag `0x8000`).
+    pub sparse: bool,
     /// Logical size in bytes.
     pub size: u64,
     /// Bytes allocated on disk (0 for resident data).
@@ -182,6 +196,7 @@ pub(crate) fn parse_data<'a>(attr: &Attr<'a>) -> Result<DataStream<'a>, NtfsErro
         let value = attr.resident_value()?;
         return Ok(DataStream {
             named,
+            sparse: false,
             size: value.len() as u64,
             alloc: 0,
             runs: None,
@@ -191,9 +206,11 @@ pub(crate) fn parse_data<'a>(attr: &Attr<'a>) -> Result<DataStream<'a>, NtfsErro
     // A stream can be split into several non-resident pieces (in extension
     // records, or when the runs do not fit). Only the piece that starts at
     // VCN 0 has meaningful size fields; the others contribute nothing.
+    let sparse = attr.flags()? & FLAG_SPARSE != 0;
     if u64_at(attr.bytes, 16)? != 0 {
         return Ok(DataStream {
             named,
+            sparse,
             size: 0,
             alloc: 0,
             runs: None,
@@ -219,6 +236,7 @@ pub(crate) fn parse_data<'a>(attr: &Attr<'a>) -> Result<DataStream<'a>, NtfsErro
     let runs = attr.bytes.get(runs_off..).ok_or(NtfsError::Truncated)?;
     Ok(DataStream {
         named,
+        sparse,
         size,
         alloc,
         runs: Some(runs),

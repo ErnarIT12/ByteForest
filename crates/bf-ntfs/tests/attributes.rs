@@ -152,6 +152,69 @@ fn ads_sizes_are_summed() {
 }
 
 #[test]
+fn sparse_named_stream_counts_only_its_allocation() {
+    // Like `$UsnJrnl:$J`: a huge logical size, little data on disk.
+    let rec = RecordBuilder::new(40)
+        .file_name(11, 1, "$UsnJrnl")
+        .data_resident_named("$Max", 32)
+        .data_nonresident_with(
+            NonResident::new(40 << 30, 40 << 30, &RUNS)
+                .named("$J")
+                .sparse(32 << 20),
+        )
+        .build_plain();
+    let f = parse_record(&rec, 40).unwrap().unwrap();
+    assert_eq!(f.size, 32, "only the resident $Max counts as logical size");
+    assert_eq!(f.alloc, 32 << 20);
+}
+
+#[test]
+fn sparse_unnamed_stream_keeps_its_logical_size() {
+    let rec = RecordBuilder::new(40)
+        .file_name(5, 1, "disk.vhdx")
+        .data_nonresident_with(NonResident::new(1 << 30, 1 << 30, &RUNS).sparse(8192))
+        .build_plain();
+    let f = parse_record(&rec, 40).unwrap().unwrap();
+    assert_eq!((f.size, f.alloc), (1 << 30, 8192));
+}
+
+#[test]
+fn non_sparse_named_streams_add_size_and_alloc() {
+    let rec = RecordBuilder::new(40)
+        .file_name(5, 1, "f")
+        .data_nonresident(8192, 5000, &RUNS)
+        .data_nonresident_with(NonResident::new(4096, 3000, &RUNS).named("extra"))
+        .build_plain();
+    let f = parse_record(&rec, 40).unwrap().unwrap();
+    assert_eq!((f.size, f.alloc), (8000, 12_288));
+}
+
+#[test]
+fn badclus_bad_stream_counts_nothing() {
+    // `$BadClus:$Bad` spans the whole volume, often without the sparse flag.
+    let volume = 700u64 << 30;
+    let badclus = |rec_no: u32| {
+        RecordBuilder::new(rec_no)
+            .file_name(5, 3, "$BadClus")
+            .data_resident(0)
+            .data_nonresident_with(NonResident::new(volume, volume, &RUNS).named("$Bad"))
+            .build_plain()
+    };
+    let f = parse_record(&badclus(8), 8).unwrap().unwrap();
+    assert_eq!((f.size, f.alloc), (0, 0));
+    assert_eq!(f.names[0].name, "$BadClus");
+
+    // The rule is tied to record 8 and the exact stream name.
+    let other = parse_record(&badclus(40), 40).unwrap().unwrap();
+    assert_eq!((other.size, other.alloc), (volume, volume));
+    let renamed = RecordBuilder::new(8)
+        .data_nonresident_with(NonResident::new(4096, 4096, &RUNS).named("$Bax"))
+        .build_plain();
+    let f = parse_record(&renamed, 8).unwrap().unwrap();
+    assert_eq!((f.size, f.alloc), (4096, 4096));
+}
+
+#[test]
 fn later_nonresident_pieces_do_not_add_sizes() {
     // An extension record continues a stream at VCN 16; its size fields are
     // undefined and must be ignored.
