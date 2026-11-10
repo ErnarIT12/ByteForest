@@ -1,0 +1,15 @@
+[package]
+name = "bf-core"
+description = "ByteForest core: SoA file tree and directory aggregates"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+bitflags = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true

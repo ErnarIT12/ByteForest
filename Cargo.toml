@@ -1,0 +1,19 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ernar/byteforest"
+authors = ["Ernar"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+bitflags = "2"
+thiserror = "2"
+insta = "1"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
