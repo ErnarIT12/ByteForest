@@ -130,9 +130,9 @@ pub struct FileRecord {
     pub file_attributes: u32,
     /// Names without the DOS 8.3 ones. Several entries mean hard links.
     pub names: Vec<FileName>,
-    /// Logical size: the unnamed `$DATA` stream plus every alternate stream that is
-    /// not sparse. Sparse alternate streams (such as `$UsnJrnl:$J`) count only in
-    /// `alloc`, and `$BadClus:$Bad` (record 8) counts nowhere.
+    /// Logical size of the unnamed `$DATA` stream only. Named streams (alternate
+    /// data streams, `WofCompressedData`, `Zone.Identifier`, `$UsnJrnl:$J`...)
+    /// count only in `alloc`, and `$BadClus:$Bad` counts nowhere.
     pub size: u64,
     /// Allocated size, summed over all `$DATA` streams: the compressed size for
     /// sparse or compressed streams, else the allocated size. Resident data counts
@@ -204,15 +204,16 @@ pub fn parse_record(record: &[u8], rec_no: u64) -> Result<Option<FileRecord>, Nt
                 let data = parse_data(&attr).map_err(bad)?;
                 // `$BadClus:$Bad` is as large as the volume (sparse except for bad clusters,
                 // and often not even flagged sparse): it holds no data, so it counts nothing.
-                if rec_no == BADCLUS_RECORD
-                    && data.named
-                    && attr.name_is(BADCLUS_STREAM).map_err(bad)?
-                {
+                // The stream may live in an extension record whose base is record 8.
+                let in_badclus = rec_no == BADCLUS_RECORD || header.base_record == BADCLUS_RECORD;
+                if in_badclus && data.named && attr.name_is(BADCLUS_STREAM).map_err(bad)? {
                     continue;
                 }
-                // Sparse alternate streams (e.g. `$UsnJrnl:$J`) have a logical size far
-                // beyond their data: only their allocation counts.
-                if !data.named || !data.sparse {
+                // Only the unnamed stream gives the logical size. Named streams count
+                // only their allocation: a WOF-compressed file keeps its logical size in
+                // a sparse unnamed stream and its data in `WofCompressedData`, and a
+                // sparse stream like `$UsnJrnl:$J` has a logical size far beyond its data.
+                if !data.named {
                     file.size = file.size.saturating_add(data.size);
                 }
                 file.alloc = file.alloc.saturating_add(data.alloc);

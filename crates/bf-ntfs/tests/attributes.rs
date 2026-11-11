@@ -141,14 +141,28 @@ fn compressed_without_compressed_size_field_is_error() {
 }
 
 #[test]
-fn ads_sizes_are_summed() {
+fn resident_ads_adds_no_size() {
     let rec = RecordBuilder::new(40)
         .file_name(5, 1, "download.exe")
         .data_resident(100)
         .data_resident_named("Zone.Identifier", 26)
         .build_plain();
     let f = parse_record(&rec, 40).unwrap().unwrap();
-    assert_eq!(f.size, 126);
+    assert_eq!((f.size, f.alloc), (100, 0));
+}
+
+#[test]
+fn wof_compressed_file_counts_logical_size_once() {
+    // A WOF-compressed file: a sparse unnamed stream holds the logical size and the
+    // named `WofCompressedData` stream holds the compressed bytes.
+    let rec = RecordBuilder::new(40)
+        .file_name(5, 1, "app.dll")
+        .data_nonresident_with(NonResident::new(1_003_520, 1_000_000, &RUNS).sparse(0))
+        .data_nonresident_with(NonResident::new(300_000, 299_000, &RUNS).named("WofCompressedData"))
+        .build_plain();
+    let f = parse_record(&rec, 40).unwrap().unwrap();
+    assert_eq!(f.size, 1_000_000);
+    assert_eq!(f.alloc, 300_000);
 }
 
 #[test]
@@ -164,7 +178,7 @@ fn sparse_named_stream_counts_only_its_allocation() {
         )
         .build_plain();
     let f = parse_record(&rec, 40).unwrap().unwrap();
-    assert_eq!(f.size, 32, "only the resident $Max counts as logical size");
+    assert_eq!(f.size, 0, "named streams add no logical size");
     assert_eq!(f.alloc, 32 << 20);
 }
 
@@ -179,14 +193,14 @@ fn sparse_unnamed_stream_keeps_its_logical_size() {
 }
 
 #[test]
-fn non_sparse_named_streams_add_size_and_alloc() {
+fn non_sparse_named_streams_add_only_alloc() {
     let rec = RecordBuilder::new(40)
         .file_name(5, 1, "f")
         .data_nonresident(8192, 5000, &RUNS)
         .data_nonresident_with(NonResident::new(4096, 3000, &RUNS).named("extra"))
         .build_plain();
     let f = parse_record(&rec, 40).unwrap().unwrap();
-    assert_eq!((f.size, f.alloc), (8000, 12_288));
+    assert_eq!((f.size, f.alloc), (5000, 12_288));
 }
 
 #[test]
@@ -206,12 +220,33 @@ fn badclus_bad_stream_counts_nothing() {
 
     // The rule is tied to record 8 and the exact stream name.
     let other = parse_record(&badclus(40), 40).unwrap().unwrap();
-    assert_eq!((other.size, other.alloc), (volume, volume));
+    assert_eq!((other.size, other.alloc), (0, volume));
     let renamed = RecordBuilder::new(8)
         .data_nonresident_with(NonResident::new(4096, 4096, &RUNS).named("$Bax"))
         .build_plain();
     let f = parse_record(&renamed, 8).unwrap().unwrap();
-    assert_eq!((f.size, f.alloc), (4096, 4096));
+    assert_eq!((f.size, f.alloc), (0, 4096));
+}
+
+#[test]
+fn badclus_bad_stream_in_extension_record_counts_nothing() {
+    // The `$Bad` stream can live in an extension record whose base is record 8.
+    let volume = 700u64 << 30;
+    let rec = RecordBuilder::new(60)
+        .base(8)
+        .data_nonresident_with(NonResident::new(volume, volume, &RUNS).named("$Bad"))
+        .build_plain();
+    let f = parse_record(&rec, 60).unwrap().unwrap();
+    assert_eq!(f.base_record, 8);
+    assert_eq!((f.size, f.alloc), (0, 0));
+
+    // An extension record of another base still counts the stream's allocation.
+    let rec = RecordBuilder::new(60)
+        .base(40)
+        .data_nonresident_with(NonResident::new(volume, volume, &RUNS).named("$Bad"))
+        .build_plain();
+    let f = parse_record(&rec, 60).unwrap().unwrap();
+    assert_eq!((f.size, f.alloc), (0, volume));
 }
 
 #[test]
@@ -286,7 +321,7 @@ fn mft_runs_ignore_named_streams() {
         .build_plain();
     let f = parse_record(&rec, 0).unwrap().unwrap();
     assert_eq!(f.mft_runs, None);
-    assert_eq!(f.size, 4096); // the stream is still counted
+    assert_eq!(f.alloc, 4096); // the stream still counts in the allocation
 }
 
 #[test]
