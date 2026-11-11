@@ -4,6 +4,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    commit-message:
+      prefix: "build"
     groups:
       cargo-minor-patch:
         update-types:
@@ -13,6 +15,8 @@ updates:
     directory: "/app"
     schedule:
       interval: "weekly"
+    commit-message:
+      prefix: "build"
     groups:
       npm-minor-patch:
         update-types:
@@ -22,6 +26,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    commit-message:
+      prefix: "ci"
     groups:
       actions-minor-patch:
         update-types:

@@ -1,12 +1,19 @@
 # cargo-deny configuration (https://embarkstudios.github.io/cargo-deny/)
 
 [graph]
+# Windows is the only supported platform. Tauri's Windows tree (wry, webview2-com,
+# windows, ...) is included; the Linux CI job still checks that same graph.
 targets = [{ triple = "x86_64-pc-windows-msvc" }]
 
 [advisories]
 version = 2
 yanked = "warn"
-unmaintained = "workspace"
+# Vulnerabilities are always errors in the v2 schema.
+# `unmaintained` is a SCOPE, not a severity: "all" checks workspace and transitive
+# crates, and any hit fails the check (it is an error, not a warning). If a
+# transitive dependency we cannot fix gets flagged, add its advisory id to `ignore`
+# with a reason instead of weakening the scope. Currently nothing is flagged.
+unmaintained = "all"
 
 [licenses]
 version = 2

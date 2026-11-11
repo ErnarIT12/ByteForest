@@ -68,7 +68,7 @@ Run ByteForest **as administrator** to enable fast MFT mode. Without admin right
 
 ```text
 byteforest drives                  # list available drives
-byteforest scan C: --top 20        # scan a drive and print the 20 largest folders
+byteforest scan C: --top 20        # scan a drive and print the 20 largest items
 byteforest scan C: --top 20 --json # same, as JSON
 byteforest bench C: --runs 3       # time the scan three times
 ```

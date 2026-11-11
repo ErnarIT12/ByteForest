@@ -18,7 +18,7 @@ body:
     id: version
     attributes:
       label: ByteForest version
-      description: Shown in the app or by running `byteforest --version`.
+      description: Run `byteforest --version` or see the installer/file name.
     validations:
       required: true
   - type: dropdown
