@@ -60,6 +60,8 @@ export const strings = {
   standard: 'Standard mode (slower)',
   standardHint:
     'Running without administrator rights: folders are walked one by one, which is slower.',
+  mftFallbackHint: (reason: string) =>
+    `Running as administrator, but the MFT was read the slower way: ${reason}`,
   scanIssues: (n: string) => `${n} unreadable`,
   scanIssuesHint: 'Entries that could not be read were skipped.',
 

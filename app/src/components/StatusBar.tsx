@@ -1,4 +1,5 @@
 import { formatBytes, formatInt, formatSeconds } from '../format';
+import { statusBadge } from '../statusBadge';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 
@@ -10,9 +11,9 @@ export function StatusBar() {
   const resultTarget = useAppStore((s) => s.resultTarget);
   const drive = drives?.find((d) => d.letter === resultTarget);
 
-  const fallback = stats?.fallback_reason ?? null;
   const issues = stats ? stats.errors + stats.skipped_records : 0;
   const used = drive ? drive.total - drive.free : 0;
+  const badge = elevated === null ? null : statusBadge(elevated, stats);
 
   return (
     <footer className="statusbar">
@@ -41,17 +42,14 @@ export function StatusBar() {
         </span>
       )}
       <span className="status-spacer" />
-      {elevated !== null && (
-        <span
-          className={`badge${elevated ? ' admin' : ''}`}
-          title={fallback ?? (elevated ? strings.adminHint : strings.standardHint)}
-        >
-          {elevated ? (
+      {badge && (
+        <span className={`badge${badge.admin ? ' admin' : ''}`} title={badge.title}>
+          {badge.admin ? (
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path d="M8 1.5l5.5 2v4c0 3.4-2.3 5.9-5.5 7-3.2-1.1-5.5-3.6-5.5-7v-4z" />
             </svg>
           ) : null}
-          {elevated ? strings.admin : strings.standard}
+          {badge.label}
         </span>
       )}
     </footer>

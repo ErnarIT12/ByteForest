@@ -130,16 +130,17 @@ pub(crate) fn scan_volume_with(
     let geo = Geometry::new(&volume_data(&volume)?)?;
 
     let reporter = ProgressReporter::new(progress);
-    let block_reader = match mode {
-        ReadMode::Auto => block_reader(letter, volume, &geo),
-        ReadMode::RecordsOnly => Err(ScanError::BadLayout("block reads disabled".into())),
-    };
-    // Any failure to locate or read the MFT in blocks (for example raw volume reads blocked
-    // by a file-system filter) falls back to fetching the records one by one. The method is
-    // still `Mft`; the probe example shows why the fallback was taken.
-    let (records, skipped) = match block_reader {
-        Ok((volume, plan)) => read_and_parse(&volume, &plan, &geo, &reporter, cancel)?,
-        Err(_) => read_by_records(letter, &geo, &reporter, cancel)?,
+    let by_records = || read_by_records(letter, &geo, &reporter, cancel);
+    let (records, skipped, fallback_reason) = match mode {
+        ReadMode::Auto => read_with_fallback(
+            block_reader(letter, volume, &geo),
+            |(volume, plan)| read_and_parse(&volume, &plan, &geo, &reporter, cancel),
+            by_records,
+        )?,
+        ReadMode::RecordsOnly => {
+            let (records, skipped) = by_records()?;
+            (records, skipped, None)
+        }
     };
     reporter.finish(Phase::Parsing);
 
@@ -170,11 +171,37 @@ pub(crate) fn scan_volume_with(
         bytes: total.size,
         elapsed_ms: start.elapsed().as_millis() as u64,
         method: ScanMethod::Mft,
-        fallback_reason: None,
+        fallback_reason,
         skipped_records: skipped.saturating_add(merged.dropped_extensions),
         errors: 0,
     };
     Ok((tree, stats))
+}
+
+/// In-use records and the number of records that could not be read or parsed.
+type ReadOutcome = (Vec<FileRecord>, u64);
+
+/// Reads the MFT in raw blocks when `blocks` says that is possible, else record by record.
+///
+/// Raw reads can be blocked from the start (for example by an anti-cheat file-system
+/// filter) or fail in the middle of the scan; either way the whole MFT is read again with
+/// `read_records`, and the third value says why. A cancelled scan is never retried.
+fn read_with_fallback<B>(
+    blocks: Result<B, ScanError>,
+    read_blocks: impl FnOnce(B) -> Result<ReadOutcome, ScanError>,
+    read_records: impl FnOnce() -> Result<ReadOutcome, ScanError>,
+) -> Result<(Vec<FileRecord>, u64, Option<String>), ScanError> {
+    let reason = match blocks {
+        Ok(blocks) => match read_blocks(blocks) {
+            Ok((records, skipped)) => return Ok((records, skipped, None)),
+            Err(ScanError::Cancelled) => return Err(ScanError::Cancelled),
+            Err(err) => format!("raw MFT read failed mid-scan ({err}); read records one by one"),
+        },
+        Err(ScanError::Cancelled) => return Err(ScanError::Cancelled),
+        Err(err) => format!("raw MFT reads blocked ({err}); read records one by one"),
+    };
+    let (records, skipped) = read_records()?;
+    Ok((records, skipped, Some(reason)))
 }
 
 /// Locates the MFT extents, plans the block reads and checks that the first block can be
@@ -886,6 +913,116 @@ mod tests {
         assert!(msg.contains("MFT block at MFT byte 0x0"), "{msg}");
         assert!(msg.contains("at volume offset 0x19000"), "{msg}");
         assert!(msg.contains("read 2048 bytes"), "{msg}");
+    }
+
+    /// MFT records 0-1 at cluster 10 (readable), then records 2-3 at cluster 100, past the
+    /// end of the fake volume: the first block reads fine and the second one fails.
+    fn plan_failing_at_second_block() -> (Geometry, Vec<BlockPlan>) {
+        let extents = [
+            MftExtent {
+                vcn: 0,
+                lcn: 10,
+                clusters: 2,
+            },
+            MftExtent {
+                vcn: 2,
+                lcn: 100,
+                clusters: 2,
+            },
+        ];
+        let geo = Geometry {
+            total_clusters: 1000,
+            ..geometry(4 * 1024)
+        };
+        let plan = plan_blocks(&extents, &geo, 2048).unwrap();
+        assert_eq!(plan.len(), 2);
+        (geo, plan)
+    }
+
+    #[test]
+    fn mid_scan_read_failure_falls_back_to_records() {
+        let (_tmp, volume) = fake_volume(&[
+            (10 * 1024, raw_record(RECORD, true)),
+            (11 * 1024, raw_record(RECORD, true)),
+        ]);
+        let (geo, plan) = plan_failing_at_second_block();
+        // The block path can start: the first block reads.
+        test_read(&volume, &plan[0], &geo).unwrap();
+
+        let reporter = ProgressReporter::new(&|_| {});
+        let cancel = CancelToken::new();
+        let mut fallback_ran = false;
+        let (records, skipped, reason) = read_with_fallback(
+            Ok(()),
+            |()| read_and_parse(&volume, &plan, &geo, &reporter, &cancel),
+            || {
+                fallback_ran = true;
+                Ok((Vec::new(), 7))
+            },
+        )
+        .unwrap();
+
+        assert!(fallback_ran);
+        assert!(records.is_empty());
+        assert_eq!(
+            skipped, 7,
+            "the record-by-record result is used for the whole scan"
+        );
+        let reason = reason.expect("a fallback reason is set");
+        assert!(
+            reason.starts_with("raw MFT read failed mid-scan ("),
+            "{reason}"
+        );
+        assert!(reason.contains("MFT block at MFT byte 0x800"), "{reason}");
+        assert!(reason.ends_with("; read records one by one"), "{reason}");
+    }
+
+    #[test]
+    fn blocked_raw_reads_keep_the_reason() {
+        let blocked: Result<(), ScanError> = Err(ScanError::Io(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "access is denied",
+        )));
+        let (_, _, reason) = read_with_fallback(
+            blocked,
+            |()| panic!("block reads must not run"),
+            || Ok((Vec::new(), 0)),
+        )
+        .unwrap();
+        let reason = reason.expect("a fallback reason is set");
+        assert!(reason.starts_with("raw MFT reads blocked ("), "{reason}");
+        assert!(reason.contains("access is denied"), "{reason}");
+    }
+
+    #[test]
+    fn block_reads_that_succeed_have_no_fallback_reason() {
+        let (_, skipped, reason) = read_with_fallback(
+            Ok(()),
+            |()| Ok((Vec::new(), 3)),
+            || panic!("record reads must not run"),
+        )
+        .unwrap();
+        assert_eq!((skipped, reason), (3, None));
+    }
+
+    #[test]
+    fn cancelled_block_reads_do_not_fall_back() {
+        let result = read_with_fallback(
+            Ok(()),
+            |()| Err(ScanError::Cancelled),
+            || panic!("record reads must not run"),
+        );
+        assert!(matches!(result, Err(ScanError::Cancelled)));
+    }
+
+    #[test]
+    fn fallback_errors_are_returned() {
+        let result = read_with_fallback(
+            Err::<(), _>(ScanError::BadLayout("no extents".into())),
+            |()| unreachable!(),
+            || Err(ScanError::AccessDenied),
+        );
+        assert!(matches!(result, Err(ScanError::AccessDenied)));
     }
 
     #[test]
