@@ -14,5 +14,5 @@ pub use builder::TreeBuilder;
 pub use flags::NodeFlags;
 pub use record::EntryRecord;
 pub use tree::{DirAgg, NodeId, Tree};
-pub use treemap::{Rect, TreemapOptions};
+pub use treemap::{Rect, TreemapOptions, header_fits};
 pub use view::{NodeView, SortKey};

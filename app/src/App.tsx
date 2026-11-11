@@ -1,30 +1,45 @@
-import { useEffect, useState } from 'react';
-import { listDrives, type VolumeSummary } from './api';
-import { strings } from './strings';
+import { useEffect } from 'react';
+import { EmptyState } from './components/EmptyState';
+import { ErrorToast } from './components/ErrorToast';
+import { Explorer } from './components/Explorer';
+import { StatusBar } from './components/StatusBar';
+import { TopBar } from './components/TopBar';
+import { listenToScanEvents, loadEnvironment } from './scanController';
+import { useAppStore } from './store';
 
-/** Placeholder shell; the real UI replaces this component. */
+/** Backspace goes up a level unless the user is typing into a control. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+  );
+}
+
+/** Window shell: top bar, the Explorer (or the empty state) and the status bar. */
 export default function App() {
-  const [drives, setDrives] = useState<VolumeSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const root = useAppStore((s) => s.root);
+  const generation = useAppStore((s) => s.generation);
+
+  useEffect(() => listenToScanEvents(), []);
+  useEffect(() => loadEnvironment(), []);
 
   useEffect(() => {
-    listDrives().then(setDrives, (e) => setError(String(e)));
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Backspace' && !isTypingTarget(e.target)) {
+        e.preventDefault();
+        useAppStore.getState().goUp();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   return (
-    <main>
-      <h1>{strings.appName}</h1>
-      <h2>{strings.drives}</h2>
-      {error && <p>{error}</p>}
-      {!error && drives === null && <p>{strings.loadingDrives}</p>}
-      {drives && drives.length === 0 && <p>{strings.noDrives}</p>}
-      <ul>
-        {drives?.map((d) => (
-          <li key={d.letter}>
-            {d.letter}: {d.label} ({d.fs})
-          </li>
-        ))}
-      </ul>
-    </main>
+    <div className="app">
+      <TopBar />
+      {root ? <Explorer root={root} generation={generation} /> : <EmptyState />}
+      <StatusBar />
+      <ErrorToast />
+    </div>
   );
 }

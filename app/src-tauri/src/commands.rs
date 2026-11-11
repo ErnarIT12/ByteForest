@@ -8,11 +8,14 @@ use bf_core::{NodeId, NodeView, Rect, SortKey, Tree, TreemapOptions};
 use bf_scan::{CancelToken, ScanError, ScanRoot, VolumeSummary};
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::dto::{ScanDone, ScanErrorEvent, ScanProgressEvent};
+use crate::dto::{ScanDone, ScanErrorEvent, ScanProgressEvent, TreemapRect};
 use crate::state::AppState;
 
 /// Largest page `get_children` returns.
 const MAX_CHILDREN: u32 = 1000;
+
+/// Tallest directory name strip `get_treemap` accepts, in pixels.
+const MAX_HEADER: f32 = 128.0;
 
 /// Parses `C`, `c:`, `C:\` or an existing folder path.
 pub fn parse_target(arg: &str) -> Result<ScanRoot, String> {
@@ -60,6 +63,37 @@ pub fn validate_canvas(width: f32, height: f32) -> Result<(), String> {
     } else {
         Err("invalid treemap size".to_string())
     }
+}
+
+/// Checks the optional directory header height; `None` means no header.
+pub fn validate_header(header: Option<f32>) -> Result<f32, String> {
+    match header {
+        None => Ok(0.0),
+        Some(h) if h.is_finite() && (0.0..=MAX_HEADER).contains(&h) => Ok(h),
+        Some(_) => Err("invalid treemap header".to_string()),
+    }
+}
+
+/// Adds the name, size and parent of each node to its layout rectangle.
+pub fn treemap_rects(tree: &Tree, rects: Vec<Rect>) -> Vec<TreemapRect> {
+    rects
+        .into_iter()
+        .map(|r| {
+            let id = NodeId(r.id);
+            TreemapRect {
+                id: r.id,
+                parent: tree.parent(id).map(|p| p.0),
+                name: tree.name(id).to_string(),
+                size: tree.total(id).size,
+                x: r.x,
+                y: r.y,
+                w: r.w,
+                h: r.h,
+                depth: r.depth,
+                is_dir: r.is_dir,
+            }
+        })
+        .collect()
 }
 
 /// Clones the current tree out of the state; the lock is released before returning.
@@ -245,22 +279,26 @@ pub fn get_path(state: State<'_, AppState>, node: u32) -> Result<String, String>
 }
 
 /// Treemap rectangles (at most 20 000) of the subtree under `node`, in a `width` x `height` canvas.
+/// `header` (optional, pixels) reserves a name strip at the top of large non-root directories.
 #[tauri::command(async)]
 pub fn get_treemap(
     state: State<'_, AppState>,
     node: u32,
     width: f32,
     height: f32,
-) -> Result<Vec<Rect>, String> {
+    header: Option<f32>,
+) -> Result<Vec<TreemapRect>, String> {
     validate_canvas(width, height)?;
+    let dir_header = validate_header(header)?;
     let tree = current_tree(&state)?;
     let id = node_id_checked(&tree, node)?;
     let opts = TreemapOptions {
         width,
         height,
+        dir_header,
         ..Default::default()
     };
-    Ok(tree.treemap(id, &opts))
+    Ok(treemap_rects(&tree, tree.treemap(id, &opts)))
 }
 
 #[cfg(test)]
@@ -326,6 +364,32 @@ mod tests {
             Err("unknown node".to_string())
         );
         assert!(node_id_checked(&tree, u32::MAX).is_err());
+    }
+
+    #[test]
+    fn header_is_optional_finite_and_bounded() {
+        assert_eq!(validate_header(None), Ok(0.0));
+        assert_eq!(validate_header(Some(16.0)), Ok(16.0));
+        for bad in [-1.0, f32::NAN, f32::INFINITY, MAX_HEADER + 1.0] {
+            assert!(validate_header(Some(bad)).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn treemap_rects_carry_name_size_and_parent() {
+        let tree = tiny_tree();
+        let opts = TreemapOptions {
+            width: 100.0,
+            height: 100.0,
+            ..Default::default()
+        };
+        let rects = treemap_rects(&tree, tree.treemap(tree.root(), &opts));
+        assert_eq!(rects.len(), 2);
+        assert_eq!((rects[0].parent, rects[0].size), (None, 10));
+        assert_eq!(rects[1].parent, Some(0));
+        assert_eq!(rects[1].name, "a.txt");
+        assert_eq!(rects[1].size, 10);
+        assert!(!rects[1].is_dir);
     }
 
     #[test]

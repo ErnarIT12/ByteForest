@@ -14,9 +14,11 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.14.26",
     "@tauri-apps/api": "^2.12.4",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.4",

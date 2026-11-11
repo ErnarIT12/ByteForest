@@ -43,12 +43,19 @@ export interface NodeView {
   percent_of_parent: number;
 }
 
+/** One treemap rectangle, in the pixel space passed to `getTreemap`. */
 export interface Rect {
   id: number;
+  /** Node id of the parent (null for the tree root). */
+  parent: number | null;
+  name: string;
+  /** Logical size of the subtree in bytes. */
+  size: number;
   x: number;
   y: number;
   w: number;
   h: number;
+  /** 0 for the requested node itself. */
   depth: number;
   is_dir: boolean;
 }
@@ -95,8 +102,12 @@ export const getChildren = (node: number, sort: SortKey, offset: number, limit: 
   invoke<NodeView[]>('get_children', { node, sort, offset, limit });
 export const getNode = (node: number) => invoke<NodeView>('get_node', { node });
 export const getPath = (node: number) => invoke<string>('get_path', { node });
-export const getTreemap = (node: number, width: number, height: number) =>
-  invoke<Rect[]>('get_treemap', { node, width, height });
+/**
+ * Rectangles of the subtree under `node`, breadth-first (parents first). `header` (pixels)
+ * reserves a name strip at the top of non-root directories at least 3 strips wide and tall.
+ */
+export const getTreemap = (node: number, width: number, height: number, header = 0) =>
+  invoke<Rect[]>('get_treemap', { node, width, height, header });
 export const isElevated = () => invoke<boolean>('is_elevated');
 
 export const onScanProgress = (cb: (p: ScanProgress) => void): Promise<UnlistenFn> =>

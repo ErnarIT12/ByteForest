@@ -32,11 +32,19 @@ pub struct TreemapOptions {
     pub max_rects: usize,
     /// Margin between a directory's border and its children, on every side.
     pub dir_padding: f32,
+    /// Height of a name strip reserved at the top of every non-root directory that is at least
+    /// three strips wide and three strips tall (see [`header_fits`]). `0` disables it.
+    pub dir_header: f32,
+}
+
+/// Whether a non-root directory rectangle of `w` x `h` gets a name strip of height `header`.
+pub fn header_fits(w: f32, h: f32, header: f32) -> bool {
+    header > 0.0 && w >= 3.0 * header && h >= 3.0 * header
 }
 
 impl Default for TreemapOptions {
     /// Zero-sized canvas (the caller must set `width` and `height`), `min_px = 3`,
-    /// `max_rects = 20_000`, `dir_padding = 1`.
+    /// `max_rects = 20_000`, `dir_padding = 1`, `dir_header = 0`.
     fn default() -> Self {
         Self {
             width: 0.0,
@@ -44,6 +52,7 @@ impl Default for TreemapOptions {
             min_px: 3.0,
             max_rects: 20_000,
             dir_padding: 1.0,
+            dir_header: 0.0,
         }
     }
 }
@@ -62,7 +71,8 @@ impl Tree {
     ///
     /// The first rectangle is `root` itself covering the whole canvas (`depth = 0`). Children are
     /// sized by their logical subtree size and placed inside their directory's rectangle shrunk
-    /// by `dir_padding`. Rectangles come out in breadth-first order, so parents precede
+    /// by `dir_padding` (and, for non-root directories, by a `dir_header` strip at the top when
+    /// [`header_fits`]). Rectangles come out in breadth-first order, so parents precede
     /// children. Empty (size 0) nodes get no rectangle. Rectangles smaller than `min_px` are
     /// dropped along with their descendants, and output stops at `max_rects`.
     ///
@@ -76,6 +86,11 @@ impl Tree {
         };
         let min_px = f64::from(opts.min_px);
         let padding = f64::from(opts.dir_padding).max(0.0);
+        let header = if opts.dir_header.is_finite() {
+            opts.dir_header.max(0.0)
+        } else {
+            0.0
+        };
         if !(canvas.w.is_finite() && canvas.h.is_finite() && canvas.w > 0.0 && canvas.h > 0.0) {
             return Vec::new();
         }
@@ -105,11 +120,16 @@ impl Tree {
                 continue;
             }
 
+            let top = if depth > 0 && header_fits(area.w as f32, area.h as f32, header) {
+                f64::from(header)
+            } else {
+                0.0
+            };
             let inner = FRect {
                 x: area.x + padding,
-                y: area.y + padding,
+                y: area.y + padding + top,
                 w: area.w - 2.0 * padding,
-                h: area.h - 2.0 * padding,
+                h: area.h - 2.0 * padding - top,
             };
             if inner.w <= 0.0 || inner.h <= 0.0 {
                 continue;

@@ -1,0 +1,130 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import type { NodeView, ScanDone } from './api';
+import { acceptEvent, useAppStore } from './store';
+
+const node = (id: number, name: string): NodeView => ({
+  id,
+  name,
+  size: 100,
+  alloc: 100,
+  files: 1,
+  dirs: 0,
+  is_dir: true,
+  has_children: true,
+  mtime: 0,
+  percent_of_parent: 0,
+});
+
+const done = (scanId: number): ScanDone => ({
+  scan_id: scanId,
+  root: node(0, 'C:'),
+  stats: {
+    files: 1,
+    dirs: 1,
+    bytes: 100,
+    elapsed_ms: 10,
+    method: 'Mft',
+    fallback_reason: null,
+    skipped_records: 0,
+    errors: 0,
+  },
+});
+
+/** Runs a full scan (start, id resolved, done) so the store has a root. */
+function scanned() {
+  const s = useAppStore.getState();
+  s.beginScan('C');
+  s.scanResolved(1);
+  useAppStore.getState().handleDone(done(1));
+}
+
+describe('store navigation', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('goUp at the root changes nothing', () => {
+    scanned();
+    useAppStore.getState().select(5);
+    const before = useAppStore.getState();
+    before.goUp();
+    const after = useAppStore.getState();
+    expect(after.focusId).toBe(0);
+    expect(after.selectedId).toBe(5);
+    expect(after.focusPath).toEqual(before.focusPath);
+  });
+
+  it('setFocus sets focusId and clears the selection', () => {
+    scanned();
+    useAppStore.getState().select(7);
+    useAppStore.getState().setFocus(3, [
+      { id: 0, name: 'C:' },
+      { id: 3, name: 'Users' },
+    ]);
+    const s = useAppStore.getState();
+    expect(s.focusId).toBe(3);
+    expect(s.selectedId).toBeNull();
+    expect(s.focusPath.map((c) => c.id)).toEqual([0, 3]);
+  });
+
+  it('goUp returns to the parent and selects the folder it left', () => {
+    scanned();
+    useAppStore.getState().setFocus(3, [
+      { id: 0, name: 'C:' },
+      { id: 3, name: 'Users' },
+    ]);
+    useAppStore.getState().goUp();
+    const s = useAppStore.getState();
+    expect(s.focusId).toBe(0);
+    expect(s.selectedId).toBe(3);
+  });
+
+  it('a done event that arrives before startScan resolves is kept', () => {
+    const s = useAppStore.getState();
+    s.beginScan('C');
+    useAppStore.getState().handleDone(done(1));
+    useAppStore.getState().scanResolved(1);
+    const after = useAppStore.getState();
+    expect(after.scanning).toBe(false);
+    expect(after.rootId).toBe(0);
+  });
+
+  it('ignores the superseded scan while the new one is pending', () => {
+    scanned();
+    useAppStore.getState().beginScan('C');
+    // Starting scan 2 cancels scan 1, which reports "cancelled" before startScan resolves.
+    useAppStore.getState().handleError({ scan_id: 1, message: 'cancelled' });
+    expect(useAppStore.getState().scanning).toBe(true);
+    useAppStore.getState().handleProgress({ scan_id: 2, files: 5, dirs: 1, bytes: 9, phase: 'Parsing' });
+    expect(useAppStore.getState().progress?.files).toBe(5);
+    useAppStore.getState().scanResolved(2);
+    useAppStore.getState().handleDone(done(2));
+    expect(useAppStore.getState().scanning).toBe(false);
+    expect(useAppStore.getState().generation).toBe(2);
+  });
+
+  it('a cancelled scan returns to idle without an error', () => {
+    useAppStore.getState().beginScan('C');
+    useAppStore.getState().scanResolved(1);
+    useAppStore.getState().handleError({ scan_id: 1, message: 'cancelled' });
+    const s = useAppStore.getState();
+    expect(s.scanning).toBe(false);
+    expect(s.error).toBeNull();
+  });
+});
+
+describe('acceptEvent', () => {
+  it('accepts a newer id while startScan is pending', () => {
+    expect(acceptEvent({ pending: true, current: 1, lastKnown: 1 }, 2)).toBe(true);
+  });
+
+  it('accepts only the exact id once resolved', () => {
+    const gate = { pending: false, current: 3, lastKnown: 3 };
+    expect(acceptEvent(gate, 3)).toBe(true);
+    expect(acceptEvent(gate, 4)).toBe(false);
+  });
+
+  it('rejects an older id', () => {
+    expect(acceptEvent({ pending: true, current: 2, lastKnown: 2 }, 1)).toBe(false);
+    expect(acceptEvent({ pending: false, current: 2, lastKnown: 2 }, 1)).toBe(false);
+    expect(acceptEvent({ pending: false, current: null, lastKnown: 0 }, 1)).toBe(false);
+  });
+});

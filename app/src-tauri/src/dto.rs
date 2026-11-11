@@ -36,3 +36,24 @@ pub struct ScanErrorEvent {
     /// Human-readable reason.
     pub message: String,
 }
+
+/// One treemap rectangle as sent to the UI: the layout rectangle plus what the canvas needs
+/// to label it, colour it by ancestor and show a tooltip without extra round trips.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct TreemapRect {
+    /// Node index.
+    pub id: u32,
+    /// Node index of the parent (`None` for the tree root).
+    pub parent: Option<u32>,
+    /// File or folder name.
+    pub name: String,
+    /// Logical size of the subtree in bytes.
+    pub size: u64,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    /// Distance from the requested node (which is depth 0).
+    pub depth: u8,
+    pub is_dir: bool,
+}

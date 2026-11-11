@@ -1,4 +1,6 @@
-use bf_core::{EntryRecord, NodeFlags, NodeId, Rect, Tree, TreeBuilder, TreemapOptions};
+use bf_core::{
+    EntryRecord, NodeFlags, NodeId, Rect, Tree, TreeBuilder, TreemapOptions, header_fits,
+};
 
 fn rec(key: u64, parent: u64, name: &str, size: u64, dir: bool) -> EntryRecord {
     EntryRecord {
@@ -267,4 +269,45 @@ fn layout_snapshot() {
         })
         .collect();
     insta::assert_yaml_snapshot!(lines);
+}
+
+#[test]
+fn dir_header_reserves_a_strip_above_children_of_non_root_dirs() {
+    let t = nested_tree();
+    let header = 16.0;
+    let o = TreemapOptions {
+        width: 800.0,
+        height: 600.0,
+        dir_padding: 1.0,
+        dir_header: header,
+        ..TreemapOptions::default()
+    };
+    let rects = t.treemap(t.root(), &o);
+    let mut checked_with_header = 0;
+    for r in &rects[1..] {
+        let parent = t.parent(NodeId(r.id)).unwrap();
+        let p = rect_of(&rects, parent.0);
+        let top = if p.depth > 0 && header_fits(p.w, p.h, header) {
+            checked_with_header += 1;
+            header
+        } else {
+            0.0
+        };
+        assert!(
+            r.y >= p.y + 1.0 + top - 1e-3,
+            "{r:?} overlaps the header of {p:?}"
+        );
+        assert!(r.y + r.h <= p.y + p.h - 1.0 + 1e-3, "{r:?} outside {p:?}");
+    }
+    assert!(checked_with_header > 0, "no directory got a header");
+    // The root never gets a strip: its first child starts right below the padding.
+    assert!(rects[1..].iter().any(|r| (r.y - 1.0).abs() < 1e-3));
+}
+
+#[test]
+fn header_fits_needs_three_strips_each_way() {
+    assert!(header_fits(48.0, 48.0, 16.0));
+    assert!(!header_fits(47.9, 100.0, 16.0));
+    assert!(!header_fits(100.0, 47.9, 16.0));
+    assert!(!header_fits(100.0, 100.0, 0.0));
 }
