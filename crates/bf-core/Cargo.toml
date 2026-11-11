@@ -11,5 +11,9 @@ authors.workspace = true
 bitflags = { workspace = true }
 serde = { workspace = true }
 
+[dev-dependencies]
+insta = { workspace = true, features = ["yaml"] }
+serde_json = { workspace = true }
+
 [lints]
 workspace = true

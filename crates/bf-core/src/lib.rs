@@ -2,13 +2,18 @@
 //!
 //! Scanners produce a flat stream of [`EntryRecord`]s in any order. [`TreeBuilder`] collects
 //! them and [`TreeBuilder::finish`] links them into an immutable [`Tree`].
+#![forbid(unsafe_code)]
 
 mod builder;
 mod flags;
 mod record;
 mod tree;
+mod treemap;
+mod view;
 
 pub use builder::TreeBuilder;
 pub use flags::NodeFlags;
 pub use record::EntryRecord;
 pub use tree::{DirAgg, NodeId, Tree};
+pub use treemap::{Rect, TreemapOptions, header_fits};
+pub use view::{NodeView, SortKey};

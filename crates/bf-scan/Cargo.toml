@@ -1,0 +1,23 @@
+[package]
+name = "bf-scan"
+description = "ByteForest scanners: MFT reader, parallel directory walker, volume list and elevation check"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+bf-core = { workspace = true }
+bf-ntfs = { workspace = true }
+crossbeam-channel = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+windows = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

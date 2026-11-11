@@ -1,0 +1,142 @@
+/* Buttons, the drive picker and the error toast (Windows 11 control styling). */
+
+/* Controls */
+
+.btn {
+  height: 32px;
+  min-width: 84px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--control);
+  cursor: default;
+}
+.btn:hover:not(:disabled) {
+  background: var(--control-hover);
+}
+.btn:active:not(:disabled) {
+  background: var(--pressed);
+  color: var(--text-2);
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn.primary:active:not(:disabled) {
+  background: var(--accent-pressed);
+}
+.btn:disabled {
+  opacity: 0.45;
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+}
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+}
+
+.drive-select {
+  height: 32px;
+  min-width: 180px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background-color: var(--control-solid);
+  color: var(--text);
+  color-scheme: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.drive-select:hover:not(:disabled) {
+  border-color: var(--text-3);
+}
+.drive-select:disabled {
+  color: var(--text-3);
+}
+.drive-select option {
+  background-color: var(--control-solid);
+  color: var(--text);
+}
+
+/* Native option lists are drawn by the system: give them opaque theme colours. */
+select {
+  color-scheme: inherit;
+}
+option,
+optgroup {
+  background-color: var(--control-solid);
+  color: var(--text);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Error toast */
+
+.toast {
+  position: fixed;
+  right: 16px;
+  bottom: 46px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 420px;
+  padding: 12px 8px 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+.toast > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--danger);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.toast-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+.toast .icon-btn svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}

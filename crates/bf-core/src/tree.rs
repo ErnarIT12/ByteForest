@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use serde::{Deserialize, Serialize};
 
 use crate::flags::NodeFlags;
@@ -10,7 +12,7 @@ pub(crate) const NONE: u32 = u32::MAX;
 pub struct NodeId(pub u32);
 
 impl NodeId {
-    fn idx(self) -> usize {
+    pub(crate) fn idx(self) -> usize {
         self.0 as usize
     }
 }
@@ -48,6 +50,9 @@ pub struct Tree {
     /// Maps a node to its slot in `aggs`, or [`NONE`] for files.
     pub(crate) dir_index: Vec<u32>,
     pub(crate) aggs: Vec<DirAgg>,
+    /// Lazily built sorted child lists, one `[OnceLock; 3]` per directory slot (same index as
+    /// `aggs`), one lock per [`crate::SortKey`]. Filled by `Tree::children`.
+    pub(crate) sorted: Vec<[OnceLock<Box<[u32]>>; 3]>,
 }
 
 impl Tree {

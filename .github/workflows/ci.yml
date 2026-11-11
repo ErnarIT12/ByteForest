@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      # The app crate embeds the built frontend, so build it before cargo.
+      - name: Build frontend
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  # Compares the MFT scanner with the directory walker on the runner's real system
+  # drive. The tolerances in mft_vs_walk were tuned on the owner's machine; a hosted
+  # runner's C: (large WinSxS hard-link population, files changing during a long
+  # walk) may exceed them. Non-gating (continue-on-error) until the bounds are
+  # validated on hosted runners; then remove continue-on-error to make it gating.
+  # GitHub's Windows runners run elevated. Only bf-scan and its crates are built,
+  # so the frontend is not needed.
+  admin-scan:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Admin integration test (MFT vs directory walk)
+        env:
+          BF_ADMIN_TESTS: "1"
+        run: cargo test -p bf-scan --release --test mft_vs_walk -- --include-ignored --nocapture
+
+  ui:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  deny:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
