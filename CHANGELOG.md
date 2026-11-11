@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.1.0] - unreleased
+## [0.1.0] - 2026-11-11
 
 ### Added
 
@@ -23,4 +23,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Hard links are not de-duplicated by the directory walker.
 - Builds are not code-signed, so Windows SmartScreen shows a warning.
 
-[Unreleased]: https://github.com/OWNER/byteforest/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ErnarIT12/byteforest/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ErnarIT12/byteforest/releases/tag/v0.1.0

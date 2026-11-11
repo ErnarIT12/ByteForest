@@ -2,7 +2,7 @@
 
 **Быстрый open-source анализатор занятого места на диске для Windows: за секунды видно, что занимает место.**
 
-[![CI](https://github.com/OWNER/byteforest/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/byteforest/actions/workflows/ci.yml)
+[![CI](https://github.com/ErnarIT12/byteforest/actions/workflows/ci.yml/badge.svg)](https://github.com/ErnarIT12/byteforest/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#лицензия)
 
 [English](README.md) | Русский
@@ -57,7 +57,7 @@
 
 ## Установка
 
-1. Откройте страницу [Releases](https://github.com/OWNER/byteforest/releases) и скачайте установщик последней версии.
+1. Откройте страницу [Releases](https://github.com/ErnarIT12/byteforest/releases) и скачайте установщик последней версии.
 2. Запустите его.
 
 Сборки **пока не подписаны цифровой подписью**, поэтому Windows SmartScreen предупредит о неизвестном издателе. Нажмите «Подробнее», затем «Выполнить в любом случае», если доверяете загрузке. К каждому релизу прилагаются контрольные суммы.
@@ -80,7 +80,7 @@ byteforest bench C: --runs 3       # замерить время скана тр
 Нужны: Rust stable (toolchain MSVC), Node 24 или новее, Visual Studio Build Tools с Windows SDK.
 
 ```powershell
-git clone https://github.com/OWNER/byteforest.git
+git clone https://github.com/ErnarIT12/byteforest.git
 cd byteforest
 
 # зависимости фронтенда и запуск приложения в режиме разработки

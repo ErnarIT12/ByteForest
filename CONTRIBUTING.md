@@ -14,7 +14,7 @@ Requirements:
 Get the code and install frontend dependencies:
 
 ```powershell
-git clone https://github.com/OWNER/byteforest.git
+git clone https://github.com/ErnarIT12/byteforest.git
 cd byteforest
 npm --prefix app ci
 ```

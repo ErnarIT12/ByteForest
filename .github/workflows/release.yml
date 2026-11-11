@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install frontend dependencies
+        working-directory: app
+        run: npm ci
+
+      # Builds the installers (NSIS and MSI) and creates a draft release.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tagName: ${{ github.ref_name }}
+          releaseName: "ByteForest ${{ github.ref_name }}"
+          releaseBody: |
+            See [CHANGELOG.md](https://github.com/ErnarIT12/byteforest/blob/${{ github.ref_name }}/CHANGELOG.md) for the changes in this release.
+
+            These builds are not code-signed, so Windows SmartScreen may show a warning ("More info", then "Run anyway"). Verify downloads against SHA256SUMS.txt.
+
+            Run ByteForest as administrator to enable the fast MFT scan; without it the app falls back to a slower directory walk.
+          releaseDraft: true
+          prerelease: ${{ startsWith(github.ref_name, 'v0.') }}
+
+      - name: Build CLI
+        run: cargo build -p bf-cli --release
+
+      - name: Package CLI and write checksums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = '${{ github.ref_name }}'
+          $zip = "byteforest-cli-$tag-x64.zip"
+          Compress-Archive -Force -DestinationPath $zip -Path `
+            target/release/byteforest.exe, LICENSE-MIT, LICENSE-APACHE, README.md
+
+          # In a Cargo workspace the bundles land in the root target/, but also
+          # look under app/src-tauri/target in case the layout changes.
+          $installers = @()
+          foreach ($root in 'target/release/bundle', 'app/src-tauri/target/release/bundle') {
+            if (Test-Path $root) {
+              $installers += Get-ChildItem -Path $root -Recurse -File |
+                Where-Object { $_.Extension -in '.exe', '.msi' }
+            }
+          }
+          if ($installers.Count -eq 0) {
+            throw 'No installer (.exe or .msi) found under any bundle directory.'
+          }
+
+          $files = @(Get-Item $zip) + $installers
+          $lines = foreach ($f in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 -Path $f.FullName).Hash.ToLower()
+            "$hash  $($f.Name)"
+          }
+          Set-Content -Path SHA256SUMS.txt -Value $lines -Encoding ascii
+          Get-Content SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          tag_name: ${{ github.ref_name }}
+          files: |
+            byteforest-cli-${{ github.ref_name }}-x64.zip
+            SHA256SUMS.txt

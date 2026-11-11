@@ -2,7 +2,7 @@
 
 **A fast, open-source disk space analyzer for Windows: see what fills your drive in seconds.**
 
-[![CI](https://github.com/OWNER/byteforest/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/byteforest/actions/workflows/ci.yml)
+[![CI](https://github.com/ErnarIT12/byteforest/actions/workflows/ci.yml/badge.svg)](https://github.com/ErnarIT12/byteforest/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 English | [Русский](README.ru.md)
@@ -57,7 +57,7 @@ These are single-machine numbers, not a formal benchmark. You can measure your o
 
 ## Install
 
-1. Open the [Releases](https://github.com/OWNER/byteforest/releases) page and download the installer for the latest version.
+1. Open the [Releases](https://github.com/ErnarIT12/byteforest/releases) page and download the installer for the latest version.
 2. Run it.
 
 Builds are **not code-signed yet**, so Windows SmartScreen will warn you about an unknown publisher. Choose "More info", then "Run anyway" if you trust the download. Checksums are published with each release.
@@ -80,7 +80,7 @@ Run the CLI from an elevated terminal to use the MFT scanner.
 Requirements: Rust stable (MSVC toolchain), Node 24 or newer, and the Visual Studio Build Tools with the Windows SDK.
 
 ```powershell
-git clone https://github.com/OWNER/byteforest.git
+git clone https://github.com/ErnarIT12/byteforest.git
 cd byteforest
 
 # frontend dependencies and dev build of the app
