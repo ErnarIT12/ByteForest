@@ -1,7 +1,6 @@
 /** English UI strings (v0.1 ships English only). */
 export const strings = {
   appName: 'ByteForest',
-  scanCancelled: 'cancelled',
 
   // Top bar
   driveLabel: 'Drive to scan',
@@ -63,6 +62,12 @@ export const strings = {
     'Running without administrator rights: folders are walked one by one, which is slower.',
   scanIssues: (n: string) => `${n} unreadable`,
   scanIssuesHint: 'Entries that could not be read were skipped.',
+
+  // Screen reader announcements
+  announceStart: (drive: string) => `Scanning ${drive}`,
+  announceDone: (files: string, secs: string) => `Scan finished: ${files} files in ${secs}`,
+  announceCancelled: 'Scan cancelled',
+  announceFailed: 'Scan failed',
 
   // Errors
   scanFailed: 'Scan failed',

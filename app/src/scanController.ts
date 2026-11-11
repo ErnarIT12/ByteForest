@@ -33,10 +33,16 @@ export function stopScan(): void {
   cancelScan().catch((e) => useAppStore.setState({ error: String(e) }));
 }
 
+/** Reloads the drive list (sizes and free space). */
+function refreshDrives(): void {
+  const store = useAppStore.getState();
+  listDrives().then(store.setDrives, (e) => store.setDrivesError(String(e)));
+}
+
 /** Loads the drive list and the elevation flag. */
 export function loadEnvironment(): void {
   const store = useAppStore.getState();
-  listDrives().then(store.setDrives, (e) => store.setDrivesError(String(e)));
+  refreshDrives();
   isElevated().then(store.setElevated, () => store.setElevated(false));
 }
 
@@ -45,7 +51,11 @@ export function listenToScanEvents(): () => void {
   const store = useAppStore.getState();
   const pending: Promise<UnlistenFn>[] = [
     onScanProgress(store.handleProgress),
-    onScanDone(store.handleDone),
+    onScanDone((d) => {
+      store.handleDone(d);
+      // Free space may have changed since start-up; keep "used of total" current.
+      refreshDrives();
+    }),
     onScanError(store.handleError),
   ];
   return () => {

@@ -91,6 +91,9 @@ export interface ScanErrorEvent {
   message: string;
 }
 
+/** `scan://error` message of a scan stopped by `cancelScan` or superseded by a newer scan. */
+export const SCAN_CANCELLED = 'cancelled';
+
 /** Maximum page size of `getChildren`. */
 export const MAX_CHILDREN = 1000;
 

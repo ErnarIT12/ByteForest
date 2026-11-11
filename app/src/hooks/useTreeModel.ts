@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getChildren, type NodeView } from '../api';
 import type { Crumb } from '../store';
-import { PAGE_SIZE, TreeModel, type Row } from '../treeModel';
+import { MAX_REVEAL_PAGES, PAGE_SIZE, TreeModel, type Row } from '../treeModel';
 
 export interface TreeController {
   model: TreeModel;
@@ -9,8 +9,11 @@ export interface TreeController {
   /** Fetches the next page of `id`'s children (deduplicated). */
   loadMore(id: number): Promise<void>;
   setExpanded(id: number, expanded: boolean): void;
-  /** Expands every node on `path` (root first), loading first pages as needed. */
-  revealPath(path: number[]): Promise<void>;
+  /**
+   * Expands every node on `path` (root first), loading pages until each next node is loaded.
+   * Resolves to false when the last node could not be loaded (see `TreeModel.reveal`).
+   */
+  revealPath(path: number[], cancelled?: () => boolean): Promise<boolean>;
   /** Root..id as breadcrumbs, or null if `id` is not loaded. */
   crumbsOf(id: number): Crumb[] | null;
 }
@@ -67,19 +70,8 @@ export function useTreeModel(root: NodeView): TreeController {
   );
 
   const revealPath = useCallback(
-    async (path: number[]) => {
-      for (let i = 0; i < path.length; i += 1) {
-        const id = path[i];
-        const entry = model.get(id);
-        // Not loaded: the parent's first page did not include it. Stop here.
-        if (!entry) return;
-        if (model.canExpand(id) && !entry.expanded) {
-          entry.expanded = true;
-          refresh();
-        }
-        if (model.canExpand(id) && entry.children.length === 0) await loadMore(id);
-      }
-    },
+    (path: number[], cancelled?: () => boolean) =>
+      model.reveal(path, loadMore, refresh, MAX_REVEAL_PAGES, cancelled),
     [model, refresh, loadMore],
   );
 

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { EmptyState } from './components/EmptyState';
 import { ErrorToast } from './components/ErrorToast';
 import { Explorer } from './components/Explorer';
+import { ScanAnnouncer } from './components/ScanAnnouncer';
 import { StatusBar } from './components/StatusBar';
 import { TopBar } from './components/TopBar';
 import { listenToScanEvents, loadEnvironment } from './scanController';
@@ -40,6 +41,7 @@ export default function App() {
       {root ? <Explorer root={root} generation={generation} /> : <EmptyState />}
       <StatusBar />
       <ErrorToast />
+      <ScanAnnouncer />
     </div>
   );
 }

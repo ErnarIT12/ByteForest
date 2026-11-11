@@ -25,7 +25,13 @@ export function Splitter({ value, min, max, onChange }: Props) {
   };
   const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
     dragging.current = false;
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+  /** Cancelled pointer or capture lost (window blur, touch cancel): stop dragging. */
+  const stopDrag = () => {
+    dragging.current = false;
   };
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'ArrowLeft') onChange(clamp(value - 0.02));
@@ -47,6 +53,8 @@ export function Splitter({ value, min, max, onChange }: Props) {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={stopDrag}
+      onLostPointerCapture={stopDrag}
       onKeyDown={onKeyDown}
     />
   );

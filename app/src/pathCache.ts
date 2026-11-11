@@ -26,11 +26,18 @@ export function loadPath(generation: number, id: number): Promise<string> {
   if (hit !== undefined) return Promise.resolve(hit);
   let p = inflight.get(k);
   if (!p) {
-    p = getPath(id).then((path) => {
-      if (cachedGeneration === generation) cache.set(k, path);
-      inflight.delete(k);
-      return path;
-    });
+    p = getPath(id).then(
+      (path) => {
+        if (cachedGeneration === generation) cache.set(k, path);
+        inflight.delete(k);
+        return path;
+      },
+      (e: unknown) => {
+        // Forget the failure so a later hover can retry.
+        inflight.delete(k);
+        throw e;
+      },
+    );
     inflight.set(k, p);
   }
   return p;

@@ -5,15 +5,15 @@
  * Actions here never call IPC; `scanController.ts` does that and feeds results in.
  */
 import { create } from 'zustand';
-import type {
-  NodeView,
-  ScanDone,
-  ScanErrorEvent,
-  ScanProgress,
-  ScanStats,
-  VolumeSummary,
+import {
+  SCAN_CANCELLED,
+  type NodeView,
+  type ScanDone,
+  type ScanErrorEvent,
+  type ScanProgress,
+  type ScanStats,
+  type VolumeSummary,
 } from './api';
-import { strings } from './strings';
 
 /** One entry of the focus path (root first). */
 export interface Crumb {
@@ -60,6 +60,8 @@ interface AppState {
   gate: ScanGate;
   /** Id of the last scan that finished (done or error). */
   lastFinished: number;
+  /** How the last scan ended, for screen reader announcements. */
+  lastOutcome: 'done' | 'cancelled' | 'failed' | null;
 
   /** Result being shown. */
   stats: ScanStats | null;
@@ -116,6 +118,7 @@ const initialState: AppState = {
   progress: null,
   gate: { pending: false, current: null, lastKnown: 0 },
   lastFinished: 0,
+  lastOutcome: null,
   stats: null,
   root: null,
   rootId: null,
@@ -171,6 +174,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       scanning: false,
       progress: null,
       error: message,
+      lastOutcome: 'failed',
       gate: { ...s.gate, pending: false },
     })),
 
@@ -188,6 +192,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       progress: null,
       gate: finishedGate(s.gate, d.scan_id),
       lastFinished: d.scan_id,
+      lastOutcome: 'done',
       stats: d.stats,
       root: d.root,
       rootId: d.root.id,
@@ -208,7 +213,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       progress: null,
       gate: finishedGate(s.gate, e.scan_id),
       lastFinished: e.scan_id,
-      error: e.message === strings.scanCancelled ? null : e.message,
+      lastOutcome: e.message === SCAN_CANCELLED ? 'cancelled' : 'failed',
+      error: e.message === SCAN_CANCELLED ? null : e.message,
     });
   },
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { NodeView, ScanDone } from './api';
+import { SCAN_CANCELLED, type NodeView, type ScanDone } from './api';
 import { acceptEvent, useAppStore } from './store';
 
 const node = (id: number, name: string): NodeView => ({
@@ -104,10 +104,11 @@ describe('store navigation', () => {
   it('a cancelled scan returns to idle without an error', () => {
     useAppStore.getState().beginScan('C');
     useAppStore.getState().scanResolved(1);
-    useAppStore.getState().handleError({ scan_id: 1, message: 'cancelled' });
+    useAppStore.getState().handleError({ scan_id: 1, message: SCAN_CANCELLED });
     const s = useAppStore.getState();
     expect(s.scanning).toBe(false);
     expect(s.error).toBeNull();
+    expect(s.lastOutcome).toBe('cancelled');
   });
 });
 

@@ -63,8 +63,42 @@
   padding: 0 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  background: var(--control);
+  background-color: var(--control-solid);
+  color: var(--text);
+  color-scheme: inherit;
   font-variant-numeric: tabular-nums;
+}
+.drive-select:hover:not(:disabled) {
+  border-color: var(--text-3);
+}
+.drive-select:disabled {
+  color: var(--text-3);
+}
+.drive-select option {
+  background-color: var(--control-solid);
+  color: var(--text);
+}
+
+/* Native option lists are drawn by the system: give them opaque theme colours. */
+select {
+  color-scheme: inherit;
+}
+option,
+optgroup {
+  background-color: var(--control-solid);
+  color: var(--text);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Error toast */

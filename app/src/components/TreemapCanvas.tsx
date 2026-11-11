@@ -45,12 +45,17 @@ function useDebouncedSize(ref: RefObject<HTMLDivElement | null>): Size | null {
         h: Math.floor(el.clientHeight),
         dpr: window.devicePixelRatio || 1,
       };
+      // Keep the same object when nothing changed so no refetch is triggered.
+      const apply = () =>
+        setSize((prev) =>
+          prev && prev.w === next.w && prev.h === next.h && prev.dpr === next.dpr ? prev : next,
+        );
       window.clearTimeout(timer);
       if (first) {
         first = false;
-        setSize(next);
+        apply();
       } else {
-        timer = window.setTimeout(() => setSize(next), RESIZE_DEBOUNCE_MS);
+        timer = window.setTimeout(apply, RESIZE_DEBOUNCE_MS);
       }
     };
     const ro = new ResizeObserver(measure);
@@ -78,7 +83,12 @@ export function TreemapCanvas() {
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const lastWheel = useRef(0);
   const size = useDebouncedSize(wrapRef);
-  const [layout, setLayout] = useState<TreemapLayout | null>(null);
+  /** The last fetched layout and the scan result it belongs to. */
+  const [fetched, setFetched] = useState<{ layout: TreemapLayout; generation: number } | null>(
+    null,
+  );
+  // A layout of a previous scan result is never shown, clicked or hovered.
+  const layout = fetched && fetched.generation === generation ? fetched.layout : null;
   const [failed, setFailed] = useState<string | null>(null);
   const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(null);
 
@@ -94,7 +104,7 @@ export function TreemapCanvas() {
         if (!alive) return;
         setFailed(null);
         setHover(null);
-        setLayout(buildLayout(rects, size.dpr, header, width, height));
+        setFetched({ layout: buildLayout(rects, size.dpr, header, width, height), generation });
       },
       (e) => alive && setFailed(String(e)),
     );
@@ -107,7 +117,11 @@ export function TreemapCanvas() {
   useEffect(() => {
     const canvas = baseRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || !layout) return;
+    if (!canvas || !ctx) return;
+    if (!layout) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
     canvas.width = layout.width;
     canvas.height = layout.height;
     const background = getComputedStyle(canvas).getPropertyValue('--tm-bg').trim() || '#808080';
@@ -120,7 +134,11 @@ export function TreemapCanvas() {
   useEffect(() => {
     const canvas = overlayRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || !layout) return;
+    if (!canvas || !ctx) return;
+    if (!layout) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
     if (canvas.width !== layout.width) canvas.width = layout.width;
     if (canvas.height !== layout.height) canvas.height = layout.height;
     const accent = getComputedStyle(canvas).getPropertyValue('--accent').trim() || '#0067c0';

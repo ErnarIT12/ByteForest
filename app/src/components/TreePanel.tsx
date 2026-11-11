@@ -39,11 +39,12 @@ export function TreePanel({ root }: { root: NodeView }) {
   }, [rows]);
 
   // Reveal requests (zoom from the treemap, a clicked file): expand the path, then scroll.
+  // A node that cannot be loaded (beyond the page cap) stays selected without scrolling.
   useEffect(() => {
     if (!reveal) return;
     let alive = true;
-    revealPath(reveal.path).then(() => {
-      if (alive) setScrollTarget({ id: reveal.path[reveal.path.length - 1] });
+    revealPath(reveal.path, () => !alive).then((found) => {
+      if (alive) setScrollTarget(found ? { id: reveal.path[reveal.path.length - 1] } : null);
     });
     return () => {
       alive = false;
@@ -97,9 +98,27 @@ export function TreePanel({ root }: { root: NodeView }) {
     return j;
   };
 
+  /**
+   * Row of the keyboard cursor: the selected node, or, when it is not in the list (not loaded
+   * or collapsed away), its deepest visible ancestor on the last reveal path, then the focus.
+   */
+  const cursorRow = (): number => {
+    if (selectedId === null) return -1;
+    const direct = rowIndex.get(selectedId);
+    if (direct !== undefined) return direct;
+    const path = reveal?.path ?? [];
+    for (let k = path.length - 1; k >= 0; k -= 1) {
+      const i = rowIndex.get(path[k]);
+      if (i !== undefined) return i;
+    }
+    return focusId === null ? -1 : (rowIndex.get(focusId) ?? -1);
+  };
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const cur = selectedId === null ? -1 : (rowIndex.get(selectedId) ?? -1);
-    const entry = selectedId === null ? undefined : model.get(selectedId);
+    const cur = cursorRow();
+    const row = cur >= 0 ? rows[cur] : undefined;
+    const curId = row?.kind === 'node' ? row.id : null;
+    const entry = curId === null ? undefined : model.get(curId);
     switch (e.key) {
       case 'ArrowDown':
         moveTo(cur < 0 ? 0 : nodeRowFrom(cur, 1));
@@ -114,17 +133,19 @@ export function TreePanel({ root }: { root: NodeView }) {
         moveTo(nodeRowFrom(rows.length, -1));
         break;
       case 'ArrowRight':
-        if (!entry || selectedId === null) return;
-        if (model.canExpand(selectedId) && !entry.expanded) setExpanded(selectedId, true);
+        if (!entry || curId === null) return;
+        if (curId !== selectedId) moveTo(cur);
+        else if (model.canExpand(curId) && !entry.expanded) setExpanded(curId, true);
         else if (entry.expanded && entry.children.length > 0) moveTo(cur + 1);
         break;
       case 'ArrowLeft':
-        if (!entry || selectedId === null) return;
-        if (entry.expanded) setExpanded(selectedId, false);
+        if (!entry || curId === null) return;
+        if (curId !== selectedId) moveTo(cur);
+        else if (entry.expanded) setExpanded(curId, false);
         else if (entry.parent !== null) moveTo(rowIndex.get(entry.parent) ?? cur);
         break;
       case 'Enter':
-        if (selectedId !== null) activate(selectedId);
+        if (curId !== null && curId === selectedId) activate(curId);
         break;
       default:
         return;

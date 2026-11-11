@@ -4,6 +4,9 @@ import { formatBytes, formatPercent } from '../format';
 import { cachedPath, loadPath } from '../pathCache';
 import { strings } from '../strings';
 
+/** Hover time before the full path is requested. */
+const PATH_DELAY_MS = 80;
+
 interface Props {
   rect: Rect;
   generation: number;
@@ -22,15 +25,19 @@ export function TreemapTooltip({ rect, generation, viewSize, x, y, flipX, flipY 
   const [, refresh] = useReducer((n: number) => n + 1, 0);
   const path = cachedPath(generation, rect.id);
 
+  // Fetch the path only once the pointer rests on a rectangle for a moment.
   useEffect(() => {
     if (cachedPath(generation, rect.id) !== undefined) return;
     let alive = true;
-    loadPath(generation, rect.id).then(
-      () => alive && refresh(),
-      () => {},
-    );
+    const timer = window.setTimeout(() => {
+      loadPath(generation, rect.id).then(
+        () => alive && refresh(),
+        () => {},
+      );
+    }, PATH_DELAY_MS);
     return () => {
       alive = false;
+      window.clearTimeout(timer);
     };
   }, [generation, rect.id]);
 

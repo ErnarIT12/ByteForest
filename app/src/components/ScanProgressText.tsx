@@ -17,7 +17,9 @@ export function ScanProgressText() {
   const elapsed = startedAt === null ? 0 : now - startedAt;
   const phase = progress ? strings.phase[progress.phase] : strings.starting;
   return (
-    <span className="progress-text" role="status">
+    // Not a live region: the 100 ms clock would make screen readers chatter.
+    // ScanAnnouncer announces the start and the end of a scan instead.
+    <span className="progress-text" aria-live="off">
       <span className="spinner" aria-hidden="true" />
       <span className="progress-phase">{phase}</span>
       <span>

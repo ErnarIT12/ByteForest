@@ -9,6 +9,9 @@ import type { NodeView } from './api';
 /** Children are fetched in pages of this many nodes. */
 export const PAGE_SIZE = 200;
 
+/** Pages `reveal` loads under one parent before giving up (10 000 rows). */
+export const MAX_REVEAL_PAGES = 50;
+
 export interface TreeEntry {
   node: NodeView;
   parent: number | null;
@@ -89,6 +92,44 @@ export class TreeModel {
       cur = e.parent;
     }
     return path.reverse();
+  }
+
+  /**
+   * Expands every node on `path` (root first), calling `loadPage(parent)` until the next node
+   * of the path is loaded. Gives up (returns false) when a node cannot be found: the parent is
+   * complete or failed, more than `maxPages` pages would be needed, or `cancelled()` turns true.
+   * Returns true when the last node of `path` is loaded and every ancestor is expanded.
+   */
+  async reveal(
+    path: number[],
+    loadPage: (parent: number) => Promise<void>,
+    onChange: () => void,
+    maxPages = MAX_REVEAL_PAGES,
+    cancelled: () => boolean = () => false,
+  ): Promise<boolean> {
+    if (path.length === 0 || path[0] !== this.rootId) return false;
+    for (let i = 0; i < path.length; i += 1) {
+      const id = path[i];
+      const entry = this.entries.get(id);
+      if (!entry) return false;
+      if (this.canExpand(id) && !entry.expanded) {
+        entry.expanded = true;
+        onChange();
+      }
+      if (i === path.length - 1) {
+        if (this.canExpand(id) && entry.children.length === 0) await loadPage(id);
+        return !cancelled();
+      }
+      const next = path[i + 1];
+      let pages = 0;
+      while (!this.entries.has(next)) {
+        if (entry.complete || entry.failed || pages >= maxPages || cancelled()) return false;
+        await loadPage(id);
+        pages += 1;
+      }
+      if (cancelled()) return false;
+    }
+    return true;
   }
 
   /** The visible lines: expanded directories show their loaded children plus a "more" line. */

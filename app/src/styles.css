@@ -8,6 +8,8 @@
   --bg: #f3f3f3;
   --surface: #fbfbfb;
   --surface-raised: #ffffff;
+  /* Opaque control fill: native popups (the drive list) cannot blend translucent colours. */
+  --control-solid: #ffffff;
   --control: rgba(255, 255, 255, 0.7);
   --control-hover: rgba(249, 249, 249, 0.5);
   --hover: rgba(0, 0, 0, 0.037);
@@ -37,6 +39,7 @@
     --bg: #202020;
     --surface: #272727;
     --surface-raised: #2c2c2c;
+    --control-solid: #2d2d2d;
     --control: rgba(255, 255, 255, 0.061);
     --control-hover: rgba(255, 255, 255, 0.084);
     --hover: rgba(255, 255, 255, 0.06);
@@ -86,6 +89,7 @@ select {
   color: inherit;
 }
 
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -114,7 +118,9 @@ select {
 
 .app {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* minmax(0, ...) keeps wide content from stretching the window's single column. */
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
 }
 
