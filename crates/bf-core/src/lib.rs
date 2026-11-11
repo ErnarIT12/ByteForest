@@ -2,6 +2,7 @@
 //!
 //! Scanners produce a flat stream of [`EntryRecord`]s in any order. [`TreeBuilder`] collects
 //! them and [`TreeBuilder::finish`] links them into an immutable [`Tree`].
+#![forbid(unsafe_code)]
 
 mod builder;
 mod flags;

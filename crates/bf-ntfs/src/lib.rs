@@ -2,6 +2,7 @@
 //!
 //! Everything here reads untrusted bytes from disk, so no function panics:
 //! every access goes through the bounds-checked readers below.
+#![forbid(unsafe_code)]
 
 mod attr;
 mod error;
