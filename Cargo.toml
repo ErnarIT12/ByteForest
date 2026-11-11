@@ -6,7 +6,7 @@ resolver = "3"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/ernar/byteforest"
+repository = "https://github.com/OWNER/byteforest"
 authors = ["Ernar"]
 
 [workspace.dependencies]

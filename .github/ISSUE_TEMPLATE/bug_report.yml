@@ -1,0 +1,76 @@
+name: Bug report
+description: Something does not work as expected
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please do not report security problems here, see the Security policy instead.
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: For example "Windows 11 23H2" or "Windows 10 22H2".
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ByteForest version
+      description: Shown in the app or by running `byteforest --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: admin
+    attributes:
+      label: Running as administrator?
+      options:
+        - "Yes"
+        - "No"
+        - "Not sure"
+    validations:
+      required: true
+  - type: input
+    id: security-software
+    attributes:
+      label: Anti-cheat or antivirus installed
+      description: For example "Vanguard", "EasyAntiCheat", "Windows Defender", or "none".
+    validations:
+      required: false
+  - type: dropdown
+    id: filesystem
+    attributes:
+      label: Drive file system
+      options:
+        - NTFS
+        - ReFS
+        - exFAT
+        - FAT32
+        - Other
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start ByteForest
+        2. Select drive ...
+        3. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include any error message. Logs are in `%LOCALAPPDATA%\ByteForest\logs\`; please review them for private paths before attaching.
+    validations:
+      required: true
