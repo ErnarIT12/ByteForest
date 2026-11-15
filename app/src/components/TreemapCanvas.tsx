@@ -141,7 +141,7 @@ export function TreemapCanvas() {
     }
     if (canvas.width !== layout.width) canvas.width = layout.width;
     if (canvas.height !== layout.height) canvas.height = layout.height;
-    const accent = getComputedStyle(canvas).getPropertyValue('--accent').trim() || '#0067c0';
+    const accent = getComputedStyle(canvas).getPropertyValue('--accent').trim() || '#5edb7f';
     paintHighlights(ctx, layout, hoverIndex, selectedIndex, theme, accent);
   }, [layout, hoverIndex, selectedIndex, theme]);
 

@@ -18,8 +18,11 @@ const SIZE_LINE_MIN_H = 34;
 
 const FONT_STACK = '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif';
 
-/** Muted hues, one per top-level item of the focused folder (cycled). */
-const HUES = [211, 158, 36, 345, 265, 188, 88, 18];
+/**
+ * One hue per top-level item of the focused folder (cycled): six from the logo family
+ * (greens, teals, blue-teals, lime) plus a muted amber and violet so siblings stay apart.
+ */
+const HUES = [145, 175, 200, 95, 160, 215, 42, 268];
 
 export interface TreemapLayout {
   rects: Rect[];
@@ -95,30 +98,30 @@ function color(theme: Theme, slot: number, depth: number, role: Role): string {
   if (theme === 'light') {
     switch (role) {
       case 'file':
-        return `hsl(${h} 42% ${clamp(74 - 6 * d, 48, 80)}%)`;
+        return `hsl(${h} 46% ${clamp(76 - 6 * d, 54, 82)}%)`;
       case 'dirFill':
-        return `hsl(${h} 30% ${clamp(92 - 4 * d, 70, 94)}%)`;
+        return `hsl(${h} 32% ${clamp(94 - 4 * d, 72, 96)}%)`;
       case 'dirStroke':
-        return `hsl(${h} 28% ${clamp(64 - 5 * d, 40, 70)}%)`;
+        return `hsl(${h} 30% ${clamp(60 - 5 * d, 38, 66)}%)`;
       case 'header':
-        return `hsl(${h} 34% ${clamp(83 - 5 * d, 60, 86)}%)`;
+        return `hsl(${h} 38% ${clamp(84 - 5 * d, 62, 88)}%)`;
     }
   }
   switch (role) {
     case 'file':
-      return `hsl(${h} 34% ${clamp(44 - 4 * d, 26, 50)}%)`;
+      return `hsl(${h} 42% ${clamp(35 - 3 * d, 20, 37)}%)`;
     case 'dirFill':
-      return `hsl(${h} 18% ${clamp(17 + 2 * d, 14, 26)}%)`;
+      return `hsl(${h} 26% ${clamp(14 + 2 * d, 12, 22)}%)`;
     case 'dirStroke':
-      return `hsl(${h} 22% ${clamp(36 + 3 * d, 30, 50)}%)`;
+      return `hsl(${h} 28% ${clamp(30 + 3 * d, 26, 44)}%)`;
     case 'header':
-      return `hsl(${h} 24% ${clamp(26 + 3 * d, 22, 38)}%)`;
+      return `hsl(${h} 32% ${clamp(22 + 3 * d, 20, 34)}%)`;
   }
 }
 
 const TEXT = {
-  light: { main: 'rgba(0,0,0,0.85)', sub: 'rgba(0,0,0,0.6)' },
-  dark: { main: 'rgba(255,255,255,0.92)', sub: 'rgba(255,255,255,0.68)' },
+  light: { main: 'rgba(6,32,24,0.92)', sub: 'rgba(6,32,24,0.7)' },
+  dark: { main: '#e6f4f1', sub: 'rgba(230,244,241,0.74)' },
 } as const;
 
 /** Longest prefix of `text` (with an ellipsis) that fits `maxW`, or "" if nothing fits. */
@@ -234,7 +237,7 @@ export function paintHighlights(
     const r = rects[hover];
     ctx.fillStyle = theme === 'light' ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.08)';
     ctx.fillRect(r.x, r.y, r.w, r.h);
-    outline(hover, Math.max(1, Math.round(1.5 * dpr)), theme === 'light' ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.8)', 0);
+    outline(hover, Math.max(1, Math.round(1.5 * dpr)), theme === 'light' ? 'rgba(0,0,0,0.65)' : 'rgba(206,251,246,0.85)', 0);
   }
   if (selected > 0) {
     const w = Math.max(2, Math.round(2 * dpr));

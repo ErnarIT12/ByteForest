@@ -62,7 +62,7 @@
   bottom: 7px;
   width: 3px;
   border-radius: 2px;
-  background: var(--accent);
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
 }
 .tree-row.focused .name-text {
   font-weight: 600;
@@ -128,8 +128,8 @@
   margin-right: 4px;
 }
 .kind-icon.folder {
-  fill: #e8b730;
-  stroke: #c4961a;
+  fill: var(--folder);
+  stroke: var(--folder-edge);
   stroke-width: 0.6;
 }
 .kind-icon.file {
