@@ -815,11 +815,9 @@ mod tests {
             let at = *offset as usize;
             image[at..at + bytes.len()].copy_from_slice(bytes);
         }
-        let preferred = std::path::Path::new(r"D:\Temp");
-        let mut tmp = if preferred.is_dir() {
-            tempfile::NamedTempFile::new_in(preferred).unwrap()
-        } else {
-            tempfile::NamedTempFile::new().unwrap()
+        let mut tmp = match std::env::var_os("BF_TEST_TMP") {
+            Some(base) => tempfile::NamedTempFile::new_in(base).unwrap(),
+            None => tempfile::NamedTempFile::new().unwrap(),
         };
         tmp.write_all(&image).unwrap();
         tmp.flush().unwrap();

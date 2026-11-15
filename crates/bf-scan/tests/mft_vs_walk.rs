@@ -126,11 +126,9 @@ fn auto_falls_back_without_admin() {
 
 #[test]
 fn auto_uses_walker_for_folders_without_reason() {
-    let preferred = std::path::Path::new(r"D:\Temp");
-    let tmp = if preferred.is_dir() {
-        tempfile::tempdir_in(preferred).expect("create temp dir")
-    } else {
-        tempfile::tempdir().expect("create temp dir")
+    let tmp = match std::env::var_os("BF_TEST_TMP") {
+        Some(base) => tempfile::tempdir_in(base).expect("create temp dir"),
+        None => tempfile::tempdir().expect("create temp dir"),
     };
     std::fs::write(tmp.path().join("a.bin"), [0u8; 3]).unwrap();
 

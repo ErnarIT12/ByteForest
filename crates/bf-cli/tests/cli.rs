@@ -2,11 +2,9 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 
 fn temp_dir() -> tempfile::TempDir {
-    let base = std::path::Path::new(r"D:\Temp");
-    if base.is_dir() {
-        tempfile::tempdir_in(base).unwrap()
-    } else {
-        tempfile::tempdir().unwrap()
+    match std::env::var_os("BF_TEST_TMP") {
+        Some(base) => tempfile::tempdir_in(base).unwrap(),
+        None => tempfile::tempdir().unwrap(),
     }
 }
 

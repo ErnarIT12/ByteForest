@@ -56,13 +56,11 @@ pub fn settings_path() -> PathBuf {
 mod tests {
     use super::*;
 
-    /// Temp folder under `D:\Temp` when it exists, else the system temp folder.
+    /// Temp folder under `BF_TEST_TMP` when set, else the system temp folder.
     fn temp_dir() -> tempfile::TempDir {
-        let preferred = Path::new(r"D:\Temp");
-        if preferred.is_dir() {
-            tempfile::tempdir_in(preferred).unwrap()
-        } else {
-            tempfile::tempdir().unwrap()
+        match std::env::var_os("BF_TEST_TMP") {
+            Some(base) => tempfile::tempdir_in(base).unwrap(),
+            None => tempfile::tempdir().unwrap(),
         }
     }
 
