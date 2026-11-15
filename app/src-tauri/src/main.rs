@@ -16,7 +16,9 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let saved = settings::load(&settings::settings_path());
     if elevation::should_auto_elevate(saved.always_elevated, bf_scan::is_elevated(), &args) {
-        match elevation::relaunch_elevated(&elevation::build_elevated_args(None)) {
+        match elevation::relaunch_elevated(&elevation::build_elevated_args(
+            elevation::parse_startup_scan(&args).as_deref(),
+        )) {
             Ok(()) => return,
             Err(e) => tracing::info!("continuing without elevation: {e:?}"),
         }

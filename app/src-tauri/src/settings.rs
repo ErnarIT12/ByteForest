@@ -15,19 +15,35 @@ pub struct Settings {
 
 /// Reads settings from `path`; a missing or corrupt file gives the defaults.
 pub fn load(path: &Path) -> Settings {
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_default()
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) => {
+            if e.kind() != io::ErrorKind::NotFound {
+                tracing::warn!("cannot read settings {}: {e}", path.display());
+            }
+            return Settings::default();
+        }
+    };
+    serde_json::from_str(&text).unwrap_or_else(|e| {
+        tracing::warn!("corrupt settings {}, using defaults: {e}", path.display());
+        Settings::default()
+    })
 }
 
-/// Writes settings to `path`, creating the parent folder if needed.
+/// Writes settings to `path`, creating the parent folder if needed. The data goes to a
+/// temporary file first and is renamed over `path`, so a crash cannot leave a half-written file.
 pub fn save(path: &Path, s: &Settings) -> io::Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
     let text = serde_json::to_string_pretty(s).map_err(io::Error::other)?;
-    std::fs::write(path, text)
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(".tmp");
+    let tmp = PathBuf::from(tmp);
+    std::fs::write(&tmp, text)?;
+    std::fs::rename(&tmp, path).inspect_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+    })
 }
 
 /// `%APPDATA%\ByteForest\settings.json` (relative to the current folder if `APPDATA` is unset).

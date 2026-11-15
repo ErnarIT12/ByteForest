@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::dto::{ScanDone, ScanErrorEvent, ScanProgressEvent, TreemapRect};
 use crate::elevation::{self, ElevateError};
-use crate::settings::{self, Settings};
+use crate::settings::{self as store, Settings};
 use crate::state::AppState;
 
 /// Largest page `get_children` returns.
@@ -121,7 +121,7 @@ pub fn is_elevated() -> bool {
 
 /// Restarts the app with administrator rights, optionally opening `target` for scanning.
 /// Exits the app on success; `Err("declined")` when the user refuses the UAC prompt.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn restart_elevated(app: AppHandle, target: Option<String>) -> Result<(), String> {
     let args = elevation::build_elevated_args(target.as_deref());
     match elevation::relaunch_elevated(&args) {
@@ -147,13 +147,13 @@ pub fn take_startup_scan(state: State<'_, AppState>) -> Option<String> {
 /// Current user settings.
 #[tauri::command]
 pub fn get_settings() -> Settings {
-    settings::load(&settings::settings_path())
+    store::load(&store::settings_path())
 }
 
 /// Saves user settings.
 #[tauri::command]
 pub fn set_settings(settings: Settings) -> Result<(), String> {
-    settings::save(&settings::settings_path(), &settings).map_err(|e| e.to_string())
+    store::save(&store::settings_path(), &settings).map_err(|e| e.to_string())
 }
 
 /// Starts a scan in the background and returns its id. Progress and the outcome arrive as

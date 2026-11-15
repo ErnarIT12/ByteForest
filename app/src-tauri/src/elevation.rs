@@ -3,10 +3,9 @@
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 
-use windows::Win32::Foundation::GetLastError;
-use windows::Win32::UI::Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW};
+use windows::Win32::UI::Shell::{SHELLEXECUTEINFOW, ShellExecuteExW};
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
-use windows::core::PCWSTR;
+use windows::core::{HRESULT, PCWSTR};
 
 /// Marks a process started by an elevation attempt, so it never tries again (no loops).
 pub const ELEVATED_ATTEMPT: &str = "--elevated-attempt";
@@ -28,15 +27,19 @@ pub enum ElevateError {
 pub fn build_elevated_args(target: Option<&str>) -> String {
     match target {
         Some(t) if !t.contains('"') && !t.is_empty() => {
-            format!("{ELEVATED_ATTEMPT} --scan \"{t}\"")
+            // Backslashes right before the closing quote must be doubled, or `"C:\"`
+            // would be read as `C:"` (CommandLineToArgvW rules).
+            let trailing = t.len() - t.trim_end_matches('\\').len();
+            let slashes = "\\".repeat(trailing);
+            format!("{ELEVATED_ATTEMPT} --scan \"{t}{slashes}\"")
         }
         _ => ELEVATED_ATTEMPT.to_string(),
     }
 }
 
-/// True when the Win32 error code means the user declined the UAC prompt.
-pub fn is_declined(win32_code: u32) -> bool {
-    win32_code == ERROR_CANCELLED
+/// True when the error means the user declined the UAC prompt (`ERROR_CANCELLED`).
+pub fn is_declined(code: HRESULT) -> bool {
+    code == HRESULT::from_win32(ERROR_CANCELLED)
 }
 
 /// Whether to relaunch elevated at startup: wanted, not yet elevated, not already tried.
@@ -44,10 +47,13 @@ pub fn should_auto_elevate(always: bool, elevated: bool, args: &[String]) -> boo
     always && !elevated && !args.iter().any(|a| a == ELEVATED_ATTEMPT)
 }
 
-/// The value following `--scan`, if any.
+/// The value following the first `--scan`. An empty value, or one that looks like another
+/// flag (starts with `--`), gives `None`.
 pub fn parse_startup_scan(args: &[String]) -> Option<String> {
     let pos = args.iter().position(|a| a == "--scan")?;
-    args.get(pos + 1).cloned()
+    args.get(pos + 1)
+        .filter(|v| !v.is_empty() && !v.starts_with("--"))
+        .cloned()
 }
 
 /// Null-terminated UTF-16 copy of `s`.
@@ -66,7 +72,6 @@ pub fn relaunch_elevated(args: &str) -> Result<(), ElevateError> {
 
     let mut info = SHELLEXECUTEINFOW {
         cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
-        fMask: SEE_MASK_NOCLOSEPROCESS,
         lpVerb: PCWSTR(verb_w.as_ptr()),
         lpFile: PCWSTR(exe_w.as_ptr()),
         lpParameters: PCWSTR(args_w.as_ptr()),
@@ -82,14 +87,13 @@ pub fn relaunch_elevated(args: &str) -> Result<(), ElevateError> {
             Ok(())
         }
         Err(e) => {
-            // SAFETY: plain thread-local error query, called right after the failed call.
-            let code = unsafe { GetLastError() }.0;
+            let code = e.code();
             if is_declined(code) {
                 tracing::info!("elevation declined by the user");
                 Err(ElevateError::Declined)
             } else {
-                tracing::warn!("elevation failed (code {code}): {e}");
-                Err(ElevateError::Other(format!("{e} (code {code})")))
+                tracing::warn!("elevation failed: {e}");
+                Err(ElevateError::Other(e.to_string()))
             }
         }
     }
@@ -112,6 +116,45 @@ mod tests {
     }
 
     #[test]
+    fn trailing_backslashes_are_doubled() {
+        assert_eq!(
+            build_elevated_args(Some(r"C:\")),
+            r#"--elevated-attempt --scan "C:\\""#
+        );
+    }
+
+    /// Splits `line` with the real `CommandLineToArgvW` (the first token is the program name).
+    fn split(line: &str) -> Vec<String> {
+        use windows::Win32::Foundation::{HLOCAL, LocalFree};
+        use windows::Win32::UI::Shell::CommandLineToArgvW;
+        let wide_line = wide(OsStr::new(line));
+        let mut count = 0;
+        // SAFETY: the string is null-terminated and `count` is a valid out pointer; the
+        // returned array holds `count` valid null-terminated strings and is freed once.
+        unsafe {
+            let argv = CommandLineToArgvW(PCWSTR(wide_line.as_ptr()), &mut count);
+            assert!(!argv.is_null());
+            let out = (0..count as usize)
+                .map(|i| (*argv.add(i)).to_string().unwrap())
+                .collect();
+            LocalFree(Some(HLOCAL(argv.cast())));
+            out
+        }
+    }
+
+    #[test]
+    fn windows_parses_the_built_arguments_back() {
+        for target in [r"C:\", r"E:\Мои файлы\", r"E:\a b", r"E:\a b\\"] {
+            let line = format!("app {}", build_elevated_args(Some(target)));
+            assert_eq!(
+                split(&line),
+                ["app", "--elevated-attempt", "--scan", target],
+                "{line}"
+            );
+        }
+    }
+
+    #[test]
     fn args_without_target_are_just_the_marker() {
         assert_eq!(build_elevated_args(None), "--elevated-attempt");
     }
@@ -126,8 +169,8 @@ mod tests {
 
     #[test]
     fn only_error_cancelled_is_a_decline() {
-        assert!(is_declined(1223));
-        assert!(!is_declined(5));
+        assert!(is_declined(HRESULT::from_win32(1223)));
+        assert!(!is_declined(HRESULT::from_win32(5)));
     }
 
     #[test]
@@ -150,5 +193,15 @@ mod tests {
         );
         assert_eq!(parse_startup_scan(&args(&["app", "--scan"])), None);
         assert_eq!(parse_startup_scan(&args(&["app"])), None);
+        assert_eq!(parse_startup_scan(&args(&["app", "--scan", ""])), None);
+        assert_eq!(
+            parse_startup_scan(&args(&["app", "--scan", "--elevated-attempt"])),
+            None
+        );
+        assert_eq!(
+            parse_startup_scan(&args(&["app", "--scan", "C:", "--scan", "D:"])),
+            Some("C:".to_string()),
+            "the first --scan wins"
+        );
     }
 }
