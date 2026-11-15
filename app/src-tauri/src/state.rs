@@ -23,4 +23,6 @@ pub struct AppState {
     pub tree: RwLock<Option<Arc<Tree>>>,
     /// Current scan id and cancel token.
     pub scan: Mutex<ScanSlot>,
+    /// Folder or drive from the `--scan` startup argument, until the front end takes it.
+    pub startup_scan: Mutex<Option<String>>,
 }

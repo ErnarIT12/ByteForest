@@ -195,10 +195,17 @@ fn read_with_fallback<B>(
         Ok(blocks) => match read_blocks(blocks) {
             Ok((records, skipped)) => return Ok((records, skipped, None)),
             Err(ScanError::Cancelled) => return Err(ScanError::Cancelled),
-            Err(err) => format!("raw MFT read failed mid-scan ({err}); read records one by one"),
+            Err(err) => {
+                tracing::warn!("raw MFT read failed mid-scan: {err}");
+                format!("raw MFT read failed mid-scan ({err}); read records one by one")
+            }
         },
         Err(ScanError::Cancelled) => return Err(ScanError::Cancelled),
-        Err(err) => format!("raw MFT reads blocked ({err}); read records one by one"),
+        Err(err) => {
+            tracing::warn!("raw MFT reads blocked, falling back to record-by-record: {err}");
+            "Raw disk reads are blocked (likely an anti-cheat driver); reading MFT records one by one"
+                .to_string()
+        }
     };
     let (records, skipped) = read_records()?;
     Ok((records, skipped, Some(reason)))
@@ -990,8 +997,11 @@ mod tests {
         )
         .unwrap();
         let reason = reason.expect("a fallback reason is set");
-        assert!(reason.starts_with("raw MFT reads blocked ("), "{reason}");
-        assert!(reason.contains("access is denied"), "{reason}");
+        assert_eq!(
+            reason,
+            "Raw disk reads are blocked (likely an anti-cheat driver); reading MFT records one by one"
+        );
+        assert!(!reason.contains("access is denied"), "{reason}");
     }
 
     #[test]

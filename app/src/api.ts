@@ -113,6 +113,19 @@ export const getTreemap = (node: number, width: number, height: number, header =
   invoke<Rect[]>('get_treemap', { node, width, height, header });
 export const isElevated = () => invoke<boolean>('is_elevated');
 
+/** User settings stored in `%APPDATA%\ByteForest\settings.json`. */
+export interface Settings {
+  always_elevated: boolean;
+}
+
+/** Restarts the app as administrator (exits on success). Rejects with "declined" if UAC is refused. */
+export const restartElevated = (target?: string) =>
+  invoke<void>('restart_elevated', { target: target ?? null });
+/** The `--scan` startup argument; resolves once, then null. */
+export const takeStartupScan = () => invoke<string | null>('take_startup_scan');
+export const getSettings = () => invoke<Settings>('get_settings');
+export const setSettings = (settings: Settings) => invoke<void>('set_settings', { settings });
+
 export const onScanProgress = (cb: (p: ScanProgress) => void): Promise<UnlistenFn> =>
   listen<ScanProgress>('scan://progress', (e) => cb(e.payload));
 export const onScanDone = (cb: (d: ScanDone) => void): Promise<UnlistenFn> =>
