@@ -22,7 +22,12 @@ export default function App() {
   const root = useAppStore((s) => s.root);
   const generation = useAppStore((s) => s.generation);
 
-  useEffect(() => listenToScanEvents(), []);
+  useEffect(() => {
+    const ready = listenToScanEvents();
+    return () => {
+      ready.then((unlisten) => unlisten()).catch(() => {});
+    };
+  }, []);
   useEffect(() => loadEnvironment(), []);
 
   useEffect(() => {

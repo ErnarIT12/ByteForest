@@ -16,7 +16,7 @@ export function EmptyState() {
         <TreeGlyph size={48} />
         {scanning ? (
           <>
-            <h1>{strings.scanningTitle(`${scanTarget ?? ''}:`)}</h1>
+            <h1>{strings.scanningTitle(scanTarget ?? '')}</h1>
             <ScanProgressText />
             <div className="empty-actions">
               <ScanButton />

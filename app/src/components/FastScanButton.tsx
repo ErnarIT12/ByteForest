@@ -19,7 +19,7 @@ export function FastScanButton() {
       className="btn"
       aria-label={strings.fastScanAria}
       disabled={scanning || elevating}
-      onClick={() => void requestElevation(target)}
+      onClick={() => void requestElevation(`${target}:`)}
     >
       {elevating ? strings.waitingForPermission : strings.fastScan}
     </button>

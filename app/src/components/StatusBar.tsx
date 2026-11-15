@@ -1,5 +1,5 @@
 import { formatBytes, formatInt, formatSeconds } from '../format';
-import { canOfferFastScan } from '../elevation';
+import { canOfferFastScan, driveLetterOf } from '../elevation';
 import { requestElevation } from '../scanController';
 import { statusBadge } from '../statusBadge';
 import { useAppStore } from '../store';
@@ -13,7 +13,9 @@ export function StatusBar() {
   const resultTarget = useAppStore((s) => s.resultTarget);
   const target = useAppStore((s) => s.target);
   const elevating = useAppStore((s) => s.elevating);
-  const drive = drives?.find((d) => d.letter === resultTarget);
+  const scanning = useAppStore((s) => s.scanning);
+  const resultLetter = resultTarget === null ? null : driveLetterOf(resultTarget);
+  const drive = drives?.find((d) => d.letter.toUpperCase() === resultLetter);
 
   const issues = stats ? stats.errors + stats.skipped_records : 0;
   const used = drive ? drive.total - drive.free : 0;
@@ -55,8 +57,8 @@ export function StatusBar() {
             type="button"
             className="badge badge-action"
             title={strings.badgeRestartHint}
-            disabled={elevating}
-            onClick={() => void requestElevation(target)}
+            disabled={elevating || scanning}
+            onClick={() => void requestElevation(`${target}:`)}
           >
             {badge.label}
           </button>

@@ -54,7 +54,7 @@ interface AppState {
   elevated: boolean | null;
 
   scanning: boolean;
-  /** Drive letter of the running scan. */
+  /** Exact target of the running scan: "C:" or a folder path. */
   scanTarget: string | null;
   scanStartedAt: number | null;
   progress: ScanProgress | null;
@@ -68,7 +68,7 @@ interface AppState {
   stats: ScanStats | null;
   root: NodeView | null;
   rootId: number | null;
-  /** Drive letter of the shown result. */
+  /** Exact target of the shown result: "C:" or a folder path. */
   resultTarget: string | null;
   /** Bumped for every new result so views drop their caches. */
   generation: number;
@@ -92,6 +92,7 @@ interface AppActions {
   setTarget(letter: string): void;
   setElevated(elevated: boolean): void;
 
+  /** `target` is exactly what is passed to `startScan` ("C:" or a folder path). */
   beginScan(target: string): void;
   scanResolved(scanId: number): void;
   /** A `startScan` call that was superseded by a newer one still tells us its id. */

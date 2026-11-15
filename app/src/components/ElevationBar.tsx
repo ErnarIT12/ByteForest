@@ -12,8 +12,10 @@ export function ElevationBar() {
   const drives = useAppStore((s) => s.drives);
   const dismissed = useAppStore((s) => s.elevationBarDismissed);
   const elevating = useAppStore((s) => s.elevating);
+  const scanning = useAppStore((s) => s.scanning);
   const dismiss = useAppStore((s) => s.dismissElevationBar);
 
+  if (scanning) return null;
   if (elevated === null || target === null || drives === null || stats === null) return null;
   if (!shouldShowElevationBar(elevated, stats, target, drives, dismissed)) return null;
   return (
@@ -22,7 +24,7 @@ export function ElevationBar() {
       <button
         type="button"
         className="btn"
-        disabled={elevating}
+        disabled={elevating || scanning}
         onClick={() => void requestElevation(target)}
       >
         {elevating ? strings.waitingForPermission : strings.restartAsAdmin}

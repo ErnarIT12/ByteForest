@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ScanStats, VolumeSummary } from './api';
-import { canOfferFastScan, driveLetterOf, isDeclined, shouldShowElevationBar } from './elevation';
+import {
+  canOfferFastScan,
+  driveLetterOf,
+  isAcceptableStartupTarget,
+  isDeclined,
+  shouldShowElevationBar,
+} from './elevation';
 
 const vol = (letter: string, fs: string): VolumeSummary => ({
   letter,
@@ -56,5 +62,33 @@ describe('helpers', () => {
     expect(isDeclined('declined')).toBe(true);
     expect(isDeclined(new Error('declined'))).toBe(true);
     expect(isDeclined('spawn failed')).toBe(false);
+  });
+});
+
+describe('shouldShowElevationBar with the scanned target', () => {
+  it('shows for a walked drive scan ("C:")', () => {
+    expect(shouldShowElevationBar(false, stats('Walk'), 'C:', drives, false)).toBe(true);
+  });
+  it('never shows for a folder target, even on an NTFS drive', () => {
+    expect(shouldShowElevationBar(false, stats('Walk'), 'C:\\Users', drives, false)).toBe(false);
+    expect(shouldShowElevationBar(false, stats('Walk'), '\\\\srv\\share\\dir', drives, false)).toBe(
+      false,
+    );
+  });
+});
+
+describe('isAcceptableStartupTarget', () => {
+  it('accepts drive roots and absolute paths', () => {
+    for (const v of ['C:', 'c:\\', 'D:\\Data\\x', '\\\\srv\\share\\dir']) {
+      expect(isAcceptableStartupTarget(v)).toBe(true);
+    }
+  });
+  it('rejects everything else', () => {
+    for (const v of ['', 'relative\\dir', '..\\x', '\\\\srv', '\\\\srv\\share', '--evil', 'CC:']) {
+      expect(isAcceptableStartupTarget(v)).toBe(false);
+    }
+  });
+  it('never turns a UNC path into a drive letter', () => {
+    expect(driveLetterOf('\\\\srv\\share\\dir')).toBeNull();
   });
 });

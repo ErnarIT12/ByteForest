@@ -21,9 +21,9 @@ export function ScanButton() {
       className="btn primary"
       aria-label={strings.scanAria}
       disabled={!target}
-      onClick={() => target && void runScan(target)}
+      onClick={() => target && void runScan(`${target}:`)}
     >
-      {target !== null && target === shownTarget ? strings.rescan : strings.scan}
+      {target !== null && `${target}:` === shownTarget ? strings.rescan : strings.scan}
     </button>
   );
 }

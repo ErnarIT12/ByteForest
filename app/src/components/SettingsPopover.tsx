@@ -5,7 +5,13 @@ import { strings } from '../strings';
 /** Gear button with a small popover holding the app settings. */
 export function SettingsPopover() {
   const [open, setOpen] = useState(false);
-  const [always, setAlways] = useState(false);
+  const [always, setAlwaysState] = useState(false);
+  // Mirrors `always` synchronously so a change reads the value current when it is made.
+  const alwaysRef = useRef(false);
+  const setAlways = (value: boolean) => {
+    alwaysRef.current = value;
+    setAlwaysState(value);
+  };
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -59,11 +65,12 @@ export function SettingsPopover() {
   }, [open]);
 
   const change = (value: boolean) => {
-    const previous = always;
+    const previous = alwaysRef.current;
     setAlways(value);
     setError(null);
     setSettings({ always_elevated: value }).catch((e) => {
-      setAlways(previous);
+      // A newer toggle has taken over; do not undo it.
+      if (alwaysRef.current === value) setAlways(previous);
       setError(strings.settingsSaveFailed(String(e)));
     });
   };

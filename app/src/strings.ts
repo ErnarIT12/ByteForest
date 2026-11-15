@@ -21,7 +21,7 @@ export const strings = {
   files: 'files',
 
   fastScan: '⚡ Fast scan (admin)',
-  fastScanAria: 'Restart as administrator and scan the selected drive quickly',
+  fastScanAria: 'Fast scan (admin): restart as administrator and scan the selected drive quickly',
   waitingForPermission: 'Waiting for permission…',
   settings: 'Settings',
   alwaysElevated: 'Always run as administrator',

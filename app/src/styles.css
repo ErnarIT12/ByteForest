@@ -143,10 +143,25 @@ select {
 
 .app {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* top bar, optional elevation bar, content, status bar: each child names its row below. */
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   /* minmax(0, ...) keeps wide content from stretching the window's single column. */
   grid-template-columns: minmax(0, 1fr);
   height: 100%;
+}
+
+.app > .topbar {
+  grid-row: 1;
+}
+.app > .elevation-bar {
+  grid-row: 2;
+}
+.app > .explorer,
+.app > .empty {
+  grid-row: 3;
+}
+.app > .statusbar {
+  grid-row: 4;
 }
 
 .topbar {
