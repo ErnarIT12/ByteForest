@@ -1,6 +1,7 @@
 """Cut the rounded logo tile out of the painted-checkerboard source image.
 
-Usage: python -I assets/make_logo.py assets/logo-source.jpg assets/logo.png
+Usage: python -I assets/make_logo.py SRC DST [UI_DST [UI_SIZE]]
+  e.g. python -I assets/make_logo.py assets/logo-source.jpg assets/logo.png app/src/assets/logo-128.png 128
 """
 import sys
 from collections import deque
@@ -24,7 +25,6 @@ def find_tile_bbox(img):
     """Bounding box of the connected non-checker region containing the centre."""
     w, h = img.size
     px = img.load()
-    mask = bytearray(w * h)
     start = (w // 2, h // 2)
     seen = bytearray(w * h)
     queue = deque([start])
@@ -38,16 +38,17 @@ def find_tile_bbox(img):
                 seen[ny * w + nx] = 1
                 if not is_background(px[nx, ny]):
                     queue.append((nx, ny))
-    del mask
     return x0, y0, x1 + 1, y1 + 1
 
 
-def main(src, dst):
+def main(src, dst, ui_dst=None, ui_size=128):
     img = Image.open(src).convert("RGB")
     x0, y0, x1, y1 = find_tile_bbox(img)
     # The drop shadow below the tile also passes the colour test, so the
     # height is unreliable; the tile is square, so trust the width and the top.
     inset = INSET
+    if abs((y1 - y0) / (x1 - x0) - 1) > 0.10:
+        sys.exit(f"detected tile is not roughly square: {x1 - x0}x{y1 - y0}")
     side = (x1 - x0) - 2 * inset
     left, top = x0 + inset, y0 + inset
     tile = img.crop((left, top, left + side, top + side))
@@ -63,8 +64,10 @@ def main(src, dst):
     out = tile.resize((OUT_SIZE, OUT_SIZE), Image.LANCZOS).convert("RGBA")
     out.putalpha(mask)
     out.save(dst)
-    out.resize((64, 64), Image.LANCZOS).save(dst.replace(".png", "-64.png"))
+    if ui_dst:
+        out.resize((ui_size, ui_size), Image.LANCZOS).save(ui_dst, optimize=True)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    args = sys.argv[1:]
+    main(args[0], args[1], args[2] if len(args) > 2 else None, int(args[3]) if len(args) > 3 else 128)
