@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { ElevationBar } from './components/ElevationBar';
 import { EmptyState } from './components/EmptyState';
 import { ErrorToast } from './components/ErrorToast';
 import { Explorer } from './components/Explorer';
@@ -38,6 +39,7 @@ export default function App() {
   return (
     <div className="app">
       <TopBar />
+      <ElevationBar />
       {root ? <Explorer root={root} generation={generation} /> : <EmptyState />}
       <StatusBar />
       <ErrorToast />

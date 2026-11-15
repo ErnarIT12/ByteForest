@@ -14,6 +14,7 @@ import {
   type ScanStats,
   type VolumeSummary,
 } from './api';
+import { strings } from './strings';
 
 /** One entry of the focus path (root first). */
 export interface Crumb {
@@ -77,6 +78,12 @@ interface AppState {
   selectedId: number | null;
   reveal: RevealRequest | null;
   error: string | null;
+  /** Heading of the error toast; null means the default scan failure title. */
+  errorTitle: string | null;
+  /** Waiting for the UAC prompt of a restart as administrator. */
+  elevating: boolean;
+  /** The post-scan elevation hint was closed (reset by the next scan). */
+  elevationBarDismissed: boolean;
 }
 
 interface AppActions {
@@ -101,6 +108,10 @@ interface AppActions {
   /** Selects `path`'s last node and asks the tree to expand the path to it. */
   revealNode(path: number[]): void;
   dismissError(): void;
+  setElevating(elevating: boolean): void;
+  /** Shows a non-scan failure of the restart as administrator in the toast. */
+  elevationFailed(message: string): void;
+  dismissElevationBar(): void;
   /** Back to the initial state (tests). */
   reset(): void;
 }
@@ -129,6 +140,9 @@ const initialState: AppState = {
   selectedId: null,
   reveal: null,
   error: null,
+  errorTitle: null,
+  elevating: false,
+  elevationBarDismissed: false,
 };
 
 /** Gate after scan `id` finished: no longer pending on it, and it is the newest known id. */
@@ -156,6 +170,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       scanStartedAt: Date.now(),
       progress: null,
       error: null,
+      errorTitle: null,
+      elevationBarDismissed: false,
       gate: { ...s.gate, pending: true },
     })),
 
@@ -174,6 +190,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       scanning: false,
       progress: null,
       error: message,
+      errorTitle: null,
       lastOutcome: 'failed',
       gate: { ...s.gate, pending: false },
     })),
@@ -215,6 +232,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       lastFinished: e.scan_id,
       lastOutcome: e.message === SCAN_CANCELLED ? 'cancelled' : 'failed',
       error: e.message === SCAN_CANCELLED ? null : e.message,
+      errorTitle: null,
     });
   },
 
@@ -254,6 +272,10 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     }));
   },
 
-  dismissError: () => set({ error: null }),
+  dismissError: () => set({ error: null, errorTitle: null }),
+  setElevating: (elevating) => set({ elevating }),
+  elevationFailed: (message) =>
+    set({ error: message, errorTitle: strings.elevateFailed, elevating: false }),
+  dismissElevationBar: () => set({ elevationBarDismissed: true }),
   reset: () => set(initialState),
 }));
