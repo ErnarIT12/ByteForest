@@ -56,21 +56,23 @@ export function filetimeToDate(ft: number): Date | null {
   return new Date((ft - FILETIME_UNIX_EPOCH) / 10_000);
 }
 
-const dateFormat = new Intl.DateTimeFormat(undefined, {
+const dateFormat = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
   month: 'short',
   day: 'numeric',
 });
 
-/** Local short date of a FILETIME, or an empty string when unknown. */
+/** Short date of a FILETIME in a fixed English format ("Nov 15, 2026"), or "" when unknown. */
 export function formatFiletime(ft: number): string {
   const d = filetimeToDate(ft);
   return d ? dateFormat.format(d) : '';
 }
 
-/** Seconds with one decimal: `3420 → "3.4 s"`. */
+/** Seconds with one decimal: `3420 → "3.4 s"`; below 0.05 s it is `"<0.1 s"`. */
 export function formatSeconds(ms: number): string {
-  return `${(Math.max(0, ms) / 1000).toFixed(1)} s`;
+  const secs = Math.max(0, ms) / 1000;
+  if (secs < 0.05) return '<0.1 s';
+  return `${secs.toFixed(1)} s`;
 }
 
 /** Percentage with one decimal below 10 and none above: `4.25 → "4.3%"`, `42.4 → "42%"`. */

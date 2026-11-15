@@ -14,7 +14,7 @@
   min-height: 0;
   background: var(--surface);
   container-type: inline-size;
-  --tree-cols: minmax(120px, 1fr) 76px 96px 60px 96px;
+  --tree-cols: minmax(120px, 1fr) 76px 96px 60px 104px;
 }
 .tree-header,
 .tree-row {
