@@ -1,129 +1,140 @@
-# ByteForest
+<p align="center">
+  <img src="assets/logo.png" alt="ByteForest logo" width="120">
+</p>
 
-**A fast, open-source disk space analyzer for Windows: see what fills your drive in seconds.**
+<h1 align="center">ByteForest</h1>
 
-[![CI](https://github.com/ErnarIT12/byteforest/actions/workflows/ci.yml/badge.svg)](https://github.com/ErnarIT12/byteforest/actions/workflows/ci.yml)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+<p align="center"><b>A fast, open-source disk space analyzer for Windows: see what fills your drive in seconds.</b></p>
 
-English | [Русский](README.ru.md)
+<p align="center"><b>English</b> | <a href="README.ru.md">Русский</a> | <a href="README.kk.md">Қазақша</a> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.es.md">Español</a> | <a href="README.de.md">Deutsch</a> | <a href="README.ja.md">日本語</a></p>
 
-<!-- ![ByteForest](docs/screenshot.png) -->
+<p align="center">
+  <a href="https://github.com/ErnarIT12/byteforest/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/ErnarIT12/byteforest/ci.yml?branch=main&label=CI"></a>
+  <a href="https://github.com/ErnarIT12/byteforest/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/ErnarIT12/byteforest?include_prereleases"></a>
+  <a href="#license"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
+  <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4">
+</p>
+
+![ByteForest main window: folder tree next to a treemap](docs/screenshots/explorer-dark.png)
+
+*The screenshots show fictional demo data created by [`scripts/make-demo-data.ps1`](scripts/make-demo-data.ps1).*
 
 ## Why ByteForest
 
-- **Fast.** On NTFS volumes ByteForest reads the Master File Table directly instead of asking Windows about every folder one by one. A drive with over a million entries is scanned in a couple of seconds.
-- **Works when raw reads are blocked.** Some anti-cheat drivers block raw volume access. ByteForest detects this and falls back to reading MFT records one by one through the file system, which is still fast. Without administrator rights it uses a regular directory walker.
-- **Compact UI.** A folder tree with sizes and percentages next to an interactive treemap. Selection is synchronized between both.
-- **Free and open source.** No telemetry, no ads. Dual-licensed under MIT or Apache-2.0.
+On NTFS volumes ByteForest reads the Master File Table (MFT) directly instead of asking Windows about every folder one by one. That is the difference between seconds and minutes.
 
-## Measured performance
-
-Measured on a Windows 11 machine with an NVMe drive:
-
-| Volume | Mode | Entries (files + folders) | Scan time |
+| Scan | Mode | Entries | Time |
 |---|---|---|---|
-| `C:` | MFT, elevated (record-by-record, anti-cheat driver blocks raw reads) | 1 252 993 | ~2.2 s |
-| `E:` | MFT, elevated (raw MFT blocks) | 365 585 | ~0.6 s |
-| `C:` | Directory walker, not elevated | about 1.2 million | ~58 s |
+| `C:` on a Windows 11 PC | MFT, with admin rights | ~1.25 million | ~2.2 s |
+| GitHub Actions runner | MFT | ~1.2 million files | 11.6 s |
+| GitHub Actions runner | Directory walk | ~1.2 million files | 541 s |
 
-These are single-machine numbers, not a formal benchmark. You can measure your own with `byteforest bench` (see [CLI usage](#cli-usage)).
+Without administrator rights ByteForest falls back to a regular directory walk, which is much slower. These are single-machine numbers, not a formal benchmark; measure your own with `byteforest bench` (see [Usage](#usage)).
 
-## Features (v0.1)
+## Features
 
-- Fast NTFS scanner that reads the MFT, with automatic fallback to a directory walker when there are no admin rights or the volume is not NTFS
-- Folder tree with size, share of parent, file count and modification date
-- Treemap (Canvas) with zoom into a folder and breadcrumbs
-- Tooltips and selection synchronized between tree, treemap and status bar
-- Light and dark theme that follows the system
-- Command-line tool: list drives, scan and print the largest folders, benchmark
-- No telemetry; logs stay on your machine
+- **MFT scan** of NTFS volumes with administrator rights.
+- **Record-by-record fallback** when raw volume reads are blocked (for example by anti-cheat drivers): the MFT is read one record at a time through the file system, which is still fast.
+- **Directory walker fallback** without admin rights or on non-NTFS volumes.
+- **Folder tree** with size, share of parent, file count and modification date.
+- **Squarified treemap** with zoom into a folder, breadcrumbs and tooltips.
+- **Synchronized selection** between the tree, the treemap and the status bar.
+- **"⚡ Fast scan (admin)" button**: restarts ByteForest with administrator rights and resumes the scan automatically.
+- **"Always run as administrator"** setting, so every start is fast.
+- **Light and dark theme** in the logo palette, with WCAG AA contrast.
+- **Command-line tool** for drives, scans and benchmarks.
 
-## Roadmap
-
-| Version | Planned |
-|---|---|
-| v0.2 | Overview screen, details panel, Mica and themes, move to Recycle Bin, restart as administrator, Russian and English UI, settings |
-| v0.3 | Search and filter chips, for example `ext:mp4 size:>1GB` |
-| v0.4 | Snapshots, diff between scans, "Changes" screen |
-| v0.5 | Cleanup rules and cleanup potential |
-| v0.6 | Duplicate finder (hard links excluded) |
-| v1.0 | Benchmarks, fuzzing, auto-update, documentation, winget package, code signing |
-
-### Known limitations
-
-- Memory use is currently about 400 bytes per entry. The goal for v1.0 is 120 bytes or less.
-- Windows 10/11 x64 only. ReFS and other file systems use the slower directory walker.
-- Hard links are not de-duplicated yet, so the walker may report more space than is really used.
+![Treemap tooltip showing a file name, full path, size and share of the view](docs/screenshots/treemap-tooltip.png)
 
 ## Install
 
-1. Open the [Releases](https://github.com/ErnarIT12/byteforest/releases) page and download the installer for the latest version.
-2. Run it.
+1. Open the [Releases](https://github.com/ErnarIT12/byteforest/releases) page.
+2. Download one of:
+   - the installer: `ByteForest_<version>_x64-setup.exe` (NSIS) or `ByteForest_<version>_x64_en-US.msi`;
+   - the portable command-line tool: `byteforest-cli-v<version>-x64.zip`.
+3. Optionally verify the download against `SHA256SUMS.txt` from the same release: `Get-FileHash <file> -Algorithm SHA256`.
 
-Builds are **not code-signed yet**, so Windows SmartScreen will warn you about an unknown publisher. Choose "More info", then "Run anyway" if you trust the download. Checksums are published with each release.
+Builds are **not code-signed yet**, so Windows SmartScreen shows a warning. Choose "More info", then "Run anyway" if you trust the download.
 
-Run ByteForest **as administrator** to enable fast MFT mode. Without admin rights it still works, using the slower directory walker.
+Requirements: Windows 10/11 x64 and WebView2 (preinstalled on Windows 11; the installer can fetch it on Windows 10 if missing).
 
-## CLI usage
+## Usage
+
+**App.** Pick a drive and press **Scan**, or press **⚡ Fast scan (admin)** to restart elevated and scan right away. Select folders in the tree or rectangles in the treemap (both stay in sync). Click a folder in the treemap to zoom into it; use the breadcrumbs, the up arrow or the mouse wheel to zoom back out.
+
+**CLI.**
 
 ```text
-byteforest drives                  # list available drives
-byteforest scan C: --top 20        # scan a drive and print the 20 largest items
-byteforest scan C: --top 20 --json # same, as JSON
-byteforest bench C: --runs 3       # time the scan three times
+byteforest drives                    # list available drives
+byteforest scan C: --top 20          # scan and print the 20 largest items
+byteforest scan C: --top 20 --json   # same, as JSON
+byteforest bench C: --runs 3         # time the scan three times
 ```
 
 Run the CLI from an elevated terminal to use the MFT scanner.
 
 ## Build from source
 
-Requirements: Rust stable (MSVC toolchain), Node 24 or newer, and the Visual Studio Build Tools with the Windows SDK.
+Prerequisites: Rust (the toolchain is pinned in `rust-toolchain.toml`), Visual Studio Build Tools with the MSVC x64 toolchain and a Windows SDK, and Node.js LTS.
 
 ```powershell
 git clone https://github.com/ErnarIT12/byteforest.git
 cd byteforest
-
-# frontend dependencies and dev build of the app
 npm --prefix app ci
-npm --prefix app run tauri dev
-
-# tests (build the frontend first, the app crate embeds it)
-npm --prefix app run build
-cargo test --workspace
+npm --prefix app run tauri build   # installers
+cargo test --workspace             # tests (build the frontend first: npm --prefix app run build)
 ```
 
-To also run the tests that compare the MFT scanner with the directory walker on a real volume, use an elevated shell and set `BF_ADMIN_TESTS=1`. See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and the admin-only tests.
 
 ## Architecture
 
-```text
-crates/
-  bf-ntfs   pure NTFS parsing over byte slices (no Windows APIs)
-  bf-core   tree model, aggregates, treemap layout (no Windows APIs)
-  bf-scan   scanners: MftScanner and WalkScanner
-  bf-cli    the byteforest command-line tool
-app/
-  src-tauri Tauri commands and events, a thin layer over the crates
-  src       React + TypeScript user interface
+```mermaid
+flowchart LR
+  ntfs[bf-ntfs<br/>NTFS parsing] --> scan[bf-scan<br/>scanners]
+  core[bf-core<br/>tree + treemap layout] --> scan
+  scan --> cli[bf-cli<br/>byteforest CLI]
+  scan --> app[app/src-tauri<br/>Tauri commands]
+  app --> ui[app/src<br/>React UI]
 ```
 
-The scanned tree lives in Rust and never leaves it. The UI asks for slices: the children of one folder (at most 1000 nodes) or the rectangles for one treemap view (at most 20 000). This keeps the interface smooth on drives with millions of files, because the web view only ever holds what is on screen.
+- `bf-ntfs`: pure NTFS parsing over byte slices, no Windows APIs.
+- `bf-core`: tree model, size aggregates and treemap layout, no Windows APIs.
+- `bf-scan`: `MftScanner` and `WalkScanner`, plus automatic mode selection.
+- `bf-cli`: the `byteforest` command-line tool.
+- `app`: Tauri shell (`src-tauri`) and React + TypeScript interface (`src`).
+
+The scanned tree stays in Rust. The UI only asks for slices: the children of one folder (at most 1000 nodes) or the rectangles of one treemap view (at most 20 000).
+
+## Privacy
+
+ByteForest works fully offline. It has no telemetry and its code makes no network calls; the app window may only talk to the local Rust backend (the Content Security Policy allows nothing else). Settings are stored in `%APPDATA%\ByteForest\settings.json` and logs in `%LOCALAPPDATA%\ByteForest\logs`, both on your machine.
+
+## Roadmap
+
+- Memory use of 120 bytes per entry or less (today about 400).
+- Search and sorting.
+- Details panel.
+- Move to Recycle Bin.
+- Localized interface.
 
 ## Contributing
 
-Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md) first. To report a security problem see [SECURITY.md](SECURITY.md).
+Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md) first.
 
-## Acknowledgements
+## Security
 
-Inspired by disk analyzers such as WinDirStat and WizTree.
+Please report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
 Licensed under either of
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
 
-at your option.
+at your option. Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work shall be dual licensed as above, without any additional terms or conditions.
 
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+## Acknowledgements
+
+Inspired by disk analyzers such as WinDirStat and WizTree.
