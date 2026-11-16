@@ -25,7 +25,7 @@ NTFS ボリュームでは、ByteForest はフォルダーごとに Windows へ�
 
 | スキャン | モード | エントリ数 | 時間 |
 |---|---|---|---|
-| Windows 11 PC の `C:` | MFT（管理者権限） | 約 125 万 | 約 2.2 秒 |
+| Windows 11 PC の `C:` | MFT（レコード単位）、管理者権限 | 約 125 万 | 約 2.2 秒 |
 | GitHub Actions ランナー | MFT | 約 120 万ファイル | 11.6 秒 |
 | GitHub Actions ランナー | ディレクトリ走査 | 約 120 万ファイル | 541 秒 |
 
@@ -55,6 +55,8 @@ NTFS ボリュームでは、ByteForest はフォルダーごとに Windows へ�
 3. 必要に応じて、同じリリースの `SHA256SUMS.txt` でダウンロードを検証します：`Get-FileHash <ファイル> -Algorithm SHA256`
 
 ビルドは**まだコード署名されていない**ため、Windows SmartScreen が警告を表示します。ダウンロードを信頼できる場合は「詳細情報」を選び、「実行」をクリックしてください。
+
+インストーラーは ByteForest をすべてのユーザー向けに Program Files へインストールします。
 
 動作環境：Windows 10/11 x64 と WebView2（Windows 11 には標準搭載。Windows 10 で未導入の場合はインストーラーがダウンロードします）。
 

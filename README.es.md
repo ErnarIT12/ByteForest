@@ -25,7 +25,7 @@ En volúmenes NTFS, ByteForest lee directamente la Master File Table (MFT) en lu
 
 | Análisis | Modo | Entradas | Tiempo |
 |---|---|---|---|
-| `C:` en un PC con Windows 11 | MFT, con permisos de administrador | ~1,25 millones | ~2,2 s |
+| `C:` en un PC con Windows 11 | MFT (registro a registro), con permisos de administrador | ~1,25 millones | ~2,2 s |
 | Runner de GitHub Actions | MFT | ~1,2 millones de archivos | 11,6 s |
 | Runner de GitHub Actions | Recorrido de directorios | ~1,2 millones de archivos | 541 s |
 
@@ -55,6 +55,8 @@ Sin permisos de administrador, ByteForest recurre a un recorrido normal de direc
 3. Si quieres, verifica la descarga con `SHA256SUMS.txt` de la misma versión: `Get-FileHash <archivo> -Algorithm SHA256`.
 
 Las compilaciones **aún no están firmadas**, así que Windows SmartScreen mostrará una advertencia. Elige «Más información» y después «Ejecutar de todas formas» si confías en la descarga.
+
+El instalador instala ByteForest para todos los usuarios, en Program Files.
 
 Requisitos: Windows 10/11 x64 y WebView2 (viene preinstalado en Windows 11; en Windows 10 el instalador lo descarga si falta).
 

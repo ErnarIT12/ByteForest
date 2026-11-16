@@ -25,7 +25,7 @@
 
 | 扫描 | 模式 | 条目数 | 耗时 |
 |---|---|---|---|
-| Windows 11 电脑上的 `C:` | MFT，管理员权限 | 约 125 万 | 约 2.2 秒 |
+| Windows 11 电脑上的 `C:` | MFT（逐条记录），管理员权限 | 约 125 万 | 约 2.2 秒 |
 | GitHub Actions runner | MFT | 约 120 万个文件 | 11.6 秒 |
 | GitHub Actions runner | 目录遍历 | 约 120 万个文件 | 541 秒 |
 
@@ -55,6 +55,8 @@
 3. 可选：用同一发布中的 `SHA256SUMS.txt` 校验下载文件：`Get-FileHash <文件> -Algorithm SHA256`。
 
 构建**尚未进行代码签名**，因此 Windows SmartScreen 会显示警告。如果你信任该下载，请选择“更多信息”，然后点击“仍要运行”。
+
+安装程序会为所有用户将 ByteForest 安装到 Program Files。
 
 系统要求：Windows 10/11 x64 和 WebView2（Windows 11 已预装；在 Windows 10 上缺失时安装程序会自动下载）。
 

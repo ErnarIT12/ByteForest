@@ -25,7 +25,7 @@ On NTFS volumes ByteForest reads the Master File Table (MFT) directly instead of
 
 | Scan | Mode | Entries | Time |
 |---|---|---|---|
-| `C:` on a Windows 11 PC | MFT, with admin rights | ~1.25 million | ~2.2 s |
+| `C:` on a Windows 11 PC | MFT (record-by-record), with admin rights | ~1.25 million | ~2.2 s |
 | GitHub Actions runner | MFT | ~1.2 million files | 11.6 s |
 | GitHub Actions runner | Directory walk | ~1.2 million files | 541 s |
 
@@ -55,6 +55,8 @@ Without administrator rights ByteForest falls back to a regular directory walk, 
 3. Optionally verify the download against `SHA256SUMS.txt` from the same release: `Get-FileHash <file> -Algorithm SHA256`.
 
 Builds are **not code-signed yet**, so Windows SmartScreen shows a warning. Choose "More info", then "Run anyway" if you trust the download.
+
+The installer installs ByteForest for all users, into Program Files.
 
 Requirements: Windows 10/11 x64 and WebView2 (preinstalled on Windows 11; the installer can fetch it on Windows 10 if missing).
 
