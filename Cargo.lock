@@ -161,7 +161,7 @@ checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
 name = "bf-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "assert_cmd",
  "bf-core",
@@ -175,7 +175,7 @@ dependencies = [
 
 [[package]]
 name = "bf-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bitflags 2.13.2",
  "insta",
@@ -185,14 +185,14 @@ dependencies = [
 
 [[package]]
 name = "bf-ntfs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "bf-scan"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bf-core",
  "bf-ntfs",
@@ -317,7 +317,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "byteforest-app"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bf-core",
  "bf-scan",
