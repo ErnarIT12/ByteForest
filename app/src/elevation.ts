@@ -22,14 +22,9 @@ export function canOfferFastScan(
   return !elevated && isNtfsDrive(target, drives);
 }
 
-/** Whether a `--scan` value is a drive root or an absolute path worth scanning. */
+/** Whether a `--scan` value is a local drive path (`X:`, `X:\`, `X:\path`); UNC is refused. */
 export function isAcceptableStartupTarget(value: string): boolean {
-  const v = value.trim();
-  return (
-    driveLetterOf(v) !== null ||
-    /^[A-Za-z]:\\[^\\]/.test(v) || // X:\path
-    /^\\\\[^\\]+\\[^\\]+\\[^\\]/.test(v) // \\server\share\path
-  );
+  return /^[A-Za-z]:(\\.*)?$/.test(value.trim());
 }
 
 /** Whether to show the "restart as administrator" hint after a slow (walked) scan. */

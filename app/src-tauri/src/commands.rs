@@ -147,13 +147,13 @@ pub fn take_startup_scan(state: State<'_, AppState>) -> Option<String> {
 /// Current user settings.
 #[tauri::command]
 pub fn get_settings() -> Settings {
-    store::load(&store::settings_path())
+    store::load_default_path()
 }
 
 /// Saves user settings.
 #[tauri::command]
 pub fn set_settings(settings: Settings) -> Result<(), String> {
-    store::save(&store::settings_path(), &settings).map_err(|e| e.to_string())
+    store::save_default_path(&settings).map_err(|e| e.to_string())
 }
 
 /// Starts a scan in the background and returns its id. Progress and the outcome arrive as

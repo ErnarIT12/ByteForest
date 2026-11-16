@@ -3,7 +3,9 @@
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 
-use windows::Win32::UI::Shell::{SHELLEXECUTEINFOW, ShellExecuteExW};
+use windows::Win32::UI::Shell::{
+    SEE_MASK_FLAG_NO_UI, SEE_MASK_NOASYNC, SHELLEXECUTEINFOW, ShellExecuteExW,
+};
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows::core::{HRESULT, PCWSTR};
 
@@ -47,12 +49,22 @@ pub fn should_auto_elevate(always: bool, elevated: bool, args: &[String]) -> boo
     always && !elevated && !args.iter().any(|a| a == ELEVATED_ATTEMPT)
 }
 
-/// The value following the first `--scan`. An empty value, or one that looks like another
-/// flag (starts with `--`), gives `None`.
+/// True for a local drive path: `X:`, `X:\` or `X:\...`. UNC (`\\server\...`, `\\?\...`) and
+/// relative paths are refused, so a crafted `--scan` can never reach the network.
+pub fn is_local_drive_path(value: &str) -> bool {
+    let mut chars = value.chars();
+    let (Some(letter), Some(':')) = (chars.next(), chars.next()) else {
+        return false;
+    };
+    letter.is_ascii_alphabetic() && matches!(chars.next(), None | Some('\\'))
+}
+
+/// The value following the first `--scan`, if it is a local drive path (see
+/// [`is_local_drive_path`]). Anything else, including a missing value, gives `None`.
 pub fn parse_startup_scan(args: &[String]) -> Option<String> {
     let pos = args.iter().position(|a| a == "--scan")?;
     args.get(pos + 1)
-        .filter(|v| !v.is_empty() && !v.starts_with("--"))
+        .filter(|v| is_local_drive_path(v))
         .cloned()
 }
 
@@ -72,6 +84,9 @@ pub fn relaunch_elevated(args: &str) -> Result<(), ElevateError> {
 
     let mut info = SHELLEXECUTEINFOW {
         cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
+        // NOASYNC: the caller exits right after this call, so the launch must finish first.
+        // NO_UI: Windows shows no error dialog of its own; failures come back as `Err`.
+        fMask: SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
         lpVerb: PCWSTR(verb_w.as_ptr()),
         lpFile: PCWSTR(exe_w.as_ptr()),
         lpParameters: PCWSTR(args_w.as_ptr()),
@@ -194,6 +209,26 @@ mod tests {
         assert_eq!(parse_startup_scan(&args(&["app", "--scan"])), None);
         assert_eq!(parse_startup_scan(&args(&["app"])), None);
         assert_eq!(parse_startup_scan(&args(&["app", "--scan", ""])), None);
+        assert_eq!(
+            parse_startup_scan(&args(&["app", "--scan", r"E:\Data\x"])),
+            Some(r"E:\Data\x".to_string())
+        );
+        for bad in [
+            r"\\server\share\x",
+            r"\\?\C:\",
+            r"\\.\C:",
+            r"relative\dir",
+            "..",
+            "C:data",
+            "CC:",
+            r"1:\",
+        ] {
+            assert_eq!(
+                parse_startup_scan(&args(&["app", "--scan", bad])),
+                None,
+                "{bad}"
+            );
+        }
         assert_eq!(
             parse_startup_scan(&args(&["app", "--scan", "--elevated-attempt"])),
             None

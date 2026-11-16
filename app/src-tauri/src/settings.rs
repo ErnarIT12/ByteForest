@@ -46,10 +46,36 @@ pub fn save(path: &Path, s: &Settings) -> io::Result<()> {
     })
 }
 
-/// `%APPDATA%\ByteForest\settings.json` (relative to the current folder if `APPDATA` is unset).
-pub fn settings_path() -> PathBuf {
-    let base = std::env::var_os("APPDATA").map_or_else(PathBuf::new, PathBuf::from);
-    base.join("ByteForest").join("settings.json")
+/// `%APPDATA%\ByteForest\settings.json`, or `None` when `APPDATA` is unset or empty.
+/// There is deliberately no fallback to the current folder: an elevated process often
+/// starts in `C:\Windows\System32`.
+pub fn settings_path() -> Option<PathBuf> {
+    path_in(std::env::var_os("APPDATA"))
+}
+
+/// Settings file below the given `APPDATA` value.
+fn path_in(appdata: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    let base = PathBuf::from(appdata.filter(|v| !v.is_empty())?);
+    Some(base.join("ByteForest").join("settings.json"))
+}
+
+/// Loads the settings from the default path, or the defaults when there is none.
+pub fn load_default_path() -> Settings {
+    settings_path().map_or_else(Settings::default, |p| load(&p))
+}
+
+/// Saves the settings to the default path. Fails when `APPDATA` is not set.
+pub fn save_default_path(s: &Settings) -> io::Result<()> {
+    match settings_path() {
+        Some(p) => save(&p, s),
+        None => {
+            tracing::warn!("APPDATA is not set; settings are not saved");
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "the settings folder (APPDATA) is not available",
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -84,6 +110,18 @@ mod tests {
         let path = dir.path().join("settings.json");
         std::fs::write(&path, "{}").unwrap();
         assert_eq!(load(&path), Settings::default());
+    }
+
+    #[test]
+    fn no_appdata_means_no_settings_path() {
+        assert_eq!(path_in(None), None);
+        assert_eq!(path_in(Some(std::ffi::OsString::new())), None);
+        assert_eq!(
+            path_in(Some(r"C:\Users\x\AppData\Roaming".into())),
+            Some(PathBuf::from(
+                r"C:\Users\x\AppData\Roaming\ByteForest\settings.json"
+            ))
+        );
     }
 
     #[test]

@@ -78,13 +78,25 @@ describe('shouldShowElevationBar with the scanned target', () => {
 });
 
 describe('isAcceptableStartupTarget', () => {
-  it('accepts drive roots and absolute paths', () => {
-    for (const v of ['C:', 'c:\\', 'D:\\Data\\x', '\\\\srv\\share\\dir']) {
+  it('accepts drive roots and local drive paths', () => {
+    for (const v of ['C:', 'c:\\', 'D:\\Data\\x']) {
       expect(isAcceptableStartupTarget(v)).toBe(true);
     }
   });
-  it('rejects everything else', () => {
-    for (const v of ['', 'relative\\dir', '..\\x', '\\\\srv', '\\\\srv\\share', '--evil', 'CC:']) {
+  it('rejects UNC, device and relative paths', () => {
+    for (const v of [
+      '',
+      'relative\\dir',
+      '..\\x',
+      '\\\\srv',
+      '\\\\srv\\share',
+      '\\\\srv\\share\\dir',
+      '\\\\?\\C:\\',
+      '\\\\.\\C:',
+      'C:data',
+      '--evil',
+      'CC:',
+    ]) {
       expect(isAcceptableStartupTarget(v)).toBe(false);
     }
   });

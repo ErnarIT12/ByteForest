@@ -14,7 +14,7 @@ fn main() {
     tracing::info!("ByteForest starting");
 
     let args: Vec<String> = std::env::args().collect();
-    let saved = settings::load(&settings::settings_path());
+    let saved = settings::load_default_path();
     if elevation::should_auto_elevate(saved.always_elevated, bf_scan::is_elevated(), &args) {
         match elevation::relaunch_elevated(&elevation::build_elevated_args(
             elevation::parse_startup_scan(&args).as_deref(),
