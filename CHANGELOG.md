@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-16
+
+### Added
+
+- "⚡ Fast scan (admin)" button: restarts ByteForest with administrator rights and resumes the scan of the selected drive automatically.
+- "Always run as administrator" setting, stored in `%APPDATA%\ByteForest\settings.json`.
+- Elevation hint bar after a slow standard-mode scan, with a one-click restart as administrator.
+- `--scan <drive>` startup argument of the app: scans the given local drive (`X:`, `X:\` or `X:\path`) right after start. UNC and relative paths are ignored.
+- Logo as the application icon and in the window.
+- Brand theme (light and dark) in the logo palette, with automated WCAG AA contrast tests.
+- Multilingual README (English, Russian, Kazakh, Chinese, Spanish, German, Japanese) with screenshots and a script that creates the demo data (`scripts/make-demo-data.ps1`).
+
+### Changed
+
+- Security and conduct reports go through GitHub (private vulnerability reporting) instead of email.
+- The NSIS installer installs per machine (into Program Files), so "Always run as administrator" cannot be abused by replacing a user-writable executable.
+- Fallback message when raw disk reads are blocked: "Raw disk reads are blocked (likely an anti-cheat driver); reading MFT records one by one".
+- Tests use the `BF_TEST_TMP` variable instead of machine-specific temporary paths.
+
+### Fixed
+
+- Paths ending with a backslash are quoted correctly when restarting as administrator.
+- Elevation bar layout, and scans of a folder no longer offer elevation.
+- Dates use the English format in the interface.
+- Scan durations under 0.1 s are shown as `<0.1 s`.
+
+### Security
+
+- The startup `--scan` argument accepts only local drive paths, so a crafted shortcut cannot start a scan of a network share.
+- Settings are not read or written when `APPDATA` is unset (no fallback to the current folder).
+- The elevation request uses `SEE_MASK_NOASYNC` and `SEE_MASK_FLAG_NO_UI`.
+
 ## [0.1.0] - 2026-11-11
 
 ### Added
@@ -23,5 +55,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Hard links are not de-duplicated by the directory walker.
 - Builds are not code-signed, so Windows SmartScreen shows a warning.
 
-[Unreleased]: https://github.com/ErnarIT12/byteforest/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ErnarIT12/byteforest/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ErnarIT12/byteforest/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ErnarIT12/byteforest/releases/tag/v0.1.0

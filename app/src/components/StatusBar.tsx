@@ -1,4 +1,6 @@
 import { formatBytes, formatInt, formatSeconds } from '../format';
+import { canOfferFastScan, driveLetterOf } from '../elevation';
+import { requestElevation } from '../scanController';
 import { statusBadge } from '../statusBadge';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
@@ -9,11 +11,18 @@ export function StatusBar() {
   const elevated = useAppStore((s) => s.elevated);
   const drives = useAppStore((s) => s.drives);
   const resultTarget = useAppStore((s) => s.resultTarget);
-  const drive = drives?.find((d) => d.letter === resultTarget);
+  const target = useAppStore((s) => s.target);
+  const elevating = useAppStore((s) => s.elevating);
+  const scanning = useAppStore((s) => s.scanning);
+  const resultLetter = resultTarget === null ? null : driveLetterOf(resultTarget);
+  const drive = drives?.find((d) => d.letter.toUpperCase() === resultLetter);
 
   const issues = stats ? stats.errors + stats.skipped_records : 0;
   const used = drive ? drive.total - drive.free : 0;
   const badge = elevated === null ? null : statusBadge(elevated, stats);
+
+  const clickable =
+    elevated === false && target !== null && canOfferFastScan(false, target, drives ?? []);
 
   return (
     <footer className="statusbar">
@@ -42,16 +51,27 @@ export function StatusBar() {
         </span>
       )}
       <span className="status-spacer" />
-      {badge && (
-        <span className={`badge${badge.admin ? ' admin' : ''}`} title={badge.title}>
-          {badge.admin ? (
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M8 1.5l5.5 2v4c0 3.4-2.3 5.9-5.5 7-3.2-1.1-5.5-3.6-5.5-7v-4z" />
-            </svg>
-          ) : null}
-          {badge.label}
-        </span>
-      )}
+      {badge &&
+        (clickable ? (
+          <button
+            type="button"
+            className="badge badge-action"
+            title={strings.badgeRestartHint}
+            disabled={elevating || scanning}
+            onClick={() => void requestElevation(`${target}:`)}
+          >
+            {badge.label}
+          </button>
+        ) : (
+          <span className={`badge${badge.admin ? ' admin' : ''}`} title={badge.title}>
+            {badge.admin ? (
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 1.5l5.5 2v4c0 3.4-2.3 5.9-5.5 7-3.2-1.1-5.5-3.6-5.5-7v-4z" />
+              </svg>
+            ) : null}
+            {badge.label}
+          </span>
+        ))}
     </footer>
   );
 }

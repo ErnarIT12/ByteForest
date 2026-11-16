@@ -3,6 +3,9 @@
 /* Controls */
 
 .btn {
+  transition:
+    box-shadow 0.15s ease,
+    background 0.15s ease;
   height: 32px;
   min-width: 84px;
   padding: 0 14px;
@@ -19,16 +22,20 @@
   color: var(--text-2);
 }
 .btn.primary {
-  background: var(--accent);
+  background: var(--btn-grad);
   border-color: transparent;
-  color: var(--on-accent);
+  color: var(--on-btn);
   font-weight: 600;
 }
 .btn.primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--btn-grad-hover);
+  box-shadow: var(--glow);
 }
 .btn.primary:active:not(:disabled) {
-  background: var(--accent-pressed);
+  background: var(--btn-grad);
+  color: var(--on-btn);
+  filter: brightness(0.92);
+  box-shadow: none;
 }
 .btn:disabled {
   opacity: 0.45;
@@ -139,4 +146,59 @@ optgroup {
   stroke: currentColor;
   stroke-width: 1.5;
   stroke-linecap: round;
+}
+
+/* Elevation hint bar, mode badge button and settings popover */
+
+.elevation-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--text);
+  box-shadow: var(--bar-shadow);
+}
+.elevation-bar .icon-btn svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.badge-action {
+  font: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.badge-action:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+.settings {
+  position: relative;
+  margin-left: auto;
+}
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: 300px;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+.popover p {
+  margin: 6px 0 0;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.setting-error {
+  color: var(--danger);
 }

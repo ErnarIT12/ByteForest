@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { ElevationBar } from './components/ElevationBar';
 import { EmptyState } from './components/EmptyState';
 import { ErrorToast } from './components/ErrorToast';
 import { Explorer } from './components/Explorer';
@@ -21,7 +22,12 @@ export default function App() {
   const root = useAppStore((s) => s.root);
   const generation = useAppStore((s) => s.generation);
 
-  useEffect(() => listenToScanEvents(), []);
+  useEffect(() => {
+    const ready = listenToScanEvents();
+    return () => {
+      ready.then((unlisten) => unlisten()).catch(() => {});
+    };
+  }, []);
   useEffect(() => loadEnvironment(), []);
 
   useEffect(() => {
@@ -38,6 +44,7 @@ export default function App() {
   return (
     <div className="app">
       <TopBar />
+      <ElevationBar />
       {root ? <Explorer root={root} generation={generation} /> : <EmptyState />}
       <StatusBar />
       <ErrorToast />

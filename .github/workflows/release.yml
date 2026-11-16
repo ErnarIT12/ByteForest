@@ -42,7 +42,7 @@ jobs:
 
             These builds are not code-signed, so Windows SmartScreen may show a warning ("More info", then "Run anyway"). Verify downloads against SHA256SUMS.txt.
 
-            Run ByteForest as administrator to enable the fast MFT scan; without it the app falls back to a slower directory walk.
+            The fast MFT scan needs administrator rights: use the "⚡ Fast scan (admin)" button or turn on "Always run as administrator" in the settings. Without them the app falls back to a slower directory walk.
           releaseDraft: true
           prerelease: ${{ startsWith(github.ref_name, 'v0.') }}
 

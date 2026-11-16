@@ -3,6 +3,7 @@
  * rectangles are requested at `css size * devicePixelRatio` and drawn 1:1.
  */
 import type { Rect } from './api';
+import { contrastRatio } from './contrast';
 import { formatBytes } from './format';
 import type { Crumb } from './store';
 
@@ -18,8 +19,11 @@ const SIZE_LINE_MIN_H = 34;
 
 const FONT_STACK = '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif';
 
-/** Muted hues, one per top-level item of the focused folder (cycled). */
-const HUES = [211, 158, 36, 345, 265, 188, 88, 18];
+/**
+ * One hue per top-level item of the focused folder (cycled): six from the logo family
+ * (greens, teals, blue-teals, lime) plus a muted amber and violet so siblings stay apart.
+ */
+export const HUES = [145, 175, 200, 95, 160, 215, 42, 268];
 
 export interface TreemapLayout {
   rects: Rect[];
@@ -85,41 +89,66 @@ export function crumbsTo(layout: TreemapLayout, i: number, focusPath: Crumb[]): 
   return [...focusPath, ...chain.reverse()];
 }
 
-type Role = 'file' | 'dirFill' | 'dirStroke' | 'header';
+export type Role = 'file' | 'dirFill' | 'dirStroke' | 'header';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-function color(theme: Theme, slot: number, depth: number, role: Role): string {
+/** Fill colour (`#rrggbb`) of a rectangle role for a palette slot and depth. */
+export function treemapColor(theme: Theme, slot: number, depth: number, role: Role): string {
+  const [h, s, l] = hsl(theme, slot, depth, role);
+  return hslToHex(h, s, l);
+}
+
+function hsl(theme: Theme, slot: number, depth: number, role: Role): [number, number, number] {
   const h = HUES[Math.max(0, slot)];
   const d = Math.max(0, depth - 1);
   if (theme === 'light') {
     switch (role) {
       case 'file':
-        return `hsl(${h} 42% ${clamp(74 - 6 * d, 48, 80)}%)`;
+        return [h, 46, clamp(76 - 4 * d, 62, 82)];
       case 'dirFill':
-        return `hsl(${h} 30% ${clamp(92 - 4 * d, 70, 94)}%)`;
+        return [h, 32, clamp(94 - 4 * d, 72, 96)];
       case 'dirStroke':
-        return `hsl(${h} 28% ${clamp(64 - 5 * d, 40, 70)}%)`;
+        return [h, 30, clamp(60 - 5 * d, 38, 66)];
       case 'header':
-        return `hsl(${h} 34% ${clamp(83 - 5 * d, 60, 86)}%)`;
+        return [h, 38, clamp(84 - 4 * d, 68, 88)];
     }
   }
   switch (role) {
     case 'file':
-      return `hsl(${h} 34% ${clamp(44 - 4 * d, 26, 50)}%)`;
+      return [h, 42, clamp(32 - 3 * d, 20, 33)];
     case 'dirFill':
-      return `hsl(${h} 18% ${clamp(17 + 2 * d, 14, 26)}%)`;
+      return [h, 26, clamp(14 + 2 * d, 12, 22)];
     case 'dirStroke':
-      return `hsl(${h} 22% ${clamp(36 + 3 * d, 30, 50)}%)`;
+      return [h, 28, clamp(30 + 3 * d, 26, 44)];
     case 'header':
-      return `hsl(${h} 24% ${clamp(26 + 3 * d, 22, 38)}%)`;
+      return [h, 32, clamp(22 + 3 * d, 20, 34)];
   }
 }
 
-const TEXT = {
-  light: { main: 'rgba(0,0,0,0.85)', sub: 'rgba(0,0,0,0.6)' },
-  dark: { main: 'rgba(255,255,255,0.92)', sub: 'rgba(255,255,255,0.68)' },
-} as const;
+function hslToHex(h: number, sPct: number, lPct: number): string {
+  const sat = sPct / 100;
+  const light = lPct / 100;
+  const a = sat * Math.min(light, 1 - light);
+  const channel = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const v = light - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(v * 255)
+      .toString(16)
+      .padStart(2, '0');
+  };
+  return `#${channel(0)}${channel(8)}${channel(4)}`;
+}
+
+const LIGHT_LABEL = { main: '#e6f4f1', sub: '#bcd3ce' };
+const DARK_LABEL = { main: '#062018', sub: '#1a3a2f' };
+
+/** Label colours for text drawn on `fill`: whichever of light/dark text contrasts more. */
+export function labelColors(fill: string): { main: string; sub: string } {
+  return contrastRatio(fill, LIGHT_LABEL.main) >= contrastRatio(fill, DARK_LABEL.main)
+    ? LIGHT_LABEL
+    : DARK_LABEL;
+}
 
 /** Longest prefix of `text` (with an ellipsis) that fits `maxW`, or "" if nothing fits. */
 function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
@@ -147,12 +176,11 @@ export function paintTreemap(
     const key = `${s}|${depth}|${role}`;
     let c = cache.get(key);
     if (c === undefined) {
-      c = color(theme, s, depth, role);
+      c = treemapColor(theme, s, depth, role);
       cache.set(key, c);
     }
     return c;
   };
-  const text = TEXT[theme];
   const labelW = LABEL_MIN_W * dpr;
   const labelH = LABEL_MIN_H * dpr;
   const pad = Math.round(4 * dpr);
@@ -176,13 +204,14 @@ export function paintTreemap(
         ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
       }
       if (headerFits(r.w, r.h, header)) {
-        ctx.fillStyle = paint(s, r.depth, 'header');
+        const headerFill = paint(s, r.depth, 'header');
+        ctx.fillStyle = headerFill;
         ctx.fillRect(r.x + 1, r.y + 1, r.w - 2, header);
         if (r.w >= labelW) {
           ctx.font = headerFont;
           const label = fitText(ctx, r.name, r.w - 2 * pad);
           if (label) {
-            ctx.fillStyle = text.main;
+            ctx.fillStyle = labelColors(headerFill).main;
             ctx.fillText(label, r.x + pad, r.y + 1 + header / 2);
           }
         }
@@ -191,7 +220,9 @@ export function paintTreemap(
     }
     // Files: filled tiles with a 1 px gap so neighbours stay distinguishable.
     const gap = r.w > 3 && r.h > 3 ? 1 : 0;
-    ctx.fillStyle = paint(s, r.depth, 'file');
+    const fileFill = paint(s, r.depth, 'file');
+    const text = labelColors(fileFill);
+    ctx.fillStyle = fileFill;
     ctx.fillRect(r.x, r.y, r.w - gap, r.h - gap);
     if (r.w >= labelW && r.h >= labelH) {
       ctx.font = font;
@@ -210,14 +241,21 @@ export function paintTreemap(
   }
 }
 
+/** Overlay colours, read from the theme's CSS tokens. */
+export interface HighlightColors {
+  accent: string;
+  hoverFill: string;
+  hoverLine: string;
+  selectedInner: string;
+}
+
 /** Paints the hover and selection outlines on the overlay canvas. */
 export function paintHighlights(
   ctx: CanvasRenderingContext2D,
   layout: TreemapLayout,
   hover: number,
   selected: number,
-  theme: Theme,
-  accent: string,
+  colors: HighlightColors,
 ): void {
   const { rects, dpr } = layout;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -232,13 +270,13 @@ export function paintHighlights(
   };
   if (hover > 0 && hover !== selected) {
     const r = rects[hover];
-    ctx.fillStyle = theme === 'light' ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.08)';
+    ctx.fillStyle = colors.hoverFill;
     ctx.fillRect(r.x, r.y, r.w, r.h);
-    outline(hover, Math.max(1, Math.round(1.5 * dpr)), theme === 'light' ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.8)', 0);
+    outline(hover, Math.max(1, Math.round(1.5 * dpr)), colors.hoverLine, 0);
   }
   if (selected > 0) {
     const w = Math.max(2, Math.round(2 * dpr));
-    outline(selected, w, accent, 0);
-    outline(selected, Math.max(1, Math.round(dpr)), theme === 'light' ? '#ffffff' : '#000000', w);
+    outline(selected, w, colors.accent, 0);
+    outline(selected, Math.max(1, Math.round(dpr)), colors.selectedInner, w);
   }
 }

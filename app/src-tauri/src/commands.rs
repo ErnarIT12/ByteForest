@@ -9,6 +9,8 @@ use bf_scan::{CancelToken, ScanError, ScanRoot, VolumeSummary};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::dto::{ScanDone, ScanErrorEvent, ScanProgressEvent, TreemapRect};
+use crate::elevation::{self, ElevateError};
+use crate::settings::{self as store, Settings};
 use crate::state::AppState;
 
 /// Largest page `get_children` returns.
@@ -115,6 +117,43 @@ pub fn list_drives() -> Vec<VolumeSummary> {
 #[tauri::command]
 pub fn is_elevated() -> bool {
     bf_scan::is_elevated()
+}
+
+/// Restarts the app with administrator rights, optionally opening `target` for scanning.
+/// Exits the app on success; `Err("declined")` when the user refuses the UAC prompt.
+#[tauri::command(async)]
+pub fn restart_elevated(app: AppHandle, target: Option<String>) -> Result<(), String> {
+    let args = elevation::build_elevated_args(target.as_deref());
+    match elevation::relaunch_elevated(&args) {
+        Ok(()) => {
+            app.exit(0);
+            Ok(())
+        }
+        Err(ElevateError::Declined) => Err("declined".to_string()),
+        Err(ElevateError::Other(message)) => Err(message),
+    }
+}
+
+/// The `--scan` startup argument; returned once, then `None`.
+#[tauri::command]
+pub fn take_startup_scan(state: State<'_, AppState>) -> Option<String> {
+    state
+        .startup_scan
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .take()
+}
+
+/// Current user settings.
+#[tauri::command]
+pub fn get_settings() -> Settings {
+    store::load_default_path()
+}
+
+/// Saves user settings.
+#[tauri::command]
+pub fn set_settings(settings: Settings) -> Result<(), String> {
+    store::save_default_path(&settings).map_err(|e| e.to_string())
 }
 
 /// Starts a scan in the background and returns its id. Progress and the outcome arrive as

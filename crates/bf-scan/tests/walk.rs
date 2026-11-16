@@ -1,6 +1,6 @@
 //! Integration tests for `WalkScanner`, `list_volumes` and `is_elevated`.
 //!
-//! Temp directories live under `D:\Temp` when it exists, else in the system temp dir.
+//! Temp directories live under `BF_TEST_TMP` when set, else in the system temp dir.
 
 use std::fs;
 use std::path::Path;
@@ -15,11 +15,9 @@ use bf_scan::{
 use tempfile::TempDir;
 
 fn temp_dir() -> TempDir {
-    let preferred = Path::new(r"D:\Temp");
-    if preferred.is_dir() {
-        tempfile::tempdir_in(preferred).expect("create temp dir under D:\\Temp")
-    } else {
-        tempfile::tempdir().expect("create temp dir")
+    match std::env::var_os("BF_TEST_TMP") {
+        Some(base) => tempfile::tempdir_in(base).expect("create temp dir under BF_TEST_TMP"),
+        None => tempfile::tempdir().expect("create temp dir"),
     }
 }
 

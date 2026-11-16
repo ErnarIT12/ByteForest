@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filetimeToDate, formatBytes, formatCount } from './format';
+import { filetimeToDate, formatBytes, formatCount, formatFiletime, formatSeconds } from './format';
 
 describe('formatBytes', () => {
   it('formats the brief values', () => {
@@ -38,5 +38,24 @@ describe('filetimeToDate', () => {
   it('maps the Unix epoch and treats 0 as missing', () => {
     expect(filetimeToDate(116_444_736_000_000_000)?.toISOString()).toBe('1970-01-01T00:00:00.000Z');
     expect(filetimeToDate(0)).toBeNull();
+  });
+});
+
+describe('formatFiletime', () => {
+  it('uses a fixed English short date', () => {
+    // 2026-11-15T12:00:00Z as FILETIME; noon keeps the day stable across time zones.
+    const ft = Date.UTC(2026, 10, 15, 12) * 10_000 + 116_444_736_000_000_000;
+    expect(formatFiletime(ft)).toBe('Nov 15, 2026');
+    expect(formatFiletime(0)).toBe('');
+  });
+});
+
+describe('formatSeconds', () => {
+  it('shows one decimal and "<0.1 s" for instant scans', () => {
+    expect(formatSeconds(3420)).toBe('3.4 s');
+    expect(formatSeconds(0)).toBe('<0.1 s');
+    expect(formatSeconds(49)).toBe('<0.1 s');
+    expect(formatSeconds(50)).toBe('0.1 s');
+    expect(formatSeconds(-5)).toBe('<0.1 s');
   });
 });

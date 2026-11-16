@@ -20,6 +20,22 @@ export const strings = {
   starting: 'Starting',
   files: 'files',
 
+  fastScan: '⚡ Fast scan (admin)',
+  fastScanAria: 'Fast scan (admin): restart as administrator and scan the selected drive quickly',
+  waitingForPermission: 'Waiting for permission…',
+  settings: 'Settings',
+  alwaysElevated: 'Always run as administrator',
+  alwaysElevatedHelp:
+    'ByteForest will ask for permission each time it starts, so scans of NTFS drives are always fast.',
+  settingsLoadFailed: 'Could not load settings',
+  settingsSaveFailed: (reason: string) => `Could not save the setting: ${reason}`,
+
+  // Elevation hint bar
+  elevationBarText: (secs: string) =>
+    `Scanned in ${secs} in standard mode. With admin rights it takes a few seconds.`,
+  restartAsAdmin: 'Restart as administrator',
+  badgeRestartHint: 'Click to restart with administrator rights for fast scanning',
+
   // Empty and scanning states
   emptyTitle: 'See what takes up space',
   emptyBody: 'Pick a drive and scan it to see what takes up space.',
@@ -73,5 +89,6 @@ export const strings = {
 
   // Errors
   scanFailed: 'Scan failed',
+  elevateFailed: 'Could not restart as administrator',
   dismiss: 'Dismiss',
 } as const;

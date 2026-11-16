@@ -141,8 +141,14 @@ export function TreemapCanvas() {
     }
     if (canvas.width !== layout.width) canvas.width = layout.width;
     if (canvas.height !== layout.height) canvas.height = layout.height;
-    const accent = getComputedStyle(canvas).getPropertyValue('--accent').trim() || '#0067c0';
-    paintHighlights(ctx, layout, hoverIndex, selectedIndex, theme, accent);
+    const css = getComputedStyle(canvas);
+    const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+    paintHighlights(ctx, layout, hoverIndex, selectedIndex, {
+      accent: token('--accent', '#5edb7f'),
+      hoverFill: token('--tm-hover-fill', 'rgba(255,255,255,0.08)'),
+      hoverLine: token('--tm-hover-line', 'rgba(206,251,246,0.85)'),
+      selectedInner: token('--tm-sel-inner', '#000000'),
+    });
   }, [layout, hoverIndex, selectedIndex, theme]);
 
   const indexAt = (e: MouseEvent<HTMLElement>): number => {

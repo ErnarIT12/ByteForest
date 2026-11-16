@@ -129,3 +129,26 @@ describe('acceptEvent', () => {
     expect(acceptEvent({ pending: false, current: null, lastKnown: 0 }, 1)).toBe(false);
   });
 });
+
+describe('scan target', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('keeps the exact scanned target with the result', () => {
+    const s = useAppStore.getState();
+    s.beginScan('C:\\Users\\me');
+    s.scanResolved(1);
+    useAppStore.getState().handleDone(done(1));
+    expect(useAppStore.getState().resultTarget).toBe('C:\\Users\\me');
+  });
+
+  it('clears a stale error title when a scan error replaces it', () => {
+    const s = useAppStore.getState();
+    s.elevationFailed('spawn failed');
+    expect(useAppStore.getState().errorTitle).not.toBeNull();
+    s.beginScan('C:');
+    s.scanResolved(1);
+    useAppStore.getState().handleError({ scan_id: 1, message: 'boom' });
+    expect(useAppStore.getState().errorTitle).toBeNull();
+    expect(useAppStore.getState().error).toBe('boom');
+  });
+});

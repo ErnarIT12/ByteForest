@@ -4,6 +4,7 @@ import { strings } from '../strings';
 /** Dismissible notice for a failed scan or command. */
 export function ErrorToast() {
   const error = useAppStore((s) => s.error);
+  const title = useAppStore((s) => s.errorTitle);
   const dismiss = useAppStore((s) => s.dismissError);
   if (!error) return null;
   return (
@@ -13,7 +14,7 @@ export function ErrorToast() {
         <path d="M8 4.5v4.2M8 10.8v.4" />
       </svg>
       <div className="toast-body">
-        <strong>{strings.scanFailed}</strong>
+        <strong>{title ?? strings.scanFailed}</strong>
         <span>{error}</span>
       </div>
       <button type="button" className="icon-btn" aria-label={strings.dismiss} onClick={dismiss}>
