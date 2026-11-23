@@ -1,12 +1,14 @@
 //! IPC commands called by the front end, plus the pure helpers they rely on.
 
+use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use bf_core::{
-    ExclusionSet, FileFilter, NodeFlags, NodeId, Rect, ReportOptions, SnapshotDiff, SnapshotLimits,
-    SortKey, Tree, TreemapOptions, diff, read_snapshot_with_limits, write_csv, write_snapshot,
+    ExclusionSet, FileFilter, MAX_SUNBURST_DEPTH, NodeFlags, NodeId, OTHER_ARC_ID, Rect,
+    ReportOptions, SnapshotDiff, SnapshotLimits, SortKey, SunburstArc, SunburstOptions, Tree,
+    TreemapOptions, diff, read_snapshot_with_limits, write_csv, write_snapshot,
 };
 use bf_scan::{CancelToken, ScanError, ScanRoot, ScanStats, VolumeSummary};
 use serde::Serialize;
@@ -14,7 +16,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::dto::{
     BaselineInfo, ChangeDto, ExcludedInfo, NodeViewDto, ScanDone, ScanErrorEvent,
-    ScanProgressEvent, TreemapRect,
+    ScanProgressEvent, SunburstArcDto, TreemapRect, diff_dto,
 };
 #[cfg(windows)]
 use crate::elevation::{self, ElevateError};
@@ -89,8 +91,13 @@ pub fn validate_header(header: Option<f32>) -> Result<f32, String> {
     }
 }
 
-/// Adds the name, size and parent of each node to its layout rectangle.
-pub fn treemap_rects(tree: &Tree, rects: Vec<Rect>) -> Vec<TreemapRect> {
+/// Adds the name, size and parent of each node to its layout rectangle, plus its comparison
+/// result when `diff` is active.
+pub fn treemap_rects(
+    tree: &Tree,
+    rects: Vec<Rect>,
+    diff: Option<&SnapshotDiff>,
+) -> Vec<TreemapRect> {
     rects
         .into_iter()
         .map(|r| {
@@ -107,6 +114,67 @@ pub fn treemap_rects(tree: &Tree, rects: Vec<Rect>) -> Vec<TreemapRect> {
                 depth: r.depth,
                 is_dir: r.is_dir,
                 category: r.category,
+                diff: diff.and_then(|d| diff_dto(d, tree, id)),
+            }
+        })
+        .collect()
+}
+
+/// Names, sizes and comparison results for the arcs of a sunburst.
+pub fn sunburst_arcs(
+    tree: &Tree,
+    arcs: Vec<SunburstArc>,
+    diff: Option<&SnapshotDiff>,
+) -> Vec<SunburstArcDto> {
+    let sizes: HashMap<u32, u64> = if arcs.iter().any(|a| a.id == OTHER_ARC_ID) {
+        // The merged arc stands for children that were too narrow; its size is what is left
+        // of the parent after the listed siblings.
+        let mut listed: HashMap<u32, u64> = HashMap::new();
+        for a in arcs.iter().filter(|a| a.id != OTHER_ARC_ID) {
+            *listed.entry(a.parent).or_default() += tree.total(NodeId(a.id)).size;
+        }
+        arcs.iter()
+            .filter(|a| a.id == OTHER_ARC_ID)
+            .map(|a| {
+                let children: u64 = tree
+                    .children_ids(NodeId(a.parent))
+                    .map(|c| tree.total(c).size)
+                    .sum();
+                let rest = children.saturating_sub(listed.get(&a.parent).copied().unwrap_or(0));
+                (a.parent, rest)
+            })
+            .collect()
+    } else {
+        HashMap::new()
+    };
+    arcs.into_iter()
+        .map(|a| {
+            if a.id == OTHER_ARC_ID {
+                return SunburstArcDto {
+                    id: a.id,
+                    parent: a.parent,
+                    name: String::new(),
+                    size: sizes.get(&a.parent).copied().unwrap_or(0),
+                    depth: a.depth,
+                    start: a.start,
+                    end: a.end,
+                    is_dir: false,
+                    category: None,
+                    diff: None,
+                };
+            }
+            let id = NodeId(a.id);
+            SunburstArcDto {
+                id: a.id,
+                parent: a.parent,
+                name: tree.name(id).to_string(),
+                size: tree.total(id).size,
+                depth: a.depth,
+                start: a.start,
+                end: a.end,
+                is_dir: a.is_dir,
+                category: a.category,
+                diff: diff.and_then(|d| diff_dto(d, tree, id)),
             }
         })
         .collect()
@@ -1073,15 +1141,43 @@ pub fn get_treemap(
 ) -> Result<Vec<TreemapRect>, String> {
     validate_canvas(width, height)?;
     let dir_header = validate_header(header)?;
-    let tree = current_tree(&state, None)?;
+    let (scan_id, tree) = current_scan(&state, None)?;
     let id = node_id_checked(&tree, node)?;
+    let diff = baseline_diff(&state, scan_id);
     let opts = TreemapOptions {
         width,
         height,
         dir_header,
         ..Default::default()
     };
-    Ok(treemap_rects(&tree, tree.treemap(id, &opts)))
+    Ok(treemap_rects(
+        &tree,
+        tree.treemap(id, &opts),
+        diff.as_deref(),
+    ))
+}
+
+/// Sunburst arcs (at most 20 000) of the subtree under `node`, `max_depth` (1..=12, default 6)
+/// rings deep. The merged "other" arc has `id = 4294967295` and an empty name.
+#[tauri::command(async)]
+pub fn get_sunburst(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    node: u32,
+    max_depth: Option<u8>,
+) -> Result<Vec<SunburstArcDto>, String> {
+    let (current_id, tree) = current_scan(&state, Some(scan_id))?;
+    let id = node_id_checked(&tree, node)?;
+    let diff = baseline_diff(&state, current_id);
+    let mut opts = SunburstOptions::default();
+    if let Some(depth) = max_depth {
+        opts.max_depth = depth.clamp(1, MAX_SUNBURST_DEPTH);
+    }
+    Ok(sunburst_arcs(
+        &tree,
+        tree.sunburst(id, &opts),
+        diff.as_deref(),
+    ))
 }
 
 /// Largest snapshot file `compare_with_snapshot` opens.
@@ -1670,7 +1766,7 @@ mod tests {
             height: 100.0,
             ..Default::default()
         };
-        let rects = treemap_rects(&tree, tree.treemap(tree.root(), &opts));
+        let rects = treemap_rects(&tree, tree.treemap(tree.root(), &opts), None);
         assert_eq!(rects.len(), 2);
         assert_eq!((rects[0].parent, rects[0].size), (None, 10));
         assert_eq!(rects[1].parent, Some(0));
@@ -1679,6 +1775,59 @@ mod tests {
         assert!(!rects[1].is_dir);
         assert_eq!(rects[0].category, None);
         assert_eq!(rects[1].category, Some(bf_core::FileCategory::Other));
+    }
+
+    #[test]
+    fn treemap_rects_carry_the_comparison_result_only_when_given() {
+        let tree = tiny_tree();
+        let opts = TreemapOptions {
+            width: 100.0,
+            height: 100.0,
+            ..Default::default()
+        };
+        let empty = TreeBuilder::new(5, "C:").finish();
+        let d = bf_core::diff(&empty, &tree, false);
+        let rects = treemap_rects(&tree, tree.treemap(tree.root(), &opts), Some(&d));
+        assert_eq!(
+            rects[1].diff.as_ref().map(|x| x.status),
+            Some(crate::dto::DiffKind::Added)
+        );
+        let plain = treemap_rects(&tree, tree.treemap(tree.root(), &opts), None);
+        assert!(plain.iter().all(|r| r.diff.is_none()));
+    }
+
+    #[test]
+    fn sunburst_arcs_carry_names_sizes_and_the_other_arc_remainder() {
+        let mut b = TreeBuilder::new(5, "C:");
+        for (key, name, size) in [(6, "big.bin", 100_000u64), (7, "t1", 3), (8, "t2", 4)] {
+            b.push(EntryRecord {
+                key,
+                parent_key: 5,
+                name: name.into(),
+                flags: NodeFlags::empty(),
+                size,
+                alloc: size,
+                mtime: 0,
+            });
+        }
+        let tree = b.finish();
+        let opts = SunburstOptions {
+            min_angle: 0.0,
+            ..Default::default()
+        };
+        let arcs = sunburst_arcs(&tree, tree.sunburst(tree.root(), &opts), None);
+        assert_eq!(arcs.len(), 3);
+        assert_eq!((arcs[0].name.as_str(), arcs[0].size), ("big.bin", 100_000));
+        assert!(arcs.iter().all(|a| a.diff.is_none() && a.depth == 1));
+
+        let opts = SunburstOptions {
+            min_angle: 0.0003,
+            ..Default::default()
+        };
+        let merged = sunburst_arcs(&tree, tree.sunburst(tree.root(), &opts), None);
+        let other = merged.iter().find(|a| a.id == OTHER_ARC_ID).unwrap();
+        assert_eq!((other.name.as_str(), other.size, other.parent), ("", 7, 0));
+        assert_eq!(other.category, None);
     }
 
     #[test]

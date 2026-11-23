@@ -11,7 +11,8 @@ import { NodeDetailsPanel } from './NodeDetailsPanel';
 import { strings } from '../strings';
 import { Splitter } from './Splitter';
 import { TreemapCanvas } from './TreemapCanvas';
-import { TreemapLegend } from './TreemapLegend';
+import { DiffLegend, TreemapLegend } from './TreemapLegend';
+import { SunburstCanvas } from './SunburstCanvas';
 import { TreePanel } from './TreePanel';
 
 /** The Explorer screen: disk map and file browser. */
@@ -32,6 +33,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   const selected = useAppStore((s) => s.selectedId);
   const generation = useAppStore((s) => s.generation);
   const comparing = useAppStore((s) => s.baseline !== null);
+  const mapView = useAppStore((s) => s.mapView);
   // The Changes view only exists while comparing.
   const changes = changesMode && comparing;
   const colorMode = useTreemapColorMode();
@@ -135,7 +137,8 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
           </button>
         </div>
         {colorMode === 'category' && <TreemapLegend />}
-        <TreemapCanvas />
+        {comparing && <DiffLegend />}
+        {mapView === 'sunburst' ? <SunburstCanvas /> : <TreemapCanvas />}
       </section>
       {!mapOnly && <Splitter value={split} min={0.45} max={0.82} onChange={onSplitChange} />}
       <section id="result-browser" hidden={mapOnly} className="explorer-sidebar" aria-label="Scan results">

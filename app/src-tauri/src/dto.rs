@@ -69,6 +69,30 @@ pub struct TreemapRect {
     pub is_dir: bool,
     /// File category; `None` for directories.
     pub category: Option<bf_core::FileCategory>,
+    /// How the node changed since the snapshot being compared against; `None` when not
+    /// comparing or nothing changed.
+    pub diff: Option<DiffDto>,
+}
+
+/// One sunburst ring segment as sent to the UI. `id` is `u32::MAX` for the merged "other" arc,
+/// whose `name` is empty and `size` the sum of the merged children.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct SunburstArcDto {
+    pub id: u32,
+    /// Node index of the parent arc (the focused node for the first ring).
+    pub parent: u32,
+    pub name: String,
+    /// Logical size of the subtree in bytes.
+    pub size: u64,
+    /// Ring number; 1 is the innermost ring.
+    pub depth: u8,
+    /// Start angle in radians, clockwise from 12 o'clock.
+    pub start: f32,
+    pub end: f32,
+    pub is_dir: bool,
+    /// File category; `None` for directories and the "other" arc.
+    pub category: Option<bf_core::FileCategory>,
+    pub diff: Option<DiffDto>,
 }
 
 /// How a node differs from the snapshot being compared against.

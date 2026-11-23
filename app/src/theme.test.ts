@@ -263,3 +263,28 @@ describe('Discard Pile marker contrast', () => {
     });
   }
 });
+
+// Map change marks (compare mode): an outline in --delta-grow / --delta-shrink laid on a halo
+// of --tm-sel-inner, so the outline always meets its neighbour at 3:1 whatever the tile colour
+// below it; the pill label sits on the mark colour; the legend swatch on the raised strip; and
+// the mark against the map backdrop (--tm-bg) that shows between tiles.
+const marks = {
+  light: { grow: '#9a3412', shrink: '#17663a', halo: '#ffffff', backdrop: '#d8dce2', raised: '#f6f7f9' },
+  dark: { grow: '#ffb27a', shrink: '#7fd6a0', halo: '#141518', backdrop: '#181a1e', raised: '#292c32' },
+};
+
+describe('map change mark contrast', () => {
+  for (const theme of ['light', 'dark'] as const) {
+    const m = marks[theme];
+    for (const kind of ['grow', 'shrink'] as const) {
+      it(`${theme} ${kind} outline keeps 3:1 against its halo, the backdrop and the legend strip`, () => {
+        expect(contrastRatio(m[kind], m.halo)).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(m[kind], m.backdrop)).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(m[kind], m.raised)).toBeGreaterThanOrEqual(3);
+      });
+      it(`${theme} ${kind} pill text meets AA on the mark colour`, () => {
+        expect(contrastRatio(m[kind], labelColors(m[kind]).main)).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+  }
+});

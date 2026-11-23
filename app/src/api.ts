@@ -101,6 +101,28 @@ export interface Rect {
   is_dir: boolean;
   /** Category of a file; null for folders. */
   category: FileCategory | null;
+  /** Set only while comparing with a snapshot, and only when something changed. */
+  diff?: NodeDiff | null;
+}
+
+/** Id of the merged "other" arc of a sunburst (`u32::MAX`). */
+export const OTHER_ARC_ID = 4294967295;
+
+/** One sunburst ring segment; angles are radians clockwise from 12 o'clock. */
+export interface SunburstArc {
+  /** Node id, or `OTHER_ARC_ID` for the merged arc of small items (empty `name`). */
+  id: number;
+  /** Node id of the parent arc (the requested node for the first ring). */
+  parent: number;
+  name: string;
+  size: number;
+  /** 1 is the ring around the centre disc. */
+  depth: number;
+  start: number;
+  end: number;
+  is_dir: boolean;
+  category: FileCategory | null;
+  diff?: NodeDiff | null;
 }
 
 export interface ScanProgress {
@@ -314,6 +336,9 @@ export const moveNodesToTrash = (scanId: number, nodes: number[]) =>
  */
 export const getTreemap = (node: number, width: number, height: number, header = 0) =>
   invoke<Rect[]>('get_treemap', { node, width, height, header });
+/** Arcs of the subtree under `node`, ring by ring (inner rings first); `maxDepth` is 1..=12. */
+export const getSunburst = (scanId: number, node: number, maxDepth?: number) =>
+  invoke<SunburstArc[]>('get_sunburst', { scanId, node, maxDepth });
 export const isElevated = () => invoke<boolean>('is_elevated');
 
 /** User settings stored in `%APPDATA%\ByteForest\settings.json`. */

@@ -181,3 +181,16 @@ button.crumb:hover {
 .legend-swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--border-strong); }
 .map-hint { color: var(--text-3); font-size: 12px; }
 @media (max-width: 1120px) { .map-hint { display: none; } }
+
+/* Snapshot comparison: the key under the toolbar and the tooltip line. */
+.legend-mark {
+  box-sizing: border-box;
+  width: 18px;
+  height: 10px;
+  border: 2px solid var(--delta-grow);
+  border-radius: 2px;
+}
+.legend-mark[data-tone="added"] { border-style: dotted; }
+.legend-mark[data-tone="shrunk"] { border-style: dashed; border-color: var(--delta-shrink); }
+.tooltip-diff { color: var(--delta-grow); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tooltip-diff[data-tone="shrunk"] { color: var(--delta-shrink); }

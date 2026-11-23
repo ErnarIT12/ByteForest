@@ -1,4 +1,4 @@
-/** Which disk map is shown. Sunburst arrives in a later update. */
+/** Which disk map is shown. */
 export type MapView = 'treemap' | 'sunburst';
 
 export const MAP_VIEW_KEY = 'byteforest.mapView';

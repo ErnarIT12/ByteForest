@@ -43,6 +43,7 @@ fn main() {
             commands::discard_summary,
             commands::reveal_node_in_file_manager,
             commands::get_treemap,
+            commands::get_sunburst,
             commands::is_elevated,
             commands::restart_elevated,
             commands::take_startup_scan,

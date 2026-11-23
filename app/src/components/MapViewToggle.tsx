@@ -1,7 +1,7 @@
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 
-/** Treemap | Sunburst switch. Sunburst is shown but not available yet. */
+/** Treemap | Sunburst switch. */
 export function MapViewToggle() {
   const view = useAppStore((s) => s.mapView);
   const setView = useAppStore((s) => s.setMapView);
@@ -10,8 +10,7 @@ export function MapViewToggle() {
       <button type="button" aria-pressed={view === 'treemap'} onClick={() => setView('treemap')}>
         {strings.mapViewTreemap}
       </button>
-      <button type="button" aria-pressed={view === 'sunburst'} disabled title={strings.mapViewSoon}
-        onClick={() => setView('sunburst')}>
+      <button type="button" aria-pressed={view === 'sunburst'} onClick={() => setView('sunburst')}>
         {strings.mapViewSunburst}
       </button>
     </div>

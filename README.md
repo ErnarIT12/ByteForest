@@ -45,6 +45,7 @@ Without administrator rights ByteForest falls back to a regular directory walk, 
 - **Right-click context menu** on the folder tree and the treemap: open, show in Explorer/Finder, copy the path, or move to the Recycle Bin/Trash after confirmation. The tree, the treemap and the totals update instantly, without a rescan.
 - **Discard Pile**: queue files and folders from the tree, the treemap or the inspector (Delete key or right-click), review the running total in the sidebar, then move everything to the Recycle Bin/Trash in one confirmed step. Nothing is deleted until you confirm, and items that cannot be moved stay queued.
 - **File-type breakdown** of the selected folder (categories and top extensions) and a **Folders / File types** color mode for the treemap.
+- **Sunburst disk chart** (Treemap | Sunburst switch in the top bar) with the same zoom, selection, keyboard and context-menu behavior, plus **map highlights while comparing with a snapshot**: grown, new and shrunk items are outlined in the treemap and the sunburst (solid, dotted and dashed, with their size change as a label).
 - **One-click search presets** for common space hogs (`node_modules`, `target`, `.venv`, `.git`, disk images, files over 1 GB) with the total size you could reclaim.
 - **Sidebar** with your drives, Desktop, Downloads and Documents, plus recent scans you can rescan in one click.
 - **Snapshots and compare mode**: save a scan to a small file, then compare a later scan with it to see what grew, shrank or is new.

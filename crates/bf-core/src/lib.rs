@@ -13,6 +13,7 @@ mod record;
 mod remove;
 mod report;
 mod snapshot;
+mod sunburst;
 mod tree;
 mod treemap;
 mod view;
@@ -36,6 +37,7 @@ pub use snapshot::{
     SNAPSHOT_VERSION, Snapshot, SnapshotError, SnapshotLimits, read_snapshot,
     read_snapshot_with_limits, write_snapshot,
 };
+pub use sunburst::{MAX_SUNBURST_DEPTH, OTHER_ARC_ID, SunburstArc, SunburstOptions};
 pub use tree::{DirAgg, NodeId, Tree};
 pub use treemap::{Rect, TreemapOptions, header_fits};
 pub use view::{FileFilter, NodeView, SearchKind, SearchOutcome, SortKey};

@@ -5,7 +5,6 @@ import {
   useState,
   type KeyboardEvent,
   type MouseEvent,
-  type RefObject,
   type WheelEvent,
 } from 'react';
 import { getTreemap } from '../api';
@@ -13,6 +12,7 @@ import { formatBytes } from '../format';
 import { deleteKeyIntent, isContextMenuKey } from '../contextMenu';
 import { useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
+import { useDebouncedSize } from '../hooks/useDebouncedSize';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { useTreemapColorMode } from '../hooks/useTreemapColorMode';
 import { useAppStore } from '../store';
@@ -24,60 +24,14 @@ import {
   hitTest,
   paintHighlights,
   paintTreemap,
+  paintTreemapDiff,
   type TreemapLayout,
 } from '../treemapPaint';
 import { largestChild, nearestSibling, type Direction } from '../treemapNav';
 import { TreemapTooltip } from './TreemapTooltip';
 
-interface Size {
-  w: number;
-  h: number;
-  dpr: number;
-}
-
 /** Wheel steps closer together than this count as one "go up". */
 const WHEEL_GAP_MS = 350;
-const RESIZE_DEBOUNCE_MS = 100;
-
-/** Measures the element's CSS size; the first size is immediate, later ones debounced. */
-function useDebouncedSize(ref: RefObject<HTMLDivElement | null>): Size | null {
-  const [size, setSize] = useState<Size | null>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let timer: number | undefined;
-    let first = true;
-    const measure = () => {
-      const next = {
-        w: Math.floor(el.clientWidth),
-        h: Math.floor(el.clientHeight),
-        dpr: window.devicePixelRatio || 1,
-      };
-      // Keep the same object when nothing changed so no refetch is triggered.
-      const apply = () =>
-        setSize((prev) =>
-          prev && prev.w === next.w && prev.h === next.h && prev.dpr === next.dpr ? prev : next,
-        );
-      window.clearTimeout(timer);
-      if (first) {
-        first = false;
-        apply();
-      } else {
-        timer = window.setTimeout(apply, RESIZE_DEBOUNCE_MS);
-      }
-    };
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    // Moving to a monitor with another scale changes devicePixelRatio and fires resize.
-    window.addEventListener('resize', measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', measure);
-      window.clearTimeout(timer);
-    };
-  }, [ref]);
-  return size;
-}
 
 /** The squarified treemap of the focused folder, drawn on two stacked canvases. */
 export function TreemapCanvas() {
@@ -139,6 +93,12 @@ export function TreemapCanvas() {
     canvas.height = layout.height;
     const background = getComputedStyle(canvas).getPropertyValue('--tm-bg').trim() || '#808080';
     paintTreemap(ctx, layout, theme, background, colorMode);
+    const css = getComputedStyle(canvas);
+    paintTreemapDiff(ctx, layout, {
+      grow: css.getPropertyValue('--delta-grow').trim() || '#9a3412',
+      shrink: css.getPropertyValue('--delta-shrink').trim() || '#17663a',
+      halo: css.getPropertyValue('--tm-sel-inner').trim() || '#000000',
+    });
   }, [layout, theme, colorMode]);
 
   // Overlay: hover and selection outlines.

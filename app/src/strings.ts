@@ -89,6 +89,18 @@ export const strings = {
   file: 'File',
   treemapEmpty: 'This folder is empty',
 
+  // Sunburst
+  sunburstLabel: 'Sunburst chart of the focused folder',
+  sunburstRoleDescription: 'sunburst chart',
+  sunburstOther: 'Other small items',
+  sunburstUp: 'Go up one folder',
+  tooltipNew: (delta: string) => `New since the snapshot (${delta})`,
+  tooltipChanged: (delta: string) => `${delta} since the snapshot`,
+  diffLegendLabel: 'Changes since the snapshot',
+  diffLegendGrown: 'Grown',
+  diffLegendNew: 'New',
+  diffLegendShrunk: 'Shrunk',
+
   // Splitter
   splitterLabel: 'Resize the disk map',
 
@@ -136,7 +148,7 @@ export const strings = {
   working: 'Working…',
 
   // File types
-  colorModeLabel: 'Treemap colors',
+  colorModeLabel: 'Map colors',
   colorModeFolders: 'Folders',
   colorModeTypes: 'File types',
   legendLabel: 'File type colors',
@@ -254,7 +266,6 @@ export const strings = {
   mapViewLabel: 'Disk map',
   mapViewTreemap: 'Treemap',
   mapViewSunburst: 'Sunburst',
-  mapViewSoon: 'Coming in a later update',
   topbarTargetLabel: (target: string) => `Scan target: ${target}`,
 
   // Errors
