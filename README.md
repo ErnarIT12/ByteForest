@@ -15,11 +15,11 @@
   <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4">
 </p>
 
-![ByteForest main window: folder tree next to a treemap](docs/screenshots/explorer-dark.png)
+![ByteForest main window with treemap, folder tree and details panel (Graphite theme)](docs/screenshots/explorer-dark.png)
 
 *The screenshots show fictional demo data created by [`scripts/make-demo-data.ps1`](scripts/make-demo-data.ps1).*
 
-## Why ByteForest
+## Blazing-fast scanning: MFT and directory walk, with exclusions
 
 On NTFS volumes ByteForest reads the Master File Table (MFT) directly instead of asking Windows about every folder one by one. That is the difference between seconds and minutes.
 
@@ -29,32 +29,41 @@ On NTFS volumes ByteForest reads the Master File Table (MFT) directly instead of
 | GitHub Actions runner | MFT | ~1.2 million files | 11.6 s |
 | GitHub Actions runner | Directory walk | ~1.2 million files | 541 s |
 
-Without administrator rights ByteForest falls back to a regular directory walk, which is much slower. These are single-machine numbers, not a formal benchmark; measure your own with `byteforest bench` (see [Usage](#usage)).
+These are single-machine numbers, not a formal benchmark; measure your own with `byteforest bench` (see [Usage](#usage)).
 
-## Features
-
-- **MFT scan** of NTFS volumes with administrator rights.
+- **MFT scan** of NTFS volumes. It needs Windows and administrator rights.
 - **Record-by-record fallback** when raw volume reads are blocked (for example by anti-cheat drivers): the MFT is read one record at a time through the file system, which is still fast.
-- **Directory walker fallback** without admin rights or on non-NTFS volumes.
-- **Folder tree** with size, share of parent, file count and modification date.
-- **Squarified treemap** with zoom into a folder, breadcrumbs and tooltips.
-- **Synchronized selection** between the tree, the treemap and the status bar.
-- **"Fast scan (admin)" button**: restarts ByteForest with administrator rights and resumes the scan automatically.
-- **"Always run as administrator"** setting, so every start is fast.
-- **Graphite (dark) and Silver (light) themes**, or follow the system, with WCAG AA contrast.
-- **Right-click context menu** on the folder tree and the treemap: open, show in Explorer/Finder, copy the path, or move to the Recycle Bin/Trash after confirmation. The tree, the treemap and the totals update instantly, without a rescan.
-- **Discard Pile**: queue files and folders from the tree, the treemap or the inspector (Delete key or right-click), review the running total in the sidebar, then move everything to the Recycle Bin/Trash in one confirmed step. Nothing is deleted until you confirm, and items that cannot be moved stay queued.
-- **File-type breakdown** of the selected folder (categories and top extensions) and a **Folders / File types** color mode for the treemap.
-- **Sunburst disk chart** (Treemap | Sunburst switch in the top bar) with the same zoom, selection, keyboard and context-menu behavior, plus **map highlights while comparing with a snapshot**: grown, new and shrunk items are outlined in the treemap and the sunburst (solid, dotted and dashed, with their size change as a label).
-- **One-click search presets** for common space hogs (`node_modules`, `target`, `.venv`, `.git`, disk images, files over 1 GB) with the total size you could reclaim.
-- **Sidebar** with your drives, Desktop, Downloads and Documents, plus recent scans you can rescan in one click.
-- **Snapshots and compare mode**: save a scan to a small file, then compare a later scan with it to see what grew, shrank or is new.
-- **Automatic snapshots and instant reopen**: every finished scan is saved in the background (the last 10 are kept by default), so you can reopen it from the sidebar in an instant, read-only, without rescanning, or compare it with the current scan.
-- **Scan exclusions**: leave names, wildcards (`node_modules`, `*.tmp`) or full paths out of every scan in Settings. Excluded items are not counted in any total.
+- **Directory walk** without administrator rights, on non-NTFS volumes, and always on macOS, where there is no MFT scan. It is much slower on large volumes.
+- **"Fast scan (admin)" button** (Windows): restarts ByteForest with administrator rights and resumes the scan automatically. The **"Always run as administrator"** setting makes every start fast.
+- **Scan exclusions**: in Settings, leave out names and wildcards (`*` and `?`, such as `node_modules` or `*.tmp`) that match in any folder, or an absolute path under the scan root. Excluded items are not counted in any total, and the status bar shows how much was left out.
+- **Search the whole scan** in **Largest Files** by name, extension and minimum size, or use one-click presets for common space hogs (`node_modules`, `target`, `.venv`, `.git`, disk images, files over 1 GB) that show the total size you could reclaim.
 - **CSV and JSON reports** of any folder for spreadsheets and scripts (**Export report…**).
 - **Command-line tool** for drives, scans, snapshots, exclusions, reports and benchmarks.
 
-![Treemap tooltip showing a file name, full path, size and share of the view](docs/screenshots/treemap-tooltip.png)
+## Interactive Treemap and Sunburst exploration
+
+- **Folder tree** with size, share of parent, file count and modification date.
+- **Squarified treemap** and a **Sunburst disk chart**, switched with **Treemap | Sunburst** in the top bar. Both support zoom into a folder, breadcrumbs, tooltips, keyboard navigation and the context menu.
+- **Synchronized selection** between the tree, the map and the status bar. A double click opens a folder; the breadcrumbs, the up arrow or the mouse wheel zoom back out.
+- **File-type breakdown** of the selected folder (categories and top extensions) and a **Folders / File types** color mode for the maps, with a legend.
+- **Right-click context menu** (also Shift+F10) on the tree and the maps: open, show in Explorer/Finder, copy the path, or move to the Recycle Bin/Trash after confirmation. Everything updates instantly, without a rescan.
+
+![Treemap hover tooltip showing a file name, full path, size and share of the view](docs/screenshots/treemap-tooltip.png)
+
+## Discard Pile, auto-snapshots and diff
+
+- **Discard Pile**: queue files and folders from the tree, the maps or the inspector (Delete key or right-click), review the running total in the sidebar, then move everything to the Recycle Bin/Trash in one confirmed step. Nothing is deleted until you confirm, and items that cannot be moved stay queued with the reason.
+- **Snapshots**: save a scan to a small `.bfsnap` file and compare a later scan with it to see what grew, shrank or is new. A Changes view lists the biggest increases.
+- **Diff highlights on both maps**: while comparing, grown, new and shrunk items are outlined in the treemap and the sunburst (solid, dotted and dashed, with the size change as a label).
+- **Automatic snapshots**: every finished scan is saved in the background (the last 10 are kept by default; 0 to 50 or Off in Settings). Reopen one from the sidebar instantly and read-only, without rescanning, or compare it with the current scan.
+- **CLI diffs**: `byteforest scan <target> --save-snapshot <FILE>` and `--diff <FILE>` (see [Usage](#usage)).
+
+## Minimalist UI and 100% offline privacy
+
+- **Radix-inspired, minimalist interface** with a unified left sidebar: your drives, Desktop, Downloads and Documents, recent scans and the Discard Pile, collapsing to an icon rail.
+- **Graphite (dark, the default) and Silver (light) themes**, or follow the system, with WCAG AA contrast. Hover effects respect the reduced-motion setting.
+- **Works fully offline.** There is no telemetry, no account and no update check, and the code makes no network requests. The app window may only talk to the local Rust backend; the Content Security Policy allows nothing else.
+- **Your data stays on your machine.** Settings are stored in `%APPDATA%\ByteForest\settings.json` and logs in `%LOCALAPPDATA%\ByteForest\logs`. Automatic snapshots (names and sizes of scanned items) are stored in `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` on macOS) and can be turned off or limited in Settings.
 
 ## Install
 
@@ -69,7 +78,6 @@ Builds are **not code-signed yet**, so Windows SmartScreen shows a warning. Choo
 The installer installs ByteForest for all users, into Program Files.
 
 Requirements: Windows 10/11 x64 and WebView2 (preinstalled on Windows 11; the installer can fetch it on Windows 10 if missing).
-
 
 ### macOS beta
 
@@ -114,7 +122,7 @@ cargo test --workspace             # tests (build the frontend first: npm --pref
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and the admin-only tests.
 
-On macOS, install Xcode Command Line Tools and both Rust targets, then build with npm --prefix app run tauri build -- --target universal-apple-darwin --bundles dmg. See the [Tauri DMG guide](https://v2.tauri.app/distribute/dmg/).
+On macOS, install Xcode Command Line Tools and both Rust targets, then build with `npm --prefix app run tauri build -- --target universal-apple-darwin --bundles dmg`. See the [Tauri DMG guide](https://v2.tauri.app/distribute/dmg/).
 
 ## Architecture
 
@@ -135,15 +143,9 @@ flowchart LR
 
 The scanned tree stays in Rust. The UI only asks for slices: the children of one folder (at most 1000 nodes) or the rectangles of one treemap view (at most 20 000).
 
-## Privacy
-
-ByteForest works fully offline. It has no telemetry and its code makes no network calls; the app window may only talk to the local Rust backend (the Content Security Policy allows nothing else). Settings are stored in `%APPDATA%\ByteForest\settings.json` and logs in `%LOCALAPPDATA%\ByteForest\logs`, both on your machine. Automatic snapshots (names and sizes of scanned items) are stored only on your machine in `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` on macOS) and can be turned off or limited in Settings.
-
 ## Roadmap
 
 - Memory use of 120 bytes per entry or less (today about 400).
-- Sunburst view next to the treemap.
-- Discard Pile: collect items and remove them together.
 - Incremental rescans from the NTFS USN journal.
 - Localized interface.
 
@@ -166,4 +168,4 @@ at your option. Unless you explicitly state otherwise, any contribution intentio
 
 ## Acknowledgements
 
-Inspired by disk analyzers such as WinDirStat, WizTree and [Radix](https://github.com/colinvkim/Radix).
+Inspired by disk analyzers such as WinDirStat and WizTree. The minimalist interface takes its UX inspiration from [Radix](https://github.com/colinvkim/Radix) (MIT); no Radix code is used. Icons are from [Lucide](https://lucide.dev) (ISC).
