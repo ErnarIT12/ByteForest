@@ -45,6 +45,7 @@ Without administrator rights ByteForest falls back to a regular directory walk, 
 - **Right-click context menu** on the folder tree and the treemap: open, show in Explorer/Finder, copy the path, or move to the Recycle Bin/Trash after confirmation. The tree, the treemap and the totals update instantly, without a rescan.
 - **File-type breakdown** of the selected folder (categories and top extensions) and a **Folders / File types** color mode for the treemap.
 - **One-click search presets** for common space hogs (`node_modules`, `target`, `.venv`, `.git`, disk images, files over 1 GB) with the total size you could reclaim.
+- **Sidebar** with your drives, Desktop, Downloads and Documents, plus recent scans you can rescan in one click.
 - **Snapshots and compare mode**: save a scan to a small file, then compare a later scan with it to see what grew, shrank or is new.
 - **Scan exclusions**: leave names, wildcards (`node_modules`, `*.tmp`) or full paths out of every scan in Settings. Excluded items are not counted in any total.
 - **CSV and JSON reports** of any folder for spreadsheets and scripts (**Export report…**).

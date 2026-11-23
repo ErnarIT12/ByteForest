@@ -1,5 +1,6 @@
 import { useAppStore } from '../store';
 import { strings } from '../strings';
+import { ArrowUp, ChevronRight, Icon } from './Icon';
 
 /** Path from the scan root to the focused folder; each ancestor zooms out on click. */
 export function Breadcrumbs() {
@@ -17,9 +18,7 @@ export function Breadcrumbs() {
         disabled={path.length <= 1}
         onClick={goUp}
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Icon icon={ArrowUp} />
       </button>
       <ol>
         {path.map((c, i) => {
@@ -27,9 +26,7 @@ export function Breadcrumbs() {
           return (
             <li key={c.id}>
               {i > 0 && (
-                <svg className="crumb-sep" viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <Icon icon={ChevronRight} size={14} className="crumb-sep" />
               )}
               {last ? (
                 <span className="crumb current" aria-current="location" title={c.name}>

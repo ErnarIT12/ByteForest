@@ -3,6 +3,7 @@ import {
   cancelScan,
   isElevated,
   listDrives,
+  listUserFolders,
   restartElevated,
   takeStartupScan,
   onScanDone,
@@ -89,6 +90,8 @@ export function loadEnvironment(): void {
   const store = useAppStore.getState();
   void refreshDrives().then(runStartupScan);
   isElevated().then(store.setElevated, () => store.setElevated(false));
+  // Quick locations are a convenience; without them the sidebar just lists the drives.
+  listUserFolders().then(store.setUserFolders, () => {});
 }
 
 /**

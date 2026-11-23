@@ -1,8 +1,8 @@
 import { useAppStore } from '../store';
 import { formatBytes } from '../format';
+import { scanTargetFor } from '../scanTargets';
 import { strings } from '../strings';
 import { ScanButton } from './ScanButton';
-import { DrivePicker } from './DrivePicker';
 import { ScanProgressText } from './ScanProgressText';
 import { TreeGlyph } from './TreeGlyph';
 import { FastScanButton } from './FastScanButton';
@@ -18,8 +18,8 @@ function VolumeUsage() {
         <span><strong>{percent}%</strong>used</span>
       </div>
       <div className="volume-figures">
-        <div><strong>{formatBytes(used)}</strong><span>Used</span></div>
-        <div><strong>{formatBytes(drive.free)}</strong><span>Available</span></div>
+        <div><strong>{formatBytes(used)}</strong><span>{strings.volumeUsed}</span></div>
+        <div><strong>{formatBytes(drive.free)}</strong><span>{strings.volumeAvailable}</span></div>
       </div>
     </div>
   );
@@ -30,6 +30,8 @@ export function EmptyState() {
   const scanning = useAppStore((s) => s.scanning);
   const isMac = useAppStore((s) => s.isMac);
   const scanTarget = useAppStore((s) => s.scanTarget);
+  const target = useAppStore((s) => s.target);
+  const shownTarget = target === null ? null : scanTargetFor(target);
 
   return (
     <section className="empty">
@@ -45,19 +47,19 @@ export function EmptyState() {
           </>
         ) : (
           <>
-            <div className="location-intro">
-              <TreeGlyph size={108} />
-              <h1>{strings.emptyTitle}</h1>
-              <p>{isMac ? "Choose a volume or folder to see what takes up space." : strings.emptyBody}</p>
-            </div>
-            <div className="location-choices">
-              <h2>Scan location</h2>
-              <DrivePicker disabled={false} expanded />
-              <VolumeUsage />
-              <div className="empty-actions">
-                <ScanButton />
-                <FastScanButton />
+            <TreeGlyph size={108} />
+            <h1>{strings.emptyTitle}</h1>
+            <p>{shownTarget === null ? strings.emptyChooseLocation : isMac ? strings.emptyBodyMac : strings.emptyBody}</p>
+            {shownTarget !== null && (
+              <div className="empty-target">
+                <span className="empty-target-label">{strings.emptySelected}</span>
+                <strong title={shownTarget}>{shownTarget}</strong>
+                <VolumeUsage />
               </div>
+            )}
+            <div className="empty-actions">
+              <ScanButton />
+              <FastScanButton />
             </div>
           </>
         )}

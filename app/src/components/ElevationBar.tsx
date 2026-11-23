@@ -3,6 +3,7 @@ import { formatSeconds } from '../format';
 import { requestElevation } from '../scanController';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
+import { Icon, X } from './Icon';
 
 /** Hint under the top bar after a slow scan: offers a restart with admin rights. */
 export function ElevationBar() {
@@ -30,9 +31,7 @@ export function ElevationBar() {
         {elevating ? strings.waitingForPermission : strings.restartAsAdmin}
       </button>
       <button type="button" className="icon-btn" aria-label={strings.dismiss} onClick={dismiss}>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M4 4l8 8M12 4l-8 8" />
-        </svg>
+        <Icon icon={X} />
       </button>
     </div>
   );

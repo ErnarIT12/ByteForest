@@ -3,7 +3,6 @@ export const strings = {
   appName: 'ByteForest',
 
   // Top bar
-  driveLabel: 'Drive to scan',
   loadingDrives: 'Loading drives…',
   noDrives: 'No drives found',
   scan: 'Scan',
@@ -60,6 +59,11 @@ export const strings = {
   // Empty and scanning states
   emptyTitle: 'Explore your storage',
   emptyBody: 'Select a drive to explore its folders and largest files.',
+  emptyBodyMac: 'Choose a volume or folder to see what takes up space.',
+  emptyChooseLocation: 'Pick a location in the sidebar to begin.',
+  emptySelected: 'Selected location',
+  volumeUsed: 'Used',
+  volumeAvailable: 'Available',
   scanningTitle: (drive: string) => `Scanning ${drive}`,
 
   // Tree
@@ -200,6 +204,29 @@ export const strings = {
   sinceSnapshot: 'Since snapshot',
   goneSinceSnapshot: 'Gone since snapshot',
   goneSummary: (count: string, size: string) => `${count} items · ${size}`,
+
+  // Sidebar
+  sidebarLabel: 'Locations and recent scans',
+  sidebarCollapse: 'Collapse sidebar',
+  sidebarExpand: 'Expand sidebar',
+  locationsTitle: 'Locations',
+  chooseFolder: 'Choose folder…',
+  chooseFolderFailed: 'Unable to choose a folder',
+  driveFree: (free: string) => `${free} free`,
+  driveUsageLabel: (percent: string) => `${percent} used`,
+  userFolderNames: { desktop: 'Desktop', downloads: 'Downloads', documents: 'Documents' },
+  recentTitle: 'Recent Scans',
+  recentEmpty: 'Scans you run will show up here.',
+  recentRescan: (label: string) => `Scan ${label} again`,
+  discardTitle: 'Discard Pile',
+  discardEmpty: 'Queue files here to clean up in one go',
+
+  // View switch
+  mapViewLabel: 'Disk map',
+  mapViewTreemap: 'Treemap',
+  mapViewSunburst: 'Sunburst',
+  mapViewSoon: 'Coming in a later update',
+  topbarTargetLabel: (target: string) => `Scan target: ${target}`,
 
   // Errors
   scanFailed: 'Scan failed',

@@ -45,6 +45,7 @@ Sin permisos de administrador, ByteForest recurre a un recorrido normal de direc
 - **Menú contextual** (clic derecho) en el árbol de carpetas y el treemap: abrir, mostrar en el Explorador/Finder, copiar la ruta o mover a la Papelera tras confirmar. El árbol, el treemap y los totales se actualizan al instante, sin volver a analizar.
 - **Desglose por tipo de archivo** de la carpeta seleccionada (categorías y extensiones principales) y el modo de color del treemap **Folders / File types**.
 - **Búsquedas predefinidas con un clic** para los devoradores de espacio habituales (`node_modules`, `target`, `.venv`, `.git`, imágenes de disco, archivos de más de 1 GB), con el tamaño total que se puede recuperar.
+- **Barra lateral** con tus unidades, Escritorio, Descargas y Documentos, y con los análisis recientes para repetirlos con un clic.
 - **Instantáneas y comparación**: guarda un análisis en un archivo pequeño y compáralo con uno posterior para ver qué creció, qué se redujo y qué es nuevo.
 - **Exclusiones de análisis**: en los ajustes puedes excluir nombres, patrones (`node_modules`, `*.tmp`) o rutas completas. Lo excluido no cuenta en ningún total.
 - **Informes CSV y JSON** de cualquier carpeta para hojas de cálculo y scripts (**Export report…**).

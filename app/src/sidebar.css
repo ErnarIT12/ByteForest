@@ -1,0 +1,129 @@
+/* Unified left sidebar: locations, recent scans and the Discard Pile dock. */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 220px;
+  min-height: 0;
+  padding: 6px 8px 12px 12px;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  transition: width 0.15s ease;
+}
+/* Collapsed by the user, or forced below 1000 px: an icon rail. */
+.sidebar[data-rail] {
+  width: 60px;
+  padding-inline: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar { transition: none; }
+}
+
+.sidebar-head {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+}
+.sidebar[data-rail] .sidebar-head { justify-content: center; }
+
+.sidebar-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sidebar-section { display: grid; gap: 2px; }
+.sidebar-heading {
+  margin: 0 0 4px;
+  padding: 0 8px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sidebar-note {
+  margin: 0;
+  padding: 0 8px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.sidebar-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+.sidebar-item:hover { background: var(--hover); }
+.sidebar-item:active { background: var(--pressed); }
+.sidebar-item[aria-current="true"] { background: var(--selected); }
+.sidebar-item[aria-current="true"] .sidebar-name { font-weight: 600; }
+.sidebar-item[aria-current="true"] .sidebar-icon { color: var(--accent); }
+.sidebar-icon { flex: none; color: var(--text-2); }
+.sidebar-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.sidebar-name,
+.sidebar-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-detail { color: var(--text-2); font-size: 12px; }
+.sidebar-meter {
+  display: block;
+  height: 4px;
+  margin-top: 2px;
+  border-radius: 2px;
+  background: var(--bar-track);
+  overflow: hidden;
+}
+.sidebar-meter > span { display: block; height: 100%; background: var(--bar-fill); }
+.sidebar-action { margin-top: 4px; }
+
+.discard-dock {
+  flex: none;
+  padding: 10px 8px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--elev-1);
+}
+.discard-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.discard-dock .sidebar-note { padding-left: 34px; }
+
+/* Rail: icons only. Labels stay available to assistive technology. */
+.sidebar[data-rail] .sidebar-text,
+.sidebar[data-rail] .sidebar-note,
+.sidebar[data-rail] .sidebar-heading:not(.discard-heading) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.sidebar[data-rail] .sidebar-item,
+.sidebar[data-rail] .discard-heading { justify-content: center; }
+.sidebar[data-rail] .sidebar-item { padding-inline: 0; height: 36px; }
+.sidebar[data-rail] .discard-dock { padding-inline: 0; }
+.sidebar[data-rail] .discard-heading { margin: 0; }
+.sidebar[data-rail] .sidebar-body { gap: 12px; }

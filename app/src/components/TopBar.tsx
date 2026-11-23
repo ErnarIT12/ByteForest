@@ -1,19 +1,22 @@
 import { WindowControls } from './WindowControls';
+import { scanTargetFor } from '../scanTargets';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
-import { DrivePicker } from './DrivePicker';
 import { FastScanButton } from './FastScanButton';
+import { MapViewToggle } from './MapViewToggle';
 import { ScanButton } from './ScanButton';
 import { ScanProgressText } from './ScanProgressText';
 import { SettingsPopover } from './SettingsPopover';
 import { SnapshotsMenu } from './SnapshotsMenu';
 import { TreeGlyph } from './TreeGlyph';
 
-/** App bar: name, drive picker, Scan / Cancel and live progress. */
+/** App bar: name, current target with Scan / Fast scan, view switch, snapshots and settings. */
 export function TopBar() {
   const hasResults = useAppStore((s) => s.root !== null);
   const scanning = useAppStore((s) => s.scanning);
   const isMac = useAppStore((s) => s.isMac);
+  const target = useAppStore((s) => s.target);
+  const shownTarget = target === null ? null : scanTargetFor(target);
   return (
     <header className={isMac ? "topbar mac-caption" : "topbar"} data-tauri-drag-region>
       <div className="brand" data-tauri-drag-region>
@@ -21,11 +24,16 @@ export function TopBar() {
         <span className="brand-name">{strings.appName}</span>
       </div>
       {hasResults && <div className="topbar-controls">
-        <DrivePicker disabled={scanning} />
+        {shownTarget && (
+          <span className="topbar-target" title={shownTarget} aria-label={strings.topbarTargetLabel(shownTarget)}>
+            {shownTarget}
+          </span>
+        )}
         <ScanButton />
         <FastScanButton />
-        <SnapshotsMenu />
         {scanning && <ScanProgressText />}
+        <MapViewToggle />
+        <SnapshotsMenu />
       </div>}
       <div className="caption-space" data-tauri-drag-region />
       <SettingsPopover />

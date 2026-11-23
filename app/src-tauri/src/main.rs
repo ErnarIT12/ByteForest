@@ -47,6 +47,7 @@ fn main() {
             commands::get_settings,
             commands::set_settings,
             commands::pick_folder,
+            commands::user_folders,
             commands::save_snapshot,
             commands::export_report,
             commands::compare_with_snapshot,

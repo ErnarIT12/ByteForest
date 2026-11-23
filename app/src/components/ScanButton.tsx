@@ -1,4 +1,5 @@
 import { runScan, stopScan } from '../scanController';
+import { scanTargetFor } from '../scanTargets';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 
@@ -7,8 +8,7 @@ export function ScanButton() {
   const scanning = useAppStore((s) => s.scanning);
   const target = useAppStore((s) => s.target);
   const shownTarget = useAppStore((s) => s.resultTarget);
-  const isMac = useAppStore((s) => s.isMac);
-  const scanTarget = target === null || isMac ? target : target + ':';
+  const scanTarget = target === null ? null : scanTargetFor(target);
 
   if (scanning) {
     return (

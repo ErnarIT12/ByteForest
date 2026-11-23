@@ -10,6 +10,7 @@ import { formatBytes, formatInt } from '../format';
 import { useAppStore } from '../store';
 import { SEARCH_PRESET_IDS, presetFilter, type SearchPresetId } from '../searchPresets';
 import { strings } from '../strings';
+import { Check, Icon } from './Icon';
 import { CATEGORIES } from '../treemapPaint';
 
 const MIN_SIZES = [
@@ -126,6 +127,7 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
         {SEARCH_PRESET_IDS.map((id) => (
           <button key={id} type="button" className="chip" aria-pressed={activePreset === id}
             onClick={() => togglePreset(id)}>
+            {activePreset === id && <Icon icon={Check} size={12} />}
             {strings.searchPresetNames[id]}
           </button>
         ))}

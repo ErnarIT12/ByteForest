@@ -209,6 +209,48 @@ pub fn pick_folder() -> Result<Option<String>, String> {
     Err("Folder picker is available on macOS.".to_owned())
 }
 
+/// A well-known folder of the current user, offered as a quick scan location.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct UserFolder {
+    /// `desktop`, `downloads` or `documents`.
+    pub kind: &'static str,
+    pub name: &'static str,
+    pub path: String,
+}
+
+/// Keeps the candidates that are existing folders with a Unicode path, once each, in the
+/// fixed order Desktop, Downloads, Documents (as listed in `candidates`).
+fn existing_user_folders(
+    candidates: Vec<(&'static str, &'static str, Option<PathBuf>)>,
+) -> Vec<UserFolder> {
+    let mut folders: Vec<UserFolder> = Vec::new();
+    for (kind, name, path) in candidates {
+        let Some(path) = path.filter(|path| path.is_dir()) else {
+            continue;
+        };
+        let Ok(path) = path.into_os_string().into_string() else {
+            continue;
+        };
+        if folders.iter().any(|known| known.path == path) {
+            continue;
+        }
+        folders.push(UserFolder { kind, name, path });
+    }
+    folders
+}
+
+/// Desktop, Downloads and Documents of the current user. The system resolves redirected known
+/// folders (for example a Documents folder moved to OneDrive); missing ones are left out.
+#[tauri::command]
+pub fn user_folders(app: AppHandle) -> Vec<UserFolder> {
+    let paths = app.path();
+    existing_user_folders(vec![
+        ("desktop", "Desktop", paths.desktop_dir().ok()),
+        ("downloads", "Downloads", paths.download_dir().ok()),
+        ("documents", "Documents", paths.document_dir().ok()),
+    ])
+}
+
 /// Whether the process runs with administrator rights.
 #[tauri::command]
 pub fn is_elevated() -> bool {
@@ -1230,6 +1272,29 @@ mod tests {
             mtime: 0,
         });
         b.finish()
+    }
+
+    #[test]
+    fn user_folders_keep_order_and_skip_missing_or_duplicate_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let desktop = dir.path().join("Desktop");
+        let documents = dir.path().join("Documents");
+        let file = dir.path().join("Downloads");
+        std::fs::create_dir(&desktop).unwrap();
+        std::fs::create_dir(&documents).unwrap();
+        std::fs::write(&file, b"not a folder").unwrap();
+
+        let found = existing_user_folders(vec![
+            ("desktop", "Desktop", Some(desktop.clone())),
+            ("downloads", "Downloads", Some(file)),
+            ("documents", "Documents", Some(documents.clone())),
+            ("extra", "Extra", Some(documents)),
+            ("missing", "Missing", Some(dir.path().join("nope"))),
+            ("none", "None", None),
+        ]);
+        let kinds: Vec<_> = found.iter().map(|folder| folder.kind).collect();
+        assert_eq!(kinds, ["desktop", "documents"]);
+        assert_eq!(found[0].path, desktop.to_string_lossy());
     }
 
     #[test]

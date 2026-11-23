@@ -9,6 +9,7 @@ import {
 } from '../settingsModel';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
+import { Icon, Settings as SettingsGlyph, X } from './Icon';
 
 /** Gear button with a small popover holding the app settings. */
 export function SettingsPopover() {
@@ -117,10 +118,7 @@ export function SettingsPopover() {
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((o) => !o)}
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor">
-          <circle cx="8" cy="8" r="2.2" />
-          <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" />
-        </svg>
+        <Icon icon={SettingsGlyph} />
       </button>
       {open && (
         <div className="popover" id={panelId} role="dialog" aria-label={strings.settings}>
@@ -158,9 +156,7 @@ export function SettingsPopover() {
                       title={strings.exclusionRemove(pattern)}
                       onClick={() => change({ exclusions: removeExclusion(exclusions, pattern) })}
                     >
-                      <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor">
-                        <path d="M4 4l8 8M12 4l-8 8" />
-                      </svg>
+                      <Icon icon={X} />
                     </button>
                   </li>
                 ))}

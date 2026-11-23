@@ -18,6 +18,13 @@ export type SortKey = 'SizeDesc' | 'NameAsc' | 'ModifiedDesc';
 export type ScanMethod = 'Mft' | 'Walk';
 export type Phase = 'Reading' | 'Parsing' | 'Walking' | 'Building';
 
+/** A well-known folder of the current user (Desktop, Downloads, Documents). */
+export interface UserFolder {
+  kind: string;
+  name: string;
+  path: string;
+}
+
 export interface VolumeSummary {
   /** Upper-case drive letter, e.g. "C". */
   letter?: string;
@@ -143,6 +150,7 @@ export const MAX_CHILDREN = 1000;
 
 export const listDrives = () => invoke<VolumeSummary[]>('list_drives');
 export const pickFolder = () => invoke<string | null>('pick_folder');
+export const listUserFolders = () => invoke<UserFolder[]>('user_folders');
 /** Resolves to the scan id. `target` is a drive ("C:", "c:\\", "C") or an existing folder path. */
 export const startScan = (target: string) => invoke<number>('start_scan', { target });
 export const cancelScan = () => invoke<void>('cancel_scan');

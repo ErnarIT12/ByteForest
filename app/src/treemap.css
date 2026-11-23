@@ -13,7 +13,7 @@
   align-items: center;
   gap: 8px;
   padding-right: 12px;
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
 }
 .map-mode {
   flex: none;
@@ -113,10 +113,9 @@ button.crumb:hover {
   z-index: 2;
   max-width: 380px;
   padding: 8px 10px;
-  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-2);
   font-size: 12px;
   line-height: 17px;
   pointer-events: none;
@@ -152,8 +151,8 @@ button.crumb:hover {
   flex: none;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
+  background: var(--control-solid);
 }
 .segmented button {
   border: 0;
@@ -165,6 +164,8 @@ button.crumb:hover {
 }
 .segmented button:hover { background: var(--hover); }
 .segmented button[aria-pressed="true"] { background: var(--selected); color: var(--text); }
+.segmented button:disabled { opacity: 0.45; }
+.segmented button:disabled:hover { background: transparent; }
 .treemap-legend {
   display: flex;
   flex-wrap: wrap;
@@ -172,7 +173,7 @@ button.crumb:hover {
   margin: 0;
   padding: 6px 12px;
   list-style: none;
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
   color: var(--text-2);
   font-size: 12px;
 }

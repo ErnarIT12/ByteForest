@@ -287,3 +287,29 @@ describe('excluded summary', () => {
     expect(useAppStore.getState().excluded).toBeNull();
   });
 });
+
+describe('recent scans', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('records a finished scan once, newest first', () => {
+    const s = useAppStore.getState();
+    s.beginScan('C:');
+    s.scanResolved(1);
+    s.handleDone(done(1));
+    s.beginScan('D:');
+    s.scanResolved(2);
+    s.handleDone(done(2));
+    s.beginScan('C:');
+    s.scanResolved(3);
+    s.handleDone(done(3));
+    expect(useAppStore.getState().recentScans.map((r) => r.target)).toEqual(['C:', 'D:']);
+  });
+
+  it('ignores a scan that failed', () => {
+    const s = useAppStore.getState();
+    s.beginScan('C:');
+    s.scanResolved(1);
+    s.handleError({ scan_id: 1, message: 'boom' });
+    expect(useAppStore.getState().recentScans).toEqual([]);
+  });
+});

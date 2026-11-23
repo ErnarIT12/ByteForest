@@ -4,6 +4,7 @@ import { requestElevation } from '../scanController';
 import { statusBadge } from '../statusBadge';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
+import { Icon, ShieldCheck } from './Icon';
 
 /** Scan summary, drive usage and the elevation badge. */
 export function StatusBar() {
@@ -74,11 +75,7 @@ export function StatusBar() {
           </button>
         ) : (
           <span className={`badge${badge.admin ? ' admin' : ''}`} title={badge.title}>
-            {badge.admin ? (
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M8 1.5l5.5 2v4c0 3.4-2.3 5.9-5.5 7-3.2-1.1-5.5-3.6-5.5-7v-4z" />
-              </svg>
-            ) : null}
+            {badge.admin ? <Icon icon={ShieldCheck} size={12} /> : null}
             {badge.label}
           </span>
         ))}

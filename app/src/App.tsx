@@ -5,6 +5,7 @@ import { ErrorToast } from './components/ErrorToast';
 import { FileActionsHost } from './components/FileActionsHost';
 import { Explorer } from './components/Explorer';
 import { ScanAnnouncer } from './components/ScanAnnouncer';
+import { Sidebar } from './components/Sidebar';
 import { StatusBar } from './components/StatusBar';
 import { TopBar } from './components/TopBar';
 import { listenToScanEvents, loadEnvironment } from './scanController';
@@ -18,7 +19,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
-/** Window shell: top bar, the Explorer (or the empty state) and the status bar. */
+/** Window shell: top bar, sidebar, the Explorer (or the empty state) and the status bar. */
 export default function App() {
   const root = useAppStore((s) => s.root);
   const scanId = useAppStore((s) => s.resultScanId);
@@ -47,6 +48,7 @@ export default function App() {
     <div className="app">
       <TopBar />
       <ElevationBar />
+      <Sidebar />
       {root && scanId !== null ? <Explorer key={scanId} root={root} scanId={scanId} split={split} onSplitChange={setSplit} /> : <EmptyState />}
       <StatusBar />
       <ErrorToast />

@@ -22,7 +22,7 @@
 .explorer {
   display: grid;
   grid-template-rows: auto minmax(160px, 1.35fr) minmax(160px, 1fr);
-  padding: 0 18px 14px;
+  padding: 0 16px 12px 8px;
   min-height: 0;
 }
 .explorer > .map-panel { grid-area: 2 / 1; }
@@ -32,16 +32,15 @@
 .explorer.map-expanded { grid-template-rows: auto minmax(0, 1fr); }
 .explorer > .map-panel, .explorer > .explorer-sidebar, .inspector {
   overflow: hidden;
-  border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
+  box-shadow: var(--elev-1);
 }
 .explorer-modes, .map-toolbar { min-height: 40px; }
 .inspector h2 {
   margin: 0;
   padding: 12px 16px;
   font-size: 14px;
-  border-bottom: 1px solid var(--border);
 }
 /* Folder tree */
 
@@ -63,7 +62,7 @@
 .tree-header {
   height: 32px;
   flex: none;
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
   color: var(--text-2);
   font-size: 12px;
 }
@@ -152,8 +151,6 @@
   background: var(--hover);
 }
 .chevron {
-  width: 12px;
-  height: 12px;
   transition: transform 0.12s ease;
 }
 .chevron.open {
@@ -161,21 +158,10 @@
 }
 .kind-icon {
   flex: none;
-  width: 16px;
-  height: 16px;
   margin-right: 4px;
 }
-.kind-icon.folder {
-  fill: var(--folder);
-  stroke: var(--folder-edge);
-  stroke-width: 0.6;
-}
-.kind-icon.file {
-  fill: var(--surface-raised);
-  stroke: var(--text-3);
-  stroke-width: 1;
-  stroke-linejoin: round;
-}
+.kind-icon.folder { color: var(--folder-edge); }
+.kind-icon.file { color: var(--text-3); }
 .cell.percent {
   display: flex;
   align-items: center;
@@ -273,8 +259,7 @@
   display: flex;
   gap: 4px;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface-raised);
 }
 .explorer-modes button,
 .tree-gap {
@@ -351,8 +336,8 @@
 .result-kind {
   margin-right: 6px;
   padding: 0 5px;
-  border: 1px solid var(--border-strong);
   border-radius: 3px;
+  background: var(--control-solid);
   color: var(--text-2);
   font-size: 11px;
   font-style: normal;
@@ -371,7 +356,7 @@
 .node-details dl { margin: 0 0 20px; font-size: 13px; }
 .node-details dl > div { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .node-details dt { color: var(--text-2); }
-.node-details dd { margin: 0; text-align: right; }
+.node-details dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .details-actions { display: grid; gap: 6px; }
 
 /* File types of the selected folder and the search scope */
@@ -407,7 +392,7 @@ button.type-row:hover { background: var(--hover); }
   justify-content: space-between;
   gap: 8px;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
   font-size: 12px;
 }
 .search-scope span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -434,7 +419,6 @@ button.type-row:hover { background: var(--hover); }
   justify-content: space-between;
   gap: 8px;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
   background: var(--accent-soft);
   font-size: 12px;
 }
@@ -448,4 +432,14 @@ button.type-row:hover { background: var(--hover); }
   height: 26px;
   min-width: 56px;
   padding: 0 10px;
+}
+
+/* Every size, percentage, count and change lines up in columns. */
+.tree-row,
+.file-search,
+.node-details,
+.compare-banner,
+.file-types,
+.selection-size {
+  font-variant-numeric: tabular-nums;
 }

@@ -17,8 +17,12 @@ import {
   type ScanProgress,
   type ScanStats,
   type TrashResult,
+  type UserFolder,
   type VolumeSummary,
 } from './api';
+import { loadMapView, saveMapView, type MapView } from './mapView';
+import { addRecentScan, loadRecentScans, saveRecentScans, type RecentScan } from './recentScans';
+import { orderUserFolders } from './sidebarModel';
 import { strings } from './strings';
 
 /** Asks the folder tree to re-read the pages of `parentId` and its ancestors after a removal. */
@@ -74,7 +78,13 @@ export interface SearchPreset {
 interface AppState {
   drives: VolumeSummary[] | null;
   drivesError: string | null;
-  /** Drive letter picked in the top bar. */
+  /** Desktop, Downloads and Documents of the user, in display order. */
+  userFolders: UserFolder[];
+  /** Finished scans, newest first (persisted). */
+  recentScans: RecentScan[];
+  /** Disk map shown in the explorer (persisted). */
+  mapView: MapView;
+  /** Location picked in the sidebar: a drive letter ("C") or a folder path. */
   target: string | null;
   elevated: boolean | null;
   isMac: boolean;
@@ -127,6 +137,8 @@ interface AppActions {
   setDrives(drives: VolumeSummary[]): void;
   setDrivesError(message: string): void;
   setTarget(letter: string): void;
+  setUserFolders(folders: UserFolder[]): void;
+  setMapView(view: MapView): void;
   setElevated(elevated: boolean): void;
 
   /** `target` is exactly what is passed to `startScan` ("C:" or a folder path). */
@@ -166,6 +178,9 @@ export type AppStore = AppState & AppActions;
 const initialState: AppState = {
   drives: null,
   drivesError: null,
+  userFolders: [],
+  recentScans: loadRecentScans(),
+  mapView: loadMapView(),
   target: null,
   elevated: null,
   isMac: typeof navigator !== 'undefined' && /Macintosh/i.test(navigator.userAgent),
@@ -213,6 +228,11 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     })),
   setDrivesError: (message) => set({ drivesError: message, drives: [] }),
   setTarget: (letter) => set({ target: letter }),
+  setUserFolders: (folders) => set({ userFolders: orderUserFolders(folders) }),
+  setMapView: (view) => {
+    saveMapView(view);
+    set({ mapView: view });
+  },
   setElevated: (elevated) => set({ elevated }),
 
   beginScan: (target) =>
@@ -258,7 +278,17 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   handleDone: (d) => {
     const s = get();
     if (!acceptEvent(s.gate, d.scan_id)) return;
+    const recentScans = s.scanTarget
+      ? addRecentScan(s.recentScans, {
+          target: s.scanTarget,
+          label: d.root.name,
+          finishedAt: Date.now(),
+          bytes: d.root.size,
+        })
+      : s.recentScans;
+    if (recentScans !== s.recentScans) saveRecentScans(recentScans);
     set({
+      recentScans,
       scanning: false,
       progress: null,
       gate: finishedGate(s.gate, d.scan_id),

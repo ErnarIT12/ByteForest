@@ -3,6 +3,7 @@ import { deltaCell } from '../diffView';
 import { formatBytes, formatCount, formatFiletime, formatPercent } from '../format';
 import { strings } from '../strings';
 import type { NodeView } from '../api';
+import { ChevronRight, File, Folder, Icon } from './Icon';
 
 const INDENT_PX = 16;
 
@@ -26,22 +27,14 @@ interface Props {
 }
 
 function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg className={`chevron${open ? ' open' : ''}`} viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  return <Icon icon={ChevronRight} size={14} className={`chevron${open ? ' open' : ''}`} />;
 }
 
 function KindIcon({ dir }: { dir: boolean }) {
   return dir ? (
-    <svg className="kind-icon folder" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M1.5 4.5a1 1 0 0 1 1-1h3.6l1.4 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" />
-    </svg>
+    <Icon icon={Folder} className="kind-icon folder" />
   ) : (
-    <svg className="kind-icon file" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M3.5 1.5h6l3 3v10h-9z M9.5 1.5v3h3" />
-    </svg>
+    <Icon icon={File} className="kind-icon file" />
   );
 }
 

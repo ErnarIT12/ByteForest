@@ -45,6 +45,7 @@ Ohne Administratorrechte weicht ByteForest auf einen normalen Verzeichnisdurchla
 - **Kontextmenü** (Rechtsklick) im Ordnerbaum und in der Treemap: öffnen, im Explorer/Finder anzeigen, Pfad kopieren oder nach Bestätigung in den Papierkorb verschieben. Baum, Treemap und Summen aktualisieren sich sofort, ohne neuen Scan.
 - **Aufschlüsselung nach Dateityp** für den gewählten Ordner (Kategorien und häufigste Erweiterungen) und der Treemap-Farbmodus **Folders / File types**.
 - **Suchvorlagen mit einem Klick** für typische Platzfresser (`node_modules`, `target`, `.venv`, `.git`, Datenträgerabbilder, Dateien über 1 GB) mit der Gesamtgröße, die sich freigeben lässt.
+- **Seitenleiste** mit Laufwerken, Desktop, Downloads und Dokumenten sowie zuletzt gescannten Orten, die sich mit einem Klick erneut scannen lassen.
 - **Snapshots und Vergleich**: Speichern Sie einen Scan in einer kleinen Datei und vergleichen Sie einen späteren Scan damit, um zu sehen, was gewachsen, geschrumpft oder neu ist.
 - **Scan-Ausschlüsse**: In den Einstellungen lassen sich Namen, Muster (`node_modules`, `*.tmp`) oder vollständige Pfade ausschließen. Ausgeschlossenes zählt in keiner Summe mit.
 - **CSV- und JSON-Berichte** zu jedem Ordner für Tabellenkalkulationen und Skripte (**Export report…**).

@@ -95,7 +95,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       className={mapOnly ? "explorer map-expanded" : "explorer"}
       // Flexible tracks share the width split : (1 - split) whatever the content; the
       // minimums keep both panes usable in a narrow window.
-      style={{ gridTemplateColumns: mapOnly ? 'minmax(0, 1fr)' : `minmax(440px, ${split}fr) 8px minmax(235px, ${1 - split}fr)` }}
+      style={{ gridTemplateColumns: mapOnly ? 'minmax(0, 1fr)' : `minmax(400px, ${split}fr) 8px minmax(235px, ${1 - split}fr)` }}
     >
       <header className="scan-heading">
         <h1 title={root.name}>{root.name}</h1>
