@@ -41,7 +41,7 @@
 - 树、treemap 与状态栏之间的**同步选择**。
 - **“Fast scan (admin)”按钮**：以管理员权限重新启动 ByteForest，并自动继续扫描。
 - **“Always run as administrator”** 设置，让每次启动都是快速模式。
-- 采用标志配色的**浅色与深色主题**，对比度符合 WCAG AA。
+- **Graphite（深色）与 Silver（浅色）主题**，或跟随系统，对比度符合 WCAG AA。
 - 用于列出磁盘、扫描和基准测试的**命令行工具**。
 
 ![treemap 提示：文件名、完整路径、大小以及占当前视图的比例](docs/screenshots/treemap-tooltip.png)

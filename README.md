@@ -41,7 +41,7 @@ Without administrator rights ByteForest falls back to a regular directory walk, 
 - **Synchronized selection** between the tree, the treemap and the status bar.
 - **"Fast scan (admin)" button**: restarts ByteForest with administrator rights and resumes the scan automatically.
 - **"Always run as administrator"** setting, so every start is fast.
-- **Light and dark theme** in the logo palette, with WCAG AA contrast.
+- **Graphite (dark) and Silver (light) themes**, or follow the system, with WCAG AA contrast.
 - **Command-line tool** for drives, scans and benchmarks.
 
 ![Treemap tooltip showing a file name, full path, size and share of the view](docs/screenshots/treemap-tooltip.png)

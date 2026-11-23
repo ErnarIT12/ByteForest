@@ -7,9 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 - Apply the silver ByteForest mark across the desktop app, add Graphite, Silver and System appearances, and keep the file inspector beside the map and browser.
-
+- Graphite (dark) is the default appearance on fresh installs. Silver (light) and System are available in Settings, and the title bar and logo follow the selected theme.
+- Open (zoom into) a treemap folder with a double click. A single click selects it.
 - Integrate the title bar with the workspace, show disk usage before scanning, and place the map beside a right-hand file browser.
-
 - Choose a scan location from a list with available space, expand the disk map, and inspect the selected item’s share of the scan.
 
 ## [0.2.0] - 2026-11-23

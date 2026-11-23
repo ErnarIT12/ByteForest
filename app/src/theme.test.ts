@@ -24,6 +24,43 @@ describe('brand theme contrast', () => {
   }
 });
 
+// Text on gradient buttons, accent fills and the title bar, checked against every gradient stop.
+const labelPairs: Record<string, [label: string, backgrounds: string[]][]> = {
+  silver: [
+    ['#ffffff', ['#505967', '#323842', '#424b59', '#272b33']], // --on-btn on --btn-grad(-hover)
+    ['#ffffff', ['#475569']], // --on-accent on --accent
+    ['#191c22', ['#f8f9fb', '#edf0f3', '#e8eaee']], // --chrome-text on --chrome-bg
+    ['#191c22', ['#e2e5eb']], // --chrome-text on --chrome-hover
+    ['#ffffff', ['#ac2632']], // --on-close-hover on --close-hover
+  ],
+  graphite: [
+    ['#141518', ['#f3f4f6', '#b8bec9', '#ffffff', '#d4dae3']], // --on-btn on --btn-grad(-hover)
+    ['#141518', ['#c7d0df']], // --on-accent on --accent
+    ['#f3f4f6', ['#353941', '#22252a', '#18191c']], // --chrome-text on --chrome-bg
+    ['#f3f4f6', ['#474c55']], // --chrome-text on --chrome-hover
+    ['#ffffff', ['#ac2632']], // --on-close-hover on --close-hover
+  ],
+};
+
+describe('contrastRatio', () => {
+  it('computes known ratios', () => {
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 1);
+    expect(contrastRatio('#777777', '#777777')).toBeCloseTo(1, 5);
+  });
+});
+
+describe('button, accent and title bar label contrast', () => {
+  for (const [theme, groups] of Object.entries(labelPairs)) {
+    for (const [label, backgrounds] of groups) {
+      for (const background of backgrounds) {
+        it(`${theme} ${label} on ${background} meets AA`, () => {
+          expect(contrastRatio(label, background)).toBeGreaterThanOrEqual(4.5);
+        });
+      }
+    }
+  }
+});
+
 describe('treemap label contrast', () => {
   const themes: Theme[] = ['light', 'dark'];
   const roles: Role[] = ['file', 'header'];

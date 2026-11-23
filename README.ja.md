@@ -41,7 +41,7 @@ NTFS ボリュームでは、ByteForest はフォルダーごとに Windows へ�
 - ツリー、treemap、ステータスバー間の**選択の同期**。
 - **「Fast scan (admin)」ボタン**：管理者権限で ByteForest を再起動し、スキャンを自動的に再開します。
 - 毎回の起動を高速にする **「Always run as administrator」** 設定。
-- ロゴの配色に基づく、WCAG AA コントラストの**ライト／ダークテーマ**。
+- **Graphite（ダーク）と Silver（ライト）のテーマ**、またはシステム設定に追従。WCAG AA コントラストに対応。
 - ドライブ一覧、スキャン、ベンチマークのための**コマンドラインツール**。
 
 ![treemap のツールチップ：ファイル名、フルパス、サイズ、表示中の割合](docs/screenshots/treemap-tooltip.png)

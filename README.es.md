@@ -41,7 +41,7 @@ Sin permisos de administrador, ByteForest recurre a un recorrido normal de direc
 - **Selección sincronizada** entre el árbol, el treemap y la barra de estado.
 - **Botón «Fast scan (admin)»**: reinicia ByteForest con permisos de administrador y retoma el análisis automáticamente.
 - Opción **«Always run as administrator»**, para que cada inicio sea rápido.
-- **Tema claro y oscuro** con la paleta del logotipo y contraste WCAG AA.
+- Temas **Graphite (oscuro) y Silver (claro)**, o el del sistema, con contraste WCAG AA.
 - **Herramienta de línea de comandos** para unidades, análisis y mediciones.
 
 ![Información emergente del treemap: nombre de archivo, ruta completa, tamaño y proporción de la vista](docs/screenshots/treemap-tooltip.png)
