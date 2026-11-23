@@ -1,0 +1,70 @@
+name: macOS package
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: Build universal DMG
+        working-directory: app
+        run: |
+          npm ci
+          npm run tauri build -- --ci --target universal-apple-darwin --bundles dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: byteforest-macos
+          path: target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+  smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: byteforest-macos
+          path: dmg
+      - name: Install and start ByteForest
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=(dmg/*.dmg)
+          [[ ${#image[@]} -eq 1 ]]
+          mount="$RUNNER_TEMP/byteforest-dmg"
+          hdiutil verify "${image[0]}"
+          hdiutil attach "${image[0]}" -nobrowse -readonly -mountpoint "$mount"
+          trap 'hdiutil detach "$mount"' EXIT
+          app="$RUNNER_TEMP/ByteForest.app"
+          ditto "$mount/ByteForest.app" "$app"
+          binary="$app/Contents/MacOS/byteforest-app"
+          lipo -verify_arch arm64 x86_64 "$binary"
+          codesign --verify --deep --strict "$app"
+          "$binary" >"$RUNNER_TEMP/byteforest-start.log" 2>&1 &
+          pid=$!
+          sleep 5
+          if ! kill -0 "$pid" 2>/dev/null; then
+            cat "$RUNNER_TEMP/byteforest-start.log"
+            exit 1
+          fi
+          kill "$pid"

@@ -13,13 +13,13 @@ export interface TreeController {
    * Expands every node on `path` (root first), loading pages until each next node is loaded.
    * Resolves to false when the last node could not be loaded (see `TreeModel.reveal`).
    */
-  revealPath(path: number[], cancelled?: () => boolean): Promise<boolean>;
+  revealPath(path: number[], cancelled: () => boolean, positions?: (number | null)[]): Promise<boolean>;
   /** Root..id as breadcrumbs, or null if `id` is not loaded. */
   crumbsOf(id: number): Crumb[] | null;
 }
 
 /** Owns the lazily loaded tree of one scan result; mount it again for a new result. */
-export function useTreeModel(root: NodeView): TreeController {
+export function useTreeModel(root: NodeView, scanId: number): TreeController {
   const [model] = useState(() => {
     const m = new TreeModel(root);
     m.get(root.id)!.expanded = true;
@@ -38,7 +38,7 @@ export function useTreeModel(root: NodeView): TreeController {
       if (running) return running;
       entry.loading = true;
       const offset = entry.children.length;
-      const p = getChildren(id, 'SizeDesc', offset, PAGE_SIZE)
+      const p = getChildren(id, 'SizeDesc', offset, PAGE_SIZE, scanId)
         .then(
           (page) => {
             model.addPage(id, offset, page);
@@ -55,7 +55,7 @@ export function useTreeModel(root: NodeView): TreeController {
       inflight.current.set(id, p);
       return p;
     },
-    [model, refresh],
+    [model, refresh, scanId],
   );
 
   const setExpanded = useCallback(
@@ -70,9 +70,24 @@ export function useTreeModel(root: NodeView): TreeController {
   );
 
   const revealPath = useCallback(
-    (path: number[], cancelled?: () => boolean) =>
-      model.reveal(path, loadMore, refresh, MAX_REVEAL_PAGES, cancelled),
-    [model, refresh, loadMore],
+    (path: number[], cancelled: () => boolean, positions?: (number | null)[]) => {
+      const loadLocated = positions && (async (id: number, step: number) => {
+        const position = positions[step];
+        if (position === null || position === undefined) return;
+        const offset = Math.floor(position / PAGE_SIZE) * PAGE_SIZE;
+        try {
+          const page = await getChildren(id, 'SizeDesc', offset, PAGE_SIZE, scanId);
+          if (!cancelled()) {
+            model.addLocatedPage(id, offset, page);
+            refresh();
+          }
+        } catch {
+          // A replacement scan or a failed page cannot reveal this node.
+        }
+      });
+      return model.reveal(path, loadMore, refresh, MAX_REVEAL_PAGES, cancelled, loadLocated);
+    },
+    [model, refresh, loadMore, scanId],
   );
 
   const crumbsOf = useCallback(

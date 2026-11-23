@@ -60,7 +60,16 @@ The installer installs ByteForest for all users, into Program Files.
 
 Requirements: Windows 10/11 x64 and WebView2 (preinstalled on Windows 11; the installer can fetch it on Windows 10 if missing).
 
+
+### macOS beta
+
+Download the universal DMG from [GitHub Releases](https://github.com/ErnarIT12/byteforest/releases), verify it against SHA256SUMS.txt, then drag ByteForest to Applications. The beta requires macOS 15 or later and supports both Apple Silicon and Intel. The app is ad hoc signed. Since it has no Apple notarization, Gatekeeper may ask you to approve the first launch in Privacy & Security. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445)
+
+ByteForest offers your home folder, the Mac data volume, locally mounted disks, and a native folder picker. It walks directories with the permissions of the current user. Skipped entries are reported in the status bar. Allocated sizes are estimates. APFS clones, shared blocks, and snapshots can make the scan totals differ from volume usage.
+
 ## Usage
+
+After scanning, open **Largest Files** to search by name, extension, or size across all scanned folders. Choose a result to jump to it in the tree and map. Select a file or folder to copy its path or reveal it in Explorer or Finder.
 
 **App.** Pick a drive and press **Scan**, or press **⚡ Fast scan (admin)** to restart elevated and scan right away. Select folders in the tree or rectangles in the treemap (both stay in sync). Click a folder in the treemap to zoom into it; use the breadcrumbs, the up arrow or the mouse wheel to zoom back out.
 
@@ -88,6 +97,8 @@ cargo test --workspace             # tests (build the frontend first: npm --pref
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and the admin-only tests.
+
+On macOS, install Xcode Command Line Tools and both Rust targets, then build with npm --prefix app run tauri build -- --target universal-apple-darwin --bundles dmg. See the [Tauri DMG guide](https://v2.tauri.app/distribute/dmg/).
 
 ## Architecture
 

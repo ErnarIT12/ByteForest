@@ -10,6 +10,7 @@ import { TreeGlyph } from './TreeGlyph';
 /** App bar: name, drive picker, Scan / Cancel and live progress. */
 export function TopBar() {
   const scanning = useAppStore((s) => s.scanning);
+  const isMac = useAppStore((s) => s.isMac);
   return (
     <header className="topbar">
       <div className="brand">
@@ -22,7 +23,7 @@ export function TopBar() {
         <FastScanButton />
         {scanning && <ScanProgressText />}
       </div>
-      <SettingsPopover />
+      {!isMac && <SettingsPopover />}
     </header>
   );
 }

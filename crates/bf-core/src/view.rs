@@ -1,6 +1,8 @@
 //! Paged, sorted child lists and per-node details for the UI.
 
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
+use std::collections::BinaryHeap;
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -54,7 +56,72 @@ pub struct NodeView {
     pub percent_of_parent: f32,
 }
 
+/// Search filters over files in the entire tree.
+#[derive(Deserialize, Debug, Default)]
+pub struct FileFilter {
+    pub name: String,
+    pub extension: String,
+    pub min_size: u64,
+}
+
 impl Tree {
+    /// Returns the total number of matching files and a bounded list of the largest.
+    pub fn largest_files(&self, filter: &FileFilter, limit: usize) -> (usize, Vec<NodeId>) {
+        let name = filter.name.trim().to_lowercase();
+        let extension = filter
+            .extension
+            .trim()
+            .trim_start_matches('.')
+            .to_lowercase();
+        let mut matches = 0;
+        let mut largest = BinaryHeap::new();
+        for raw in 1..self.len() as u32 {
+            let id = NodeId(raw);
+            let size = self.size[id.idx()];
+            if self.flags(id).contains(NodeFlags::DIR) || size < filter.min_size {
+                continue;
+            }
+            let filename = self.name(id);
+            if !name.is_empty() && !filename.to_lowercase().contains(&name) {
+                continue;
+            }
+            if !extension.is_empty()
+                && !Path::new(filename)
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .is_some_and(|ext| ext.to_lowercase() == extension)
+            {
+                continue;
+            }
+            matches += 1;
+            let key = Reverse((size, Reverse(raw)));
+            if largest.len() < limit {
+                largest.push(key);
+            } else if largest.peek().is_some_and(|smallest| key < *smallest) {
+                *largest.peek_mut().expect("heap with an existing minimum") = key;
+            }
+        }
+        let ids = largest
+            .into_sorted_vec()
+            .into_iter()
+            .map(|Reverse((_, Reverse(raw)))| NodeId(raw))
+            .collect();
+        (matches, ids)
+    }
+
+    /// Zero-based position of a node in its parent's sorted child list.
+    pub fn child_position(&self, id: NodeId, sort: SortKey) -> Option<usize> {
+        let parent = self.parent(id)?;
+        self.child_order(parent, sort)
+            .binary_search_by(|&child| self.compare_children(NodeId(child), id, sort))
+            .ok()
+    }
+
+    fn child_order(&self, dir: NodeId, sort: SortKey) -> &[u32] {
+        let slot = self.dir_index[dir.idx()];
+        self.sorted[slot as usize][sort.slot()].get_or_init(|| self.sort_children(dir, sort))
+    }
+
     /// Details of one node.
     ///
     /// # Panics
@@ -102,8 +169,7 @@ impl Tree {
         if slot == NONE {
             return Vec::new(); // a file has no children
         }
-        let order =
-            self.sorted[slot as usize][sort.slot()].get_or_init(|| self.sort_children(id, sort));
+        let order = self.child_order(id, sort);
         let start = offset.min(order.len());
         let end = start.saturating_add(limit.min(MAX_PAGE)).min(order.len());
         order[start..end]
@@ -134,17 +200,19 @@ impl Tree {
     /// the result does not depend on the sort algorithm.
     fn sort_children(&self, id: NodeId, sort: SortKey) -> Box<[u32]> {
         let mut ids: Vec<NodeId> = self.children_ids(id).collect();
-        ids.sort_unstable_by(|&a, &b| {
-            let primary = match sort {
-                SortKey::SizeDesc => self.total(b).size.cmp(&self.total(a).size),
-                SortKey::NameAsc => Ordering::Equal,
-                SortKey::ModifiedDesc => self.mtime(b).cmp(&self.mtime(a)),
-            };
-            primary
-                .then_with(|| cmp_names_ignoring_case(self.name(a), self.name(b)))
-                .then_with(|| a.0.cmp(&b.0))
-        });
+        ids.sort_unstable_by(|&a, &b| self.compare_children(a, b, sort));
         ids.into_iter().map(|n| n.0).collect()
+    }
+
+    fn compare_children(&self, a: NodeId, b: NodeId, sort: SortKey) -> Ordering {
+        let primary = match sort {
+            SortKey::SizeDesc => self.total(b).size.cmp(&self.total(a).size),
+            SortKey::NameAsc => Ordering::Equal,
+            SortKey::ModifiedDesc => self.mtime(b).cmp(&self.mtime(a)),
+        };
+        primary
+            .then_with(|| cmp_names_ignoring_case(self.name(a), self.name(b)))
+            .then_with(|| a.0.cmp(&b.0))
     }
 }
 

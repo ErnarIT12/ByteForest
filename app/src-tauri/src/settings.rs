@@ -50,7 +50,11 @@ pub fn save(path: &Path, s: &Settings) -> io::Result<()> {
 /// There is deliberately no fallback to the current folder: an elevated process often
 /// starts in `C:\Windows\System32`.
 pub fn settings_path() -> Option<PathBuf> {
-    path_in(std::env::var_os("APPDATA"))
+    #[cfg(windows)]
+    let base = std::env::var_os("APPDATA");
+    #[cfg(target_os = "macos")]
+    let base = std::env::home_dir().map(|p| p.join("Library/Application Support").into_os_string());
+    path_in(base)
 }
 
 /// Settings file below the given `APPDATA` value.
@@ -69,10 +73,10 @@ pub fn save_default_path(s: &Settings) -> io::Result<()> {
     match settings_path() {
         Some(p) => save(&p, s),
         None => {
-            tracing::warn!("APPDATA is not set; settings are not saved");
+            tracing::warn!("the user settings folder is not available");
             Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                "the settings folder (APPDATA) is not available",
+                "the user settings folder is not available",
             ))
         }
     }
@@ -113,6 +117,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
     fn no_appdata_means_no_settings_path() {
         assert_eq!(path_in(None), None);
         assert_eq!(path_in(Some(std::ffi::OsString::new())), None);

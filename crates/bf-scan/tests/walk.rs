@@ -4,13 +4,16 @@
 
 use std::fs;
 use std::path::Path;
+#[cfg(windows)]
 use std::process::Command;
 use std::sync::Mutex;
 
 use bf_core::{NodeFlags, NodeId, Tree};
+#[cfg(windows)]
+use bf_scan::list_volumes;
 use bf_scan::{
     CancelToken, Phase, ScanError, ScanMethod, ScanProgress, ScanRoot, ScanStats, Scanner,
-    WalkScanner, list_volumes,
+    WalkScanner,
 };
 use tempfile::TempDir;
 
@@ -64,6 +67,7 @@ fn walk_counts_files_and_sizes() {
 }
 
 #[test]
+#[cfg(windows)]
 fn walk_does_not_follow_junction_loop() {
     let tmp = temp_dir();
     fs::write(tmp.path().join("real.bin"), [0u8; 5]).unwrap();
@@ -96,8 +100,10 @@ fn walk_does_not_follow_junction_loop() {
 }
 
 /// Removes the deny ACE on drop so the temp dir can be deleted even if an assertion fails.
+#[cfg(windows)]
 struct RestoreAcl<'a>(&'a Path);
 
+#[cfg(windows)]
 impl Drop for RestoreAcl<'_> {
     fn drop(&mut self) {
         let _ = Command::new("icacls")
@@ -109,6 +115,7 @@ impl Drop for RestoreAcl<'_> {
 }
 
 #[test]
+#[cfg(windows)]
 fn walk_continues_after_access_denied() {
     let tmp = temp_dir();
     let denied = tmp.path().join("denied");
@@ -185,6 +192,7 @@ fn walk_reports_final_progress() {
 }
 
 #[test]
+#[cfg(windows)]
 fn list_volumes_contains_system_drive() {
     let system_drive = std::env::var("SystemDrive").expect("SystemDrive is set on Windows");
     let letter = system_drive
@@ -201,4 +209,53 @@ fn list_volumes_contains_system_drive() {
         .unwrap_or_else(|| panic!("{letter}: not in {volumes:?}"));
     assert_eq!(vol.fs, "NTFS");
     assert!(vol.total > 0 && vol.free <= vol.total);
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn mac_walk_does_not_follow_symlinks_and_reads_file_metadata() {
+    use std::os::unix::fs::{MetadataExt, symlink};
+
+    let root = temp_dir();
+    let outside = temp_dir();
+    fs::write(outside.path().join("outside.bin"), [0u8; 20]).unwrap();
+    symlink(outside.path(), root.path().join("link")).unwrap();
+    let file = root.path().join("name with spaces.bin");
+    fs::write(&file, [0u8; 7]).unwrap();
+
+    let (tree, stats) = scan_folder(root.path()).unwrap();
+    let link = child_named(&tree, tree.root(), "link").unwrap();
+    let node = child_named(&tree, tree.root(), "name with spaces.bin").unwrap();
+    assert!(tree.flags(link).contains(NodeFlags::REPARSE));
+    assert_eq!(tree.children_ids(link).count(), 0);
+    assert_eq!(tree.total(link).size, 0);
+    assert_eq!(
+        tree.total(node).alloc,
+        fs::metadata(file).unwrap().blocks() * 512
+    );
+    assert!(tree.mtime(node) > 116_444_736_000_000_000);
+    assert_eq!(stats.bytes, 7);
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn mac_walk_keeps_results_when_a_folder_cannot_be_read() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = temp_dir();
+    let denied = root.path().join("no access");
+    fs::create_dir(&denied).unwrap();
+    fs::write(denied.join("invisible"), b"x").unwrap();
+    fs::write(root.path().join("visible"), b"visible").unwrap();
+    fs::set_permissions(&denied, fs::Permissions::from_mode(0o000)).unwrap();
+    let permission_enforced = fs::read_dir(&denied).is_err();
+    let result = scan_folder(root.path());
+    fs::set_permissions(&denied, fs::Permissions::from_mode(0o700)).unwrap();
+
+    let (tree, stats) = result.unwrap();
+    assert!(child_named(&tree, tree.root(), "visible").is_some());
+    if permission_enforced {
+        assert_eq!(stats.errors, 1);
+        assert_eq!(stats.bytes, 7);
+    }
 }

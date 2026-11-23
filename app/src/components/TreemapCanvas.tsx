@@ -75,6 +75,9 @@ function useDebouncedSize(ref: RefObject<HTMLDivElement | null>): Size | null {
 export function TreemapCanvas() {
   const focusId = useAppStore((s) => s.focusId);
   const selectedId = useAppStore((s) => s.selectedId);
+  const searchFilename = useAppStore((s) =>
+    s.reveal?.path.at(-1) === s.selectedId ? s.reveal?.filename : undefined,
+  );
   const generation = useAppStore((s) => s.generation);
   const theme = useColorScheme();
 
@@ -131,6 +134,7 @@ export function TreemapCanvas() {
   // Overlay: hover and selection outlines.
   const hoverIndex = hover?.i ?? -1;
   const selectedIndex = layout && selectedId !== null ? (layout.index.get(selectedId) ?? -1) : -1;
+  const selectionBelowResolution = layout?.rects[0]?.id === focusId && searchFilename && selectedIndex < 0;
   useEffect(() => {
     const canvas = overlayRef.current;
     const ctx = canvas?.getContext('2d');
@@ -210,7 +214,10 @@ export function TreemapCanvas() {
     >
       <canvas ref={baseRef} className="treemap-layer" style={{ width: cssW, height: cssH }} />
       <canvas ref={overlayRef} className="treemap-layer" style={{ width: cssW, height: cssH }} />
-      {layout && layout.rects.length <= 1 && (
+      {selectionBelowResolution && (
+        <div className="treemap-note" title={searchFilename}>Selected: {searchFilename}</div>
+      )}
+      {layout && layout.rects.length <= 1 && !selectionBelowResolution && (
         <div className="treemap-note">{strings.treemapEmpty}</div>
       )}
       {failed && <div className="treemap-note">{failed}</div>}

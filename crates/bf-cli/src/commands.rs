@@ -47,7 +47,7 @@ fn drives_table(volumes: &[VolumeSummary]) -> String {
     for v in volumes {
         out.push_str(&format!(
             "{:<6}  {:<20}  {:<8}  {:>10}  {:>10}\n",
-            format!("{}:", v.letter),
+            volume_target(v),
             v.label,
             v.fs,
             human_size(v.total),
@@ -55,6 +55,13 @@ fn drives_table(volumes: &[VolumeSummary]) -> String {
         ));
     }
     out
+}
+
+fn volume_target(volume: &VolumeSummary) -> String {
+    #[cfg(windows)]
+    return format!("{}:", volume.letter);
+    #[cfg(target_os = "macos")]
+    return volume.path.clone();
 }
 
 /// Scans once, drawing a one-line progress display on stderr when `show_progress` is set.

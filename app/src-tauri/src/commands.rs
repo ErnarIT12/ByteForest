@@ -1,17 +1,20 @@
 //! IPC commands called by the front end, plus the pure helpers they rely on.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
-use bf_core::{NodeId, NodeView, Rect, SortKey, Tree, TreemapOptions};
+use bf_core::{FileFilter, NodeFlags, NodeId, NodeView, Rect, SortKey, Tree, TreemapOptions};
 use bf_scan::{CancelToken, ScanError, ScanRoot, VolumeSummary};
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::dto::{ScanDone, ScanErrorEvent, ScanProgressEvent, TreemapRect};
+#[cfg(windows)]
 use crate::elevation::{self, ElevateError};
 use crate::settings::{self as store, Settings};
-use crate::state::AppState;
+use crate::state::{AppState, CompletedScan};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 /// Largest page `get_children` returns.
 const MAX_CHILDREN: u32 = 1000;
@@ -21,10 +24,12 @@ const MAX_HEADER: f32 = 128.0;
 
 /// Parses `C`, `c:`, `C:\` or an existing folder path.
 pub fn parse_target(arg: &str) -> Result<ScanRoot, String> {
+    #[cfg(windows)]
     let arg = arg.trim();
-    if arg.is_empty() {
+    if arg.trim().is_empty() {
         return Err("no scan target given".to_string());
     }
+    #[cfg(windows)]
     if let Some(letter) = drive_letter(arg) {
         return Ok(ScanRoot::Volume(letter));
     }
@@ -40,6 +45,7 @@ pub fn parse_target(arg: &str) -> Result<ScanRoot, String> {
 }
 
 /// The upper-case drive letter if `arg` is exactly a drive designator.
+#[cfg(windows)]
 fn drive_letter(arg: &str) -> Option<char> {
     let mut chars = arg.chars();
     let letter = chars.next().filter(char::is_ascii_alphabetic)?;
@@ -99,18 +105,65 @@ pub fn treemap_rects(tree: &Tree, rects: Vec<Rect>) -> Vec<TreemapRect> {
 }
 
 /// Clones the current tree out of the state; the lock is released before returning.
-fn current_tree(state: &AppState) -> Result<Arc<Tree>, String> {
+fn current_tree(state: &AppState, scan_id: Option<u64>) -> Result<Arc<Tree>, String> {
     let guard = state
         .tree
         .read()
         .map_err(|_| "internal error: state poisoned")?;
-    guard.clone().ok_or_else(|| "no scan yet".to_string())
+    let scan = guard.as_ref().ok_or("no scan yet")?;
+    if scan_id.is_some_and(|id| id != scan.id) {
+        return Err("scan results have changed".to_string());
+    }
+    Ok(Arc::clone(&scan.tree))
 }
 
 /// Lists the mounted volumes.
 #[tauri::command(async)]
 pub fn list_drives() -> Vec<VolumeSummary> {
-    bf_scan::list_volumes()
+    let volumes = bf_scan::list_volumes();
+    #[cfg(target_os = "macos")]
+    let volumes = {
+        let home = std::env::home_dir()
+            .filter(|path| path.is_dir())
+            .and_then(|path| path.into_os_string().into_string().ok());
+        let home = home.map(|path| VolumeSummary {
+            path,
+            label: "Home folder".to_string(),
+            fs: String::new(),
+            total: 0,
+            free: 0,
+        });
+        home.into_iter().chain(volumes).collect()
+    };
+    volumes
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub async fn pick_folder(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .blocking_pick_folder()
+            .map(|folder| {
+                folder
+                    .into_path()
+                    .map_err(|err| err.to_string())?
+                    .into_os_string()
+                    .into_string()
+                    .map_err(|_| "This folder name cannot be represented as Unicode.".to_owned())
+            })
+            .transpose()
+    })
+    .await
+    .map_err(|err| err.to_string())?
+}
+
+#[cfg(windows)]
+#[tauri::command]
+pub fn pick_folder() -> Result<Option<String>, String> {
+    Err("Folder picker is available on macOS.".to_owned())
 }
 
 /// Whether the process runs with administrator rights.
@@ -121,6 +174,7 @@ pub fn is_elevated() -> bool {
 
 /// Restarts the app with administrator rights, optionally opening `target` for scanning.
 /// Exits the app on success; `Err("declined")` when the user refuses the UAC prompt.
+#[cfg(windows)]
 #[tauri::command(async)]
 pub fn restart_elevated(app: AppHandle, target: Option<String>) -> Result<(), String> {
     let args = elevation::build_elevated_args(target.as_deref());
@@ -132,6 +186,12 @@ pub fn restart_elevated(app: AppHandle, target: Option<String>) -> Result<(), St
         Err(ElevateError::Declined) => Err("declined".to_string()),
         Err(ElevateError::Other(message)) => Err(message),
     }
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub fn restart_elevated() -> Result<(), String> {
+    Err("Elevation is available on Windows.".to_owned())
 }
 
 /// The `--scan` startup argument; returned once, then `None`.
@@ -222,7 +282,7 @@ fn finish_scan(
             );
             report(app, scan_id, |state| {
                 match state.tree.write() {
-                    Ok(mut slot) => *slot = Some(tree),
+                    Ok(mut slot) => *slot = Some(CompletedScan { id: scan_id, tree }),
                     Err(_) => return Some(("internal error: state poisoned".to_string(), None)),
                 }
                 Some((
@@ -295,8 +355,9 @@ pub fn get_children(
     sort: SortKey,
     offset: u32,
     limit: u32,
+    scan_id: Option<u64>,
 ) -> Result<Vec<NodeView>, String> {
-    let tree = current_tree(&state)?;
+    let tree = current_tree(&state, scan_id)?;
     let id = node_id_checked(&tree, node)?;
     Ok(tree.children(id, sort, offset as usize, limit.min(MAX_CHILDREN) as usize))
 }
@@ -304,7 +365,7 @@ pub fn get_children(
 /// Details of one node.
 #[tauri::command]
 pub fn get_node(state: State<'_, AppState>, node: u32) -> Result<NodeView, String> {
-    let tree = current_tree(&state)?;
+    let tree = current_tree(&state, None)?;
     let id = node_id_checked(&tree, node)?;
     Ok(tree.view(id))
 }
@@ -312,9 +373,187 @@ pub fn get_node(state: State<'_, AppState>, node: u32) -> Result<NodeView, Strin
 /// Full path of a node.
 #[tauri::command]
 pub fn get_path(state: State<'_, AppState>, node: u32) -> Result<String, String> {
-    let tree = current_tree(&state)?;
+    let tree = current_tree(&state, None)?;
     let id = node_id_checked(&tree, node)?;
-    Ok(tree.path_of(id))
+    Ok(display_path(&tree, id))
+}
+
+/// Walks toward the root without recursion, even for extremely deep trees.
+fn lineage(tree: &Tree, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+    std::iter::successors(Some(id), |&item| tree.parent(item))
+}
+
+fn display_path(tree: &Tree, id: NodeId) -> String {
+    let mut parts: Vec<_> = lineage(tree, id).map(|item| tree.name(item)).collect();
+    parts.reverse();
+    let mut path = parts[0].to_owned();
+    for name in &parts[1..] {
+        if !path.ends_with(std::path::MAIN_SEPARATOR) {
+            path.push(std::path::MAIN_SEPARATOR);
+        }
+        path.push_str(name);
+    }
+    path
+}
+
+fn native_path(tree: &Tree, id: NodeId) -> Result<PathBuf, String> {
+    for item in lineage(tree, id) {
+        let name = tree.name(item);
+        if tree.flags(item).contains(NodeFlags::SYNTHETIC)
+            || name.contains('\u{fffd}')
+            || (item != tree.root() && {
+                let mut components = Path::new(name).components();
+                !matches!(components.next(), Some(Component::Normal(part)) if part == name)
+                    || components.next().is_some()
+            })
+            || (cfg!(windows) && item != tree.root() && name.contains(':'))
+        {
+            return Err("This entry has no usable filesystem path.".to_owned());
+        }
+    }
+
+    let path = PathBuf::from(display_path(tree, id));
+    #[cfg(windows)]
+    let path = if id == tree.root() && matches!(tree.name(id).as_bytes(), [_, b':']) {
+        PathBuf::from(format!("{}\\", tree.name(id)))
+    } else {
+        path
+    };
+
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Err("This entry has no usable filesystem path.".to_owned())
+    }
+}
+
+#[derive(Serialize)]
+pub struct FileMatch {
+    id: u32,
+    name: String,
+    path: String,
+    size: u64,
+}
+
+#[derive(Serialize)]
+pub struct SearchResults {
+    total: usize,
+    files: Vec<FileMatch>,
+}
+
+#[tauri::command]
+pub async fn search_files(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    filter: FileFilter,
+) -> Result<SearchResults, String> {
+    let tree = current_tree(&state, Some(scan_id))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (total, ids) = tree.largest_files(&filter, 200);
+        let files = ids
+            .into_iter()
+            .map(|id| FileMatch {
+                id: id.0,
+                name: tree.name(id).to_owned(),
+                path: display_path(&tree, id),
+                size: tree.total(id).size,
+            })
+            .collect();
+        SearchResults { total, files }
+    })
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[derive(Serialize)]
+pub struct LocationStep {
+    id: u32,
+    name: String,
+    position: Option<usize>,
+}
+
+#[tauri::command]
+pub async fn locate_node(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    node: u32,
+) -> Result<Vec<LocationStep>, String> {
+    let tree = current_tree(&state, Some(scan_id))?;
+    let id = node_id_checked(&tree, node)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut steps: Vec<_> = lineage(&tree, id)
+            .map(|item| LocationStep {
+                id: item.0,
+                name: tree.name(item).to_owned(),
+                position: tree.child_position(item, SortKey::SizeDesc),
+            })
+            .collect();
+        steps.reverse();
+        steps
+    })
+    .await
+    .map_err(|err| err.to_string())
+}
+
+#[derive(Serialize)]
+pub struct NodeDetails {
+    node: NodeView,
+    path: String,
+    has_native_path: bool,
+}
+
+#[tauri::command]
+pub fn node_details(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    node: u32,
+) -> Result<NodeDetails, String> {
+    let tree = current_tree(&state, Some(scan_id))?;
+    let id = node_id_checked(&tree, node)?;
+    let path = native_path(&tree, id);
+    Ok(NodeDetails {
+        node: tree.view(id),
+        has_native_path: path.is_ok(),
+        path: path.map_or_else(
+            |_| display_path(&tree, id),
+            |p| p.to_string_lossy().into_owned(),
+        ),
+    })
+}
+
+fn existing_node_path(state: &AppState, scan_id: u64, node: u32) -> Result<PathBuf, String> {
+    let tree = current_tree(state, Some(scan_id))?;
+    let path = native_path(&tree, node_id_checked(&tree, node)?)?;
+    std::fs::symlink_metadata(&path).map_err(|err| match err.kind() {
+        std::io::ErrorKind::NotFound => {
+            "This entry no longer exists. Rescan to refresh.".to_owned()
+        }
+        _ => format!("Unable to access this entry: {err}"),
+    })?;
+    Ok(path)
+}
+
+#[tauri::command(async)]
+pub fn copy_node_path(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    scan_id: u64,
+    node: u32,
+) -> Result<(), String> {
+    let path = existing_node_path(&state, scan_id, node)?;
+    app.clipboard()
+        .write_text(path.to_string_lossy())
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command(async)]
+pub fn reveal_node_in_file_manager(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    node: u32,
+) -> Result<(), String> {
+    let path = existing_node_path(&state, scan_id, node)?;
+    tauri_plugin_opener::reveal_item_in_dir(path).map_err(|err| err.to_string())
 }
 
 /// Treemap rectangles (at most 20 000) of the subtree under `node`, in a `width` x `height` canvas.
@@ -329,7 +568,7 @@ pub fn get_treemap(
 ) -> Result<Vec<TreemapRect>, String> {
     validate_canvas(width, height)?;
     let dir_header = validate_header(header)?;
-    let tree = current_tree(&state)?;
+    let tree = current_tree(&state, None)?;
     let id = node_id_checked(&tree, node)?;
     let opts = TreemapOptions {
         width,
@@ -360,6 +599,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
     fn drive_forms_become_volumes() {
         for arg in ["C:", "c:", "C:\\", "c:\\", "C", "c"] {
             assert!(
@@ -429,6 +669,45 @@ mod tests {
         assert_eq!(rects[1].name, "a.txt");
         assert_eq!(rects[1].size, 10);
         assert!(!rects[1].is_dir);
+    }
+
+    #[test]
+    fn native_actions_are_bound_to_the_scan_and_existing_paths() {
+        let folder = tempfile::tempdir().unwrap();
+        let file = folder.path().join("a file.txt");
+        std::fs::write(&file, b"x").unwrap();
+        let mut builder = TreeBuilder::new(0, folder.path().to_str().unwrap());
+        for (key, parent_key, name) in [(1, 0, "a file.txt"), (2, 999, "orphan.txt")] {
+            builder.push(EntryRecord {
+                key,
+                parent_key,
+                name: name.to_string(),
+                flags: NodeFlags::empty(),
+                size: 1,
+                alloc: 1,
+                mtime: 0,
+            });
+        }
+        let tree = Arc::new(builder.finish());
+        let id = tree
+            .children_ids(tree.root())
+            .find(|&id| tree.name(id) == "a file.txt")
+            .unwrap();
+        let synthetic = tree
+            .children_ids(tree.root())
+            .find(|&id| tree.flags(id).contains(NodeFlags::SYNTHETIC))
+            .unwrap();
+        let state = AppState::default();
+        *state.tree.write().unwrap() = Some(CompletedScan { id: 7, tree });
+        assert_eq!(existing_node_path(&state, 7, id.0), Ok(file.clone()));
+        assert!(existing_node_path(&state, 6, id.0).is_err());
+        assert!(existing_node_path(&state, 7, synthetic.0).is_err());
+        std::fs::remove_file(&file).unwrap();
+        assert!(
+            existing_node_path(&state, 7, id.0)
+                .unwrap_err()
+                .contains("no longer exists")
+        );
     }
 
     #[test]

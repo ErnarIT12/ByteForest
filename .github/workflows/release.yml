@@ -5,15 +5,13 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  release:
-    # Only a version tag may name the release (never a branch).
-    if: startsWith(github.ref, 'refs/tags/v')
+  windows:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -25,64 +23,64 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Install frontend dependencies
+      - name: Build Windows installers
         working-directory: app
-        run: npm ci
-
-      # Builds the installers (NSIS and MSI) and creates a draft release.
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: app
-          tagName: ${{ github.ref_name }}
-          releaseName: "ByteForest ${{ github.ref_name }}"
-          releaseBody: |
-            See [CHANGELOG.md](https://github.com/ErnarIT12/byteforest/blob/${{ github.ref_name }}/CHANGELOG.md) for the changes in this release.
-
-            These builds are not code-signed, so Windows SmartScreen may show a warning ("More info", then "Run anyway"). Verify downloads against SHA256SUMS.txt.
-
-            The fast MFT scan needs administrator rights: use the "⚡ Fast scan (admin)" button or turn on "Always run as administrator" in the settings. Without them the app falls back to a slower directory walk.
-          releaseDraft: true
-          prerelease: ${{ startsWith(github.ref_name, 'v0.') }}
-
-      - name: Build CLI
-        run: cargo build -p bf-cli --release
-
-      - name: Package CLI and write checksums
+        run: |
+          npm ci
+          npm run tauri build -- --ci
+      - name: Package CLI
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $tag = '${{ github.ref_name }}'
-          $zip = "byteforest-cli-$tag-x64.zip"
-          Compress-Archive -Force -DestinationPath $zip -Path `
-            target/release/byteforest.exe, LICENSE-MIT, LICENSE-APACHE, README.md
-
-          # In a Cargo workspace the bundles land in the root target/, but also
-          # look under app/src-tauri/target in case the layout changes.
-          $installers = @()
-          foreach ($root in 'target/release/bundle', 'app/src-tauri/target/release/bundle') {
-            if (Test-Path $root) {
-              $installers += Get-ChildItem -Path $root -Recurse -File |
-                Where-Object { $_.Extension -in '.exe', '.msi' }
-            }
-          }
-          if ($installers.Count -eq 0) {
-            throw 'No installer (.exe or .msi) found under any bundle directory.'
-          }
-
-          $files = @(Get-Item $zip) + $installers
-          $lines = foreach ($f in $files) {
-            $hash = (Get-FileHash -Algorithm SHA256 -Path $f.FullName).Hash.ToLower()
-            "$hash  $($f.Name)"
-          }
-          Set-Content -Path SHA256SUMS.txt -Value $lines -Encoding ascii
-          Get-Content SHA256SUMS.txt
-
-      - uses: softprops/action-gh-release@v2
+          cargo build --locked -p bf-cli --release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -DestinationPath "byteforest-cli-$env:GITHUB_REF_NAME-x64.zip" -Path $(
+            'target/release/byteforest.exe', 'LICENSE-MIT', 'LICENSE-APACHE', 'README.md'
+          )
+      - uses: actions/upload-artifact@v4
         with:
-          draft: true
-          tag_name: ${{ github.ref_name }}
-          files: |
-            byteforest-cli-${{ github.ref_name }}-x64.zip
-            SHA256SUMS.txt
+          name: byteforest-windows
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/msi/*.msi
+            byteforest-cli-*.zip
+          if-no-files-found: error
+
+  macos:
+    uses: ./.github/workflows/macos-package.yml
+
+  draft:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: byteforest-*
+          path: packed
+      - name: Verify and publish assets to a draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir assets
+          for pattern in '*.exe' '*.msi' '*.zip' '*.dmg'; do
+            mapfile -d '' -t files < <(find packed -type f -name "$pattern" -print0)
+            [[ ${#files[@]} -eq 1 ]]
+            cp "${files[0]}" assets/
+          done
+          cd assets
+          sha256sum *.exe *.msi *.zip *.dmg > SHA256SUMS.txt
+
+          tag="$GITHUB_REF_NAME"
+          if draft=$(gh release view "$tag" --json isDraft --jq .isDraft); then
+            [[ "$draft" == "true" ]]
+            gh release upload "$tag" --clobber ./*
+          else
+            flags=()
+            [[ "$tag" == v0.* ]] && flags+=(--prerelease)
+            gh release create "$tag" --verify-tag --draft "${flags[@]}" --title "ByteForest $tag" \
+              --notes "See the [changelog](https://github.com/$GH_REPO/blob/$tag/CHANGELOG.md). The macOS beta DMG supports macOS 15 or later on Apple Silicon and Intel. The app is ad hoc signed and is not notarized. See the README for installation and verify downloads using SHA256SUMS.txt." ./*
+          fi

@@ -7,6 +7,8 @@ export function ScanButton() {
   const scanning = useAppStore((s) => s.scanning);
   const target = useAppStore((s) => s.target);
   const shownTarget = useAppStore((s) => s.resultTarget);
+  const isMac = useAppStore((s) => s.isMac);
+  const scanTarget = target === null || isMac ? target : target + ':';
 
   if (scanning) {
     return (
@@ -20,10 +22,10 @@ export function ScanButton() {
       type="button"
       className="btn primary"
       aria-label={strings.scanAria}
-      disabled={!target}
-      onClick={() => target && void runScan(`${target}:`)}
+      disabled={!scanTarget}
+      onClick={() => scanTarget && void runScan(scanTarget)}
     >
-      {target !== null && `${target}:` === shownTarget ? strings.rescan : strings.scan}
+      {scanTarget !== null && scanTarget === shownTarget ? strings.rescan : strings.scan}
     </button>
   );
 }

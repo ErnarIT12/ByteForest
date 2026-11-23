@@ -10,17 +10,24 @@
 //! forced to read record by record with `FSCTL_GET_NTFS_FILE_RECORD`. Exits with 0 when both
 //! scans succeed and 1 otherwise.
 
+#[cfg(windows)]
 use std::error::Error;
+#[cfg(windows)]
 use std::process::ExitCode;
+#[cfg(windows)]
 use std::sync::{Mutex, PoisonError};
+#[cfg(windows)]
 use std::time::Instant;
 
+#[cfg(windows)]
 use bf_core::Tree;
+#[cfg(windows)]
 use bf_scan::{
     CancelToken, MftScanner, ScanError, ScanProgress, ScanRoot, ScanStats, Scanner, probe_mft,
     probe_mft_records,
 };
 
+#[cfg(windows)]
 fn print_chain(err: &dyn Error) {
     println!("error: {err}");
     println!("debug: {err:?}");
@@ -32,6 +39,7 @@ fn print_chain(err: &dyn Error) {
 }
 
 /// Prints the outcome of one scan; returns whether it succeeded.
+#[cfg(windows)]
 fn report(result: Result<(Tree, ScanStats), ScanError>, started: Instant) -> bool {
     match result {
         Ok((tree, stats)) => {
@@ -54,6 +62,7 @@ fn report(result: Result<(Tree, ScanStats), ScanError>, started: Instant) -> boo
     }
 }
 
+#[cfg(windows)]
 fn main() -> ExitCode {
     let letter = std::env::args()
         .nth(1)
@@ -94,4 +103,9 @@ fn main() -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+#[cfg(not(windows))]
+fn main() {
+    eprintln!("The MFT probe is available on Windows.");
 }

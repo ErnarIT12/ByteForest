@@ -6,6 +6,7 @@ use bf_scan::ScanRoot;
 
 /// Parses `C`, `c:`, `C:\` or an existing folder path.
 pub fn parse_target(arg: &str) -> Result<ScanRoot, String> {
+    #[cfg(windows)]
     if let Some(letter) = drive_letter(arg) {
         return Ok(ScanRoot::Volume(letter));
     }
@@ -18,6 +19,7 @@ pub fn parse_target(arg: &str) -> Result<ScanRoot, String> {
 }
 
 /// The upper-case drive letter if `arg` is exactly a drive designator.
+#[cfg(windows)]
 fn drive_letter(arg: &str) -> Option<char> {
     let mut chars = arg.chars();
     let letter = chars.next().filter(char::is_ascii_alphabetic)?;
@@ -32,6 +34,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(windows)]
     fn drive_forms_become_volumes() {
         for arg in ["C:", "c:", "C:\\", "C", "c"] {
             assert!(

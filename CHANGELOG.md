@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-23
+
+- Search the entire scan by file name, extension, and minimum size in Largest Files. Select a result to jump to it in the tree and on the map.
+- View the path, size, allocated size estimate, and modification date. Copy the path or reveal the selection in Explorer or Finder.
+- macOS beta for Apple Silicon and Intel. Scan the home folder, local volumes, and folders chosen in the system picker. Downloads include a universal DMG.
+
 ## [0.1.1] - 2026-11-16
 
 ### Added
@@ -55,6 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Hard links are not de-duplicated by the directory walker.
 - Builds are not code-signed, so Windows SmartScreen shows a warning.
 
-[Unreleased]: https://github.com/ErnarIT12/byteforest/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ErnarIT12/byteforest/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ErnarIT12/byteforest/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/ErnarIT12/byteforest/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ErnarIT12/byteforest/releases/tag/v0.1.0

@@ -19,6 +19,8 @@ export interface TreeEntry {
   level: number;
   /** Ids of the loaded children, in display order. */
   children: number[];
+  /** Pages loaded ahead of the contiguous prefix to reveal a search result. */
+  locatedPages?: Map<number, NodeView[]>;
   /** All children are loaded (always true for files). */
   complete: boolean;
   loading: boolean;
@@ -29,7 +31,7 @@ export interface TreeEntry {
 /** One line of the flattened tree: a node, or the "loading more" line of a directory. */
 export type Row =
   | { kind: 'node'; id: number; level: number }
-  | { kind: 'more'; parent: number; level: number };
+  | { kind: 'more'; parent: number; level: number; gap?: boolean };
 
 export class TreeModel {
   readonly entries = new Map<number, TreeEntry>();
@@ -71,14 +73,37 @@ export class TreeModel {
   addPage(parentId: number, offset: number, page: NodeView[], pageSize = PAGE_SIZE): boolean {
     const parent = this.entries.get(parentId);
     if (!parent || parent.complete || offset !== parent.children.length) return false;
+    this.registerChildren(parentId, parent, page);
+    parent.children.push(...page.map((node) => node.id));
+    if (page.length < pageSize) parent.complete = true;
+    while (!parent.complete && parent.locatedPages?.has(parent.children.length)) {
+      const offset = parent.children.length;
+      const located = parent.locatedPages.get(offset)!;
+      parent.locatedPages.delete(offset);
+      parent.children.push(...located.map((node) => node.id));
+      if (located.length < pageSize) parent.complete = true;
+    }
+    return true;
+  }
+
+  addLocatedPage(parentId: number, offset: number, page: NodeView[]): void {
+    const parent = this.entries.get(parentId);
+    if (!parent || parent.complete || offset < parent.children.length) return;
+    if (offset === parent.children.length) {
+      this.addPage(parentId, offset, page);
+      return;
+    }
+    if (!page.length) return;
+    this.registerChildren(parentId, parent, page);
+    (parent.locatedPages ??= new Map()).set(offset, page);
+  }
+
+  private registerChildren(parentId: number, parent: TreeEntry, page: NodeView[]): void {
     for (const node of page) {
       if (!this.entries.has(node.id)) {
         this.entries.set(node.id, TreeModel.entry(node, parentId, parent.level + 1));
       }
-      parent.children.push(node.id);
     }
-    if (page.length < pageSize) parent.complete = true;
-    return true;
   }
 
   /** Ids from the root down to `id`, or null if `id` is not loaded. */
@@ -106,6 +131,7 @@ export class TreeModel {
     onChange: () => void,
     maxPages = MAX_REVEAL_PAGES,
     cancelled: () => boolean = () => false,
+    loadLocated?: (parent: number, step: number) => Promise<void>,
   ): Promise<boolean> {
     if (path.length === 0 || path[0] !== this.rootId) return false;
     for (let i = 0; i < path.length; i += 1) {
@@ -121,6 +147,10 @@ export class TreeModel {
         return !cancelled();
       }
       const next = path[i + 1];
+      if (loadLocated && !this.entries.has(next) && !cancelled()) {
+        await loadLocated(id, i + 1);
+        if (!this.entries.has(next)) return false;
+      }
       let pages = 0;
       while (!this.entries.has(next)) {
         if (entry.complete || entry.failed || pages >= maxPages || cancelled()) return false;
@@ -136,7 +166,7 @@ export class TreeModel {
   rows(): Row[] {
     const out: Row[] = [];
     // Explicit stack: folder chains can be thousands of levels deep.
-    type Item = { kind: 'node'; id: number } | { kind: 'more'; parent: number; level: number };
+    type Item = { kind: 'node'; id: number } | Extract<Row, { kind: 'more' }>;
     const stack: Item[] = [{ kind: 'node', id: this.rootId }];
     while (stack.length > 0) {
       const item = stack.pop()!;
@@ -148,7 +178,16 @@ export class TreeModel {
       if (!e) continue;
       out.push({ kind: 'node', id: item.id, level: e.level });
       if (!e.expanded) continue;
-      if (!e.complete) stack.push({ kind: 'more', parent: item.id, level: e.level + 1 });
+      const more = { kind: 'more' as const, parent: item.id, level: e.level + 1 };
+      const located = [...(e.locatedPages ?? [])].sort(([a], [b]) => a - b);
+      if (!e.complete && !located.length) stack.push(more);
+      for (let p = located.length - 1; p >= 0; p -= 1) {
+        const [offset, page] = located[p];
+        for (let j = page.length - 1; j >= 0; j -= 1) {
+          stack.push({ kind: 'node', id: page[j].id });
+        }
+        if (p === 0 && offset > e.children.length) stack.push({ ...more, gap: true });
+      }
       for (let i = e.children.length - 1; i >= 0; i -= 1) {
         stack.push({ kind: 'node', id: e.children[i] });
       }

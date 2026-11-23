@@ -29,6 +29,9 @@ pub fn init() -> Option<WorkerGuard> {
 }
 
 fn log_dir() -> Option<PathBuf> {
-    let base = std::env::var_os("LOCALAPPDATA")?;
-    Some(PathBuf::from(base).join("ByteForest").join("logs"))
+    #[cfg(windows)]
+    let base = PathBuf::from(std::env::var_os("LOCALAPPDATA")?);
+    #[cfg(target_os = "macos")]
+    let base = std::env::home_dir()?.join("Library/Logs");
+    Some(base.join("ByteForest").join("logs"))
 }
