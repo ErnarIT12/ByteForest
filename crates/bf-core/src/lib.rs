@@ -34,8 +34,8 @@ pub use remove::{RemoveError, Removed};
 pub use report::{MAX_REPORT_DEPTH, MAX_REPORT_ROWS, Report, ReportOptions, ReportRow, write_csv};
 pub use snapshot::{
     MAX_COMPRESSION_RATIO, MAX_LABEL_LEN, MAX_NAME_LEN, MAX_NODE_COUNT, MAX_PAYLOAD_LEN,
-    SNAPSHOT_VERSION, Snapshot, SnapshotError, SnapshotLimits, read_snapshot,
-    read_snapshot_with_limits, write_snapshot,
+    SNAPSHOT_VERSION, Snapshot, SnapshotError, SnapshotHeader, SnapshotLimits, read_snapshot,
+    read_snapshot_header, read_snapshot_with_limits, write_snapshot,
 };
 pub use sunburst::{MAX_SUNBURST_DEPTH, OTHER_ARC_ID, SunburstArc, SunburstOptions};
 pub use tree::{DirAgg, NodeId, Tree};

@@ -1,8 +1,11 @@
+import { useEffect } from 'react';
 import { pickFolder, type UserFolder, type VolumeSummary } from '../api';
 import { formatBytes } from '../format';
 import { setSidebarCollapsed, useSidebarCollapsed } from '../hooks/useSidebarCollapsed';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useAutoSnapshots, watchAutoSnapshots } from '../autoSnapshots';
 import { runScan } from '../scanController';
+import { groupSnapshots } from '../snapshotsModel';
 import { folderLabel, locationOf, scanTargetFor } from '../scanTargets';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
@@ -20,7 +23,7 @@ import {
   PanelLeftOpen,
   type LucideIcon,
 } from './Icon';
-import { RecentScans, type RecentItem } from './RecentScans';
+import { RecentScans } from './RecentScans';
 
 /** Windows narrower than this always show the icon rail so the explorer keeps its room. */
 export const SIDEBAR_NARROW_QUERY = '(max-width: 999px)';
@@ -69,13 +72,6 @@ function folderLocation(folder: UserFolder): Location {
   };
 }
 
-function formatScanTime(finishedAt: number, now = Date.now()): string {
-  const when = new Date(finishedAt);
-  return new Date(now).toDateString() === when.toDateString()
-    ? when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : when.toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-
 function LocationList({ locations, target, onChoose }: {
   locations: Location[];
   target: string | null;
@@ -113,12 +109,15 @@ export function Sidebar() {
   const drives = useAppStore((s) => s.drives);
   const userFolders = useAppStore((s) => s.userFolders);
   const recentScans = useAppStore((s) => s.recentScans);
+  const snapshots = useAutoSnapshots((s) => s.list);
   const target = useAppStore((s) => s.target);
   const setTarget = useAppStore((s) => s.setTarget);
   const isMac = useAppStore((s) => s.isMac);
   const collapsed = useSidebarCollapsed();
   const narrow = useMediaQuery(SIDEBAR_NARROW_QUERY);
   const rail = collapsed || narrow;
+
+  useEffect(() => watchAutoSnapshots(), []);
 
   const choose = (value: string) => {
     setTarget(value);
@@ -148,13 +147,7 @@ export function Sidebar() {
     });
   }
 
-  const recent: RecentItem[] = recentScans.map((scan) => ({
-    id: scan.target,
-    label: scan.label,
-    detail: `${formatBytes(scan.bytes)} · ${formatScanTime(scan.finishedAt)}`,
-    title: scan.target,
-    onSelect: () => choose(locationOf(scan.target)),
-  }));
+  const groups = groupSnapshots(recentScans, snapshots);
 
   return (
     <nav className="sidebar" aria-label={strings.sidebarLabel} data-rail={rail ? 'true' : undefined}>
@@ -189,7 +182,7 @@ export function Sidebar() {
             </button>
           )}
         </section>
-        <RecentScans items={recent} />
+        <RecentScans groups={groups} rail={rail} onScan={(scanTarget) => choose(locationOf(scanTarget))} />
       </div>
       <DiscardPileDock rail={rail} />
     </nav>

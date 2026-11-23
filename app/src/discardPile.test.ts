@@ -62,6 +62,18 @@ beforeEach(() => {
   api.locateNode.mockResolvedValue([]);
 });
 
+describe('snapshot view', () => {
+  it('refuses to queue anything while the shown result is a snapshot', async () => {
+    useAppStore.setState({ resultSource: { kind: 'snapshot', created_unix_ms: 5 } });
+    useDiscardPile.getState().add([4, 5]);
+    await settle();
+    expect(useDiscardPile.getState().ids).toEqual([]);
+    useAppStore.setState({ resultSource: { kind: 'live' } });
+    useDiscardPile.getState().add([4]);
+    expect(useDiscardPile.getState().ids).toEqual([4]);
+  });
+});
+
 describe('Discard Pile queue', () => {
   it('queues each id once and never the root', async () => {
     useDiscardPile.getState().add([4, 5, 4, 0]);

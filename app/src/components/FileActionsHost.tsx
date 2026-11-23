@@ -3,6 +3,7 @@ import { buildMenuEntries } from '../contextMenu';
 import { useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
 import { formatBytes, formatInt } from '../format';
+import { canChangeDisk } from '../snapshotsModel';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { ContextMenu } from './ContextMenu';
@@ -17,6 +18,7 @@ export function FileActionsHost() {
   const notice = useFileActions((s) => s.notice);
   const isMac = useAppStore((s) => s.isMac);
   const rootId = useAppStore((s) => s.rootId);
+  const readOnly = useAppStore((s) => !canChangeDisk(s.resultSource));
   const queued = useDiscardPile((s) => s.idSet);
   const confirmingBatch = useDiscardPile((s) => s.confirming);
   const outcome = useDiscardPile((s) => s.outcome);
@@ -53,6 +55,7 @@ export function FileActionsHost() {
             isMac,
             isRoot: menu.details.node.id === rootId,
             queued: queued.has(menu.details.node.id),
+            readOnly,
           })}
           onSelect={(action) => useFileActions.getState().runMenuAction(action)}
           onClose={() => useFileActions.getState().closeMenu()}
@@ -65,7 +68,7 @@ export function FileActionsHost() {
   );
 }
 
-interface ConfirmProps {
+export interface ConfirmProps {
   /** Prefix of the element ids the dialog uses for its title and body. */
   idBase: string;
   title: string;
@@ -77,7 +80,7 @@ interface ConfirmProps {
 }
 
 /** Modal that asks before something is moved to the Recycle Bin / Trash; Cancel has the focus. */
-function ConfirmDialog({ idBase, title, busy, confirmLabel, onCancel, onConfirm, children }: ConfirmProps) {
+export function ConfirmDialog({ idBase, title, busy, confirmLabel, onCancel, onConfirm, children }: ConfirmProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const okRef = useRef<HTMLButtonElement>(null);
 

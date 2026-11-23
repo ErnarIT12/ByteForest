@@ -30,6 +30,14 @@ pub struct ScanDone {
     pub excluded: Option<ExcludedInfo>,
 }
 
+/// Where an opened result came from (only snapshots are opened this way).
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum SourceDto {
+    /// Loaded from a snapshot file; read-only.
+    Snapshot { created_unix_ms: i64 },
+}
+
 /// Summary of what the scan exclusions removed.
 #[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExcludedInfo {

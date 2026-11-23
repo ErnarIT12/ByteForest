@@ -346,6 +346,8 @@ export interface Settings {
   always_elevated: boolean;
   /** Names, wildcards and absolute paths left out of every scan. */
   exclusions: string[];
+  /** Automatic snapshots to keep (0 = off, at most 50). */
+  auto_snapshot_keep: number;
 }
 
 /** Restarts the app as administrator (exits on success). Rejects with "declined" if UAC is refused. */
@@ -391,6 +393,44 @@ export const clearBaseline = () => invoke<void>('clear_baseline');
 /** The nodes that grew or are new since the snapshot, largest first (`limit` is capped at 200). */
 export const topChanges = (scanId: number, limit: number) =>
   invoke<ChangeEntry[]>('top_changes', { scanId, limit });
+
+/** An automatic snapshot saved after a scan (stored in the app data folder). */
+export interface AutoSnapshot {
+  /** File name; the handle the other snapshot commands take. */
+  id: string;
+  /** What was scanned: "C:" or a folder path. */
+  label: string;
+  created_unix_ms: number;
+  node_count: number;
+  bytes_on_disk: number;
+}
+
+/** Where the shown result came from; a snapshot result is read-only. */
+export type ResultSource = { kind: 'live' } | { kind: 'snapshot'; created_unix_ms: number };
+
+/** What `openSnapshot` returns: the new current result, like `scan://done`. */
+export interface OpenedSnapshot {
+  scan_id: number;
+  /** What was scanned when the snapshot was taken. */
+  target: string;
+  files: number;
+  dirs: number;
+  bytes: number;
+  root: NodeView;
+  source: { kind: 'snapshot'; created_unix_ms: number };
+}
+
+/** Saved automatic snapshots, newest first. */
+export const listAutoSnapshots = () => invoke<AutoSnapshot[]>('list_auto_snapshots');
+/** Makes the snapshot the current (read-only) result. Rejects while a scan is running. */
+export const openSnapshot = (id: string) => invoke<OpenedSnapshot>('open_snapshot', { id });
+/** Compares the live result with a saved snapshot. */
+export const compareWithAutoSnapshot = (scanId: number, id: string) =>
+  invoke<BaselineInfo>('compare_with_auto_snapshot', { scanId, id });
+export const deleteAutoSnapshot = (id: string) => invoke<void>('delete_auto_snapshot', { id });
+/** Fires after automatic snapshots were added, pruned or deleted. */
+export const onSnapshotsChanged = (cb: () => void): Promise<UnlistenFn> =>
+  listen('snapshots-changed', () => cb());
 
 export const onScanProgress = (cb: (p: ScanProgress) => void): Promise<UnlistenFn> =>
   listen<ScanProgress>('scan://progress', (e) => cb(e.payload));

@@ -21,7 +21,7 @@ use crate::dto::{
 #[cfg(windows)]
 use crate::elevation::{self, ElevateError};
 use crate::settings::{self as store, Settings};
-use crate::state::{AppState, Baseline, CompletedScan};
+use crate::state::{AppState, Baseline, CompletedScan, Source};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 /// Largest page `get_children` returns.
@@ -182,7 +182,10 @@ pub fn sunburst_arcs(
 
 /// Clones the current tree and its scan id out of the state; the lock is released before
 /// returning.
-fn current_scan(state: &AppState, scan_id: Option<u64>) -> Result<(u64, Arc<Tree>), String> {
+pub(crate) fn current_scan(
+    state: &AppState,
+    scan_id: Option<u64>,
+) -> Result<(u64, Arc<Tree>), String> {
     let guard = state
         .tree
         .read()
@@ -195,7 +198,7 @@ fn current_scan(state: &AppState, scan_id: Option<u64>) -> Result<(u64, Arc<Tree
 }
 
 /// Clones the current tree out of the state; the lock is released before returning.
-fn current_tree(state: &AppState, scan_id: Option<u64>) -> Result<Arc<Tree>, String> {
+pub(crate) fn current_tree(state: &AppState, scan_id: Option<u64>) -> Result<Arc<Tree>, String> {
     current_scan(state, scan_id).map(|(_, tree)| tree)
 }
 
@@ -212,7 +215,7 @@ fn baseline_diff(state: &AppState, scan_id: u64) -> Option<Arc<SnapshotDiff>> {
 }
 
 /// Drops any comparison. Callers hold at most the `scan` and `tree` locks.
-fn drop_baseline(state: &AppState) {
+pub(crate) fn drop_baseline(state: &AppState) {
     *state
         .baseline
         .write()
@@ -388,6 +391,7 @@ pub fn start_scan(
             previous.cancel();
         }
         slot.id += 1;
+        slot.running = true;
         // The comparison belongs to the previous scan's tree.
         drop_baseline(&state);
         slot.id
@@ -452,9 +456,12 @@ fn finish_scan(
 ) {
     match result {
         Ok((mut tree, mut stats)) if !token.is_cancelled() => {
-            let patterns = store::load_default_path().exclusions;
-            let excluded = exclude_from_scan(&mut tree, &mut stats, &label, &patterns);
+            let settings = store::load_default_path();
+            let excluded = exclude_from_scan(&mut tree, &mut stats, &label, &settings.exclusions);
             let tree = Arc::new(tree);
+            let for_autosave = Arc::clone(&tree);
+            let autosave_label = label.clone();
+            let mut stored = false;
             let root = tree.view(tree.root());
             tracing::info!(
                 "scan {scan_id} done: {} files, {} dirs",
@@ -468,7 +475,9 @@ fn finish_scan(
                             id: scan_id,
                             tree,
                             target: label,
+                            source: Source::Live,
                         });
+                        stored = true;
                     }
                     Err(_) => return Some(("internal error: state poisoned".to_string(), None)),
                 }
@@ -483,6 +492,15 @@ fn finish_scan(
                     }),
                 ))
             });
+            // A superseded scan stores nothing and is not saved either.
+            if stored && settings.auto_snapshot_keep > 0 {
+                crate::autosnap::spawn_auto_save(
+                    app.clone(),
+                    for_autosave,
+                    autosave_label,
+                    usize::from(settings.auto_snapshot_keep),
+                );
+            }
         }
         Ok(_) | Err(ScanError::Cancelled) => {
             report(app, scan_id, |_| Some(("cancelled".to_string(), None)))
@@ -505,13 +523,15 @@ fn report(
 ) {
     let state = app.state::<AppState>();
     // A poisoned lock only means an earlier panic; the data is still usable.
-    let slot = state
+    let mut slot = state
         .scan
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     if slot.id != scan_id {
         return;
     }
+    // Done, failed or cancelled: this scan is no longer running.
+    slot.running = false;
     match build(&state) {
         Some((_, Some(done))) => {
             let _ = app.emit("scan://done", done);
@@ -916,8 +936,9 @@ pub fn trash_target(tree: &Tree, node: u32) -> Result<PathBuf, String> {
 }
 
 /// Runs `f` on the current tree while holding the scan lock, after checking that `scan_id`
-/// is still the current scan.
-fn with_current_scan<T>(
+/// is still the current scan and that the result is live. A result loaded from a snapshot is
+/// refused: its paths may not match the disk, so nothing may be changed there through it.
+fn with_live_scan<T>(
     state: &AppState,
     scan_id: u64,
     f: impl FnOnce(&Tree) -> Result<T, String>,
@@ -929,10 +950,34 @@ fn with_current_scan<T>(
     if slot.id != scan_id {
         return Err("A scan is in progress or the results have changed.".to_owned());
     }
+    if current_source(state)? != Source::Live {
+        return Err(SNAPSHOT_READ_ONLY.to_owned());
+    }
     let tree = current_tree(state, Some(scan_id))?;
     let result = f(&tree);
     drop(slot);
     result
+}
+
+/// The path of `node` for moving it to the trash; refused for snapshot results.
+pub(crate) fn trash_target_live(
+    state: &AppState,
+    scan_id: u64,
+    node: u32,
+) -> Result<PathBuf, String> {
+    with_live_scan(state, scan_id, |tree| trash_target(tree, node))
+}
+
+/// Message of the refusal to change the disk from a snapshot view.
+pub const SNAPSHOT_READ_ONLY: &str = "This view is a snapshot; rescan to make changes.";
+
+/// Where the current result came from.
+pub fn current_source(state: &AppState) -> Result<Source, String> {
+    let guard = state
+        .tree
+        .read()
+        .map_err(|_| "internal error: state poisoned")?;
+    Ok(guard.as_ref().ok_or("no scan yet")?.source)
 }
 
 /// Moves `path` to the Recycle Bin / Trash on a blocking thread, then checks it is gone.
@@ -997,6 +1042,9 @@ fn apply_removals(
     if scan.id != scan_id {
         return Err("The item was moved to the trash, but the scan results changed.".to_owned());
     }
+    if scan.source != Source::Live {
+        return Err(SNAPSHOT_READ_ONLY.to_owned());
+    }
     // Copy-on-write: clones the tree only if a reader still holds the previous `Arc`.
     let moved = remove_all(Arc::make_mut(&mut scan.tree), ids);
     // The comparison must reflect the removal; it is recomputed off the locks.
@@ -1022,7 +1070,7 @@ pub async fn move_node_to_trash(
     scan_id: u64,
     node: u32,
 ) -> Result<TrashResult, String> {
-    let path = with_current_scan(&state, scan_id, |tree| trash_target(tree, node))?;
+    let path = trash_target_live(&state, scan_id, node)?;
     trash_path(path).await?;
 
     let (moved, recompute) = apply_removals(&state, scan_id, &[node])?;
@@ -1067,7 +1115,7 @@ pub async fn move_nodes_to_trash(
     nodes: Vec<u32>,
 ) -> Result<BatchTrashResult, String> {
     checked_batch(&nodes)?;
-    let plan = with_current_scan(&state, scan_id, |tree| Ok(plan_batch(tree, &nodes)))?;
+    let plan = with_live_scan(&state, scan_id, |tree| Ok(plan_batch(tree, &nodes)))?;
 
     let mut moved_ids = Vec::new();
     let mut failed = Vec::new();
@@ -1181,25 +1229,25 @@ pub fn get_sunburst(
 }
 
 /// Largest snapshot file `compare_with_snapshot` opens.
-const MAX_SNAPSHOT_FILE: u64 = 4 * 1024 * 1024 * 1024;
+pub(crate) const MAX_SNAPSHOT_FILE: u64 = 4 * 1024 * 1024 * 1024;
 
 /// Most rows `top_changes` returns.
 const MAX_CHANGES: u32 = 200;
 
 /// Whether file names compare case-insensitively on the supported platforms' usual file
 /// systems (NTFS and APFS defaults).
-fn case_insensitive_names() -> bool {
+pub(crate) fn case_insensitive_names() -> bool {
     cfg!(windows) || cfg!(target_os = "macos")
 }
 
-fn unix_ms_now() -> i64 {
+pub(crate) fn unix_ms_now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
 }
 
 /// `YYYYMMDD-HHMM` in UTC.
-fn utc_stamp(unix_ms: i64) -> String {
+pub(crate) fn utc_stamp(unix_ms: i64) -> String {
     let secs = unix_ms.div_euclid(1000);
     let days = secs.div_euclid(86_400);
     let rem = secs.rem_euclid(86_400);
@@ -1242,7 +1290,7 @@ pub fn default_report_name(name: &str, unix_ms: i64) -> String {
 
 /// Letters and digits of `text` with every other run replaced by one `-`, at most 40
 /// characters; `scan` when nothing is left.
-fn file_name_part(text: &str) -> String {
+pub(crate) fn file_name_part(text: &str) -> String {
     let mut safe = String::new();
     for ch in text.chars() {
         let ch = if ch.is_alphanumeric() { ch } else { '-' };
@@ -1259,8 +1307,27 @@ fn file_name_part(text: &str) -> String {
     }
 }
 
+/// Like [`file_name_part`] but ASCII letters and digits only, so the result is a valid
+/// automatic-snapshot id part.
+pub(crate) fn file_name_part_ascii(text: &str) -> String {
+    let mut safe = String::new();
+    for ch in text.chars() {
+        let ch = if ch.is_ascii_alphanumeric() { ch } else { '-' };
+        if ch != '-' || !safe.ends_with('-') {
+            safe.push(ch);
+        }
+    }
+    let safe: String = safe.trim_matches('-').chars().take(40).collect();
+    let safe = safe.trim_end_matches('-');
+    if safe.is_empty() {
+        "scan".to_string()
+    } else {
+        safe.to_string()
+    }
+}
+
 /// Writes the snapshot to `<path>.tmp` and renames it over `path`.
-fn write_snapshot_file(
+pub(crate) fn write_snapshot_file(
     tree: &Tree,
     label: &str,
     created_unix_ms: i64,
@@ -1285,26 +1352,30 @@ fn write_snapshot_file(
 }
 
 /// What was loaded from a snapshot file and compared with the current tree.
-struct LoadedBaseline {
-    label: String,
-    created_unix_ms: i64,
-    base: Arc<Tree>,
-    diff: SnapshotDiff,
+pub(crate) struct LoadedBaseline {
+    pub label: String,
+    pub created_unix_ms: i64,
+    pub base: Arc<Tree>,
+    pub diff: SnapshotDiff,
 }
 
-/// Reads a snapshot file (refusing files over [`MAX_SNAPSHOT_FILE`]) and compares it with
-/// `current`.
-fn load_baseline(path: &Path, current: &Tree) -> Result<LoadedBaseline, String> {
+/// Reads and fully validates a snapshot file, refusing files over [`MAX_SNAPSHOT_FILE`].
+pub(crate) fn read_snapshot_file(path: &Path) -> Result<bf_core::Snapshot, String> {
     let meta = std::fs::metadata(path).map_err(|e| format!("Cannot open the snapshot: {e}"))?;
     if meta.len() > MAX_SNAPSHOT_FILE {
         return Err("This snapshot file is too large to open.".to_owned());
     }
     let file = std::fs::File::open(path).map_err(|e| format!("Cannot open the snapshot: {e}"))?;
-    let snap = read_snapshot_with_limits(
+    read_snapshot_with_limits(
         std::io::BufReader::new(file),
         SnapshotLimits::for_compressed_len(meta.len()),
     )
-    .map_err(|e| format!("Cannot read the snapshot: {e}"))?;
+    .map_err(|e| format!("Cannot read the snapshot: {e}"))
+}
+
+/// Reads a snapshot file and compares it with `current`.
+pub(crate) fn load_baseline(path: &Path, current: &Tree) -> Result<LoadedBaseline, String> {
+    let snap = read_snapshot_file(path)?;
     let diff = diff(&snap.tree, current, case_insensitive_names());
     Ok(LoadedBaseline {
         label: snap.label,
@@ -1496,6 +1567,16 @@ pub async fn compare_with_snapshot(
         .await
         .map_err(|err| err.to_string())??;
 
+    install_baseline(&state, scan_id, &tree, loaded).map(Some)
+}
+
+/// Makes `loaded` the baseline of scan `scan_id`, provided `tree` is still that scan's tree.
+pub(crate) fn install_baseline(
+    state: &AppState,
+    scan_id: u64,
+    tree: &Arc<Tree>,
+    loaded: LoadedBaseline,
+) -> Result<BaselineInfo, String> {
     let summary = loaded.diff.summary();
     let info = BaselineInfo {
         label: loaded.label.clone(),
@@ -1517,7 +1598,7 @@ pub async fn compare_with_snapshot(
     let unchanged = slot.id == scan_id
         && current
             .as_ref()
-            .is_some_and(|scan| scan.id == scan_id && Arc::ptr_eq(&scan.tree, &tree));
+            .is_some_and(|scan| scan.id == scan_id && Arc::ptr_eq(&scan.tree, tree));
     if !unchanged {
         return Err("The scan results changed while the snapshot was loading.".to_owned());
     }
@@ -1529,7 +1610,7 @@ pub async fn compare_with_snapshot(
         base: loaded.base,
         diff: Arc::new(loaded.diff),
     });
-    Ok(Some(info))
+    Ok(info)
 }
 
 /// Stops comparing with a snapshot.
@@ -1861,6 +1942,7 @@ mod tests {
             id: 7,
             tree,
             target: String::new(),
+            source: Source::Live,
         });
         assert_eq!(existing_node_path(&state, 7, id.0), Ok(file.clone()));
         assert!(existing_node_path(&state, 6, id.0).is_err());

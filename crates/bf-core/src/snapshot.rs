@@ -309,29 +309,43 @@ fn read_varint<R: Read>(r: &mut R) -> Result<u64, SnapshotError> {
     }
 }
 
-/// Reads a snapshot with the default [`SnapshotLimits`]. Never panics, whatever the input.
-pub fn read_snapshot<R: Read>(r: R) -> Result<Snapshot, SnapshotError> {
-    read_snapshot_with_limits(r, SnapshotLimits::default())
+/// What a snapshot's header says, without reading the node data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SnapshotHeader {
+    /// Caller-defined label (for example the scanned target).
+    pub label: String,
+    /// Creation time in unix milliseconds.
+    pub created_unix_ms: i64,
+    /// Number of nodes the snapshot declares.
+    pub node_count: u32,
+    /// Uncompressed payload size in bytes.
+    pub payload_len: u64,
 }
 
-/// Reads a snapshot, refusing headers that declare more than `limits` allow. Never panics.
-pub fn read_snapshot_with_limits<R: Read>(
-    r: R,
-    limits: SnapshotLimits,
-) -> Result<Snapshot, SnapshotError> {
-    let mut file = BufReader::new(r);
+/// Reads and validates only the header with the default [`SnapshotLimits`]; the payload is
+/// neither read nor checksummed, so this is cheap but does not prove the file is intact.
+/// Never panics, whatever the input.
+pub fn read_snapshot_header<R: Read>(r: R) -> Result<SnapshotHeader, SnapshotError> {
+    let mut r = BufReader::new(r);
+    read_header(&mut r, SnapshotLimits::default()).map(|(header, _crc)| header)
+}
 
-    let magic: [u8; 6] = read_array(&mut file)?;
+/// Parses and validates the header; returns it with the payload checksum.
+fn read_header<R: Read>(
+    file: &mut R,
+    limits: SnapshotLimits,
+) -> Result<(SnapshotHeader, u32), SnapshotError> {
+    let magic: [u8; 6] = read_array(file)?;
     if &magic != MAGIC {
         return Err(SnapshotError::BadMagic);
     }
-    let version = u16::from_le_bytes(read_array(&mut file)?);
+    let version = u16::from_le_bytes(read_array(file)?);
     if version != SNAPSHOT_VERSION {
         return Err(SnapshotError::UnsupportedVersion(version));
     }
-    let _reserved: [u8; 2] = read_array(&mut file)?;
-    let created_unix_ms = i64::from_le_bytes(read_array(&mut file)?);
-    let label_len = u32::from_le_bytes(read_array(&mut file)?) as usize;
+    let _reserved: [u8; 2] = read_array(file)?;
+    let created_unix_ms = i64::from_le_bytes(read_array(file)?);
+    let label_len = u32::from_le_bytes(read_array(file)?) as usize;
     if label_len > MAX_LABEL_LEN {
         return Err(SnapshotError::Corrupt("label too long"));
     }
@@ -339,9 +353,9 @@ pub fn read_snapshot_with_limits<R: Read>(
     file.read_exact(&mut label).map_err(map_io)?;
     let label =
         String::from_utf8(label).map_err(|_| SnapshotError::Corrupt("label is not UTF-8"))?;
-    let node_count = u32::from_le_bytes(read_array(&mut file)?);
-    let payload_len = u64::from_le_bytes(read_array(&mut file)?);
-    let payload_crc = u32::from_le_bytes(read_array(&mut file)?);
+    let node_count = u32::from_le_bytes(read_array(file)?);
+    let payload_len = u64::from_le_bytes(read_array(file)?);
+    let payload_crc = u32::from_le_bytes(read_array(file)?);
 
     if payload_len > limits.max_payload_len {
         return Err(SnapshotError::LimitExceeded("payload too large"));
@@ -355,6 +369,36 @@ pub fn read_snapshot_with_limits<R: Read>(
     if u64::from(node_count) > payload_len / 4 {
         return Err(SnapshotError::Corrupt("node count exceeds payload size"));
     }
+    Ok((
+        SnapshotHeader {
+            label,
+            created_unix_ms,
+            node_count,
+            payload_len,
+        },
+        payload_crc,
+    ))
+}
+
+/// Reads a snapshot with the default [`SnapshotLimits`]. Never panics, whatever the input.
+pub fn read_snapshot<R: Read>(r: R) -> Result<Snapshot, SnapshotError> {
+    read_snapshot_with_limits(r, SnapshotLimits::default())
+}
+
+/// Reads a snapshot, refusing headers that declare more than `limits` allow. Never panics.
+pub fn read_snapshot_with_limits<R: Read>(
+    r: R,
+    limits: SnapshotLimits,
+) -> Result<Snapshot, SnapshotError> {
+    let mut file = BufReader::new(r);
+    let header = read_header(&mut file, limits)?;
+    let SnapshotHeader {
+        label,
+        created_unix_ms,
+        node_count,
+        payload_len,
+    } = header.0;
+    let payload_crc = header.1;
 
     // The decompressed stream is capped one byte past the declared length, which catches
     // both decompression bombs and a payload longer than declared.

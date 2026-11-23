@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { getSettings, setSettings as saveSettings, type Settings } from '../api';
 import { getAppearance, setAppearance, type Appearance } from '../hooks/useColorScheme';
 import {
+  AUTO_SNAPSHOT_CHOICES,
   addExclusion,
   mergeSettings,
   normalizeSettings,
@@ -141,6 +142,22 @@ export function SettingsPopover() {
             <span>{strings.alwaysElevated}</span>
           </label>
           <p className="muted">{strings.alwaysElevatedHelp}</p></>}
+          <label className="appearance-setting">{strings.autoSnapshotsLabel}
+            <select
+              value={settings?.auto_snapshot_keep ?? ''}
+              disabled={!settings}
+              aria-describedby={`${panelId}-auto-help`}
+              onChange={(e) => change({ auto_snapshot_keep: Number(e.target.value) })}
+            >
+              {settings && !(AUTO_SNAPSHOT_CHOICES as readonly number[]).includes(settings.auto_snapshot_keep) && (
+                <option value={settings.auto_snapshot_keep}>{settings.auto_snapshot_keep}</option>
+              )}
+              {AUTO_SNAPSHOT_CHOICES.map((n) => (
+                <option key={n} value={n}>{n === 0 ? strings.autoSnapshotsOff : n}</option>
+              ))}
+            </select>
+          </label>
+          <p className="muted" id={`${panelId}-auto-help`}>{strings.autoSnapshotsHelp}</p>
           <section className="exclusions" aria-labelledby={`${panelId}-excl`}>
             <h3 id={`${panelId}-excl`}>{strings.exclusionsTitle}</h3>
             {settings && exclusions.length === 0 && <p className="muted">{strings.exclusionsEmpty}</p>}

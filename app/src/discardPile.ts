@@ -12,6 +12,7 @@ import {
   type FailedItem,
 } from './api';
 import { addIds, pruneIds, removeId, removeIds } from './discardModel';
+import { canChangeDisk } from './snapshotsModel';
 import { useAppStore } from './store';
 
 /** How the last batch move ended. */
@@ -77,6 +78,8 @@ export const useDiscardPile = create<DiscardState>()((set, get) => {
 
     add: (ids) => {
       if (get().scanId === null || get().busy) return;
+      // A snapshot view is read-only: nothing in it may be queued for deletion.
+      if (!canChangeDisk(useAppStore.getState().resultSource)) return;
       setIds(addIds(get().ids, ids, useAppStore.getState().rootId));
     },
 

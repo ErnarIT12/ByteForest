@@ -188,3 +188,36 @@
 .sidebar[data-rail] .discard-dock { padding-inline: 0; }
 .sidebar[data-rail] .discard-heading { margin: 0; }
 .sidebar[data-rail] .sidebar-body { gap: 12px; }
+
+/* Saved automatic snapshots below their scan target */
+.snapshot-head { cursor: default; }
+.snapshot-list {
+  display: grid;
+  gap: 1px;
+  margin: 0 0 4px 26px;
+  padding: 0;
+  list-style: none;
+}
+.snapshot-row { display: flex; align-items: center; gap: 2px; }
+.snapshot-open {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+.snapshot-open:hover:not(:disabled) { background: var(--hover); }
+.snapshot-open:active:not(:disabled) { background: var(--pressed); }
+.snapshot-open:disabled { color: var(--text-3); }
+.snapshot-when { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snapshot-size { flex: none; color: var(--text-2); }
+.snapshot-more { flex: none; }

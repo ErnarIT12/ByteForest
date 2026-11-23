@@ -49,6 +49,7 @@ Sin permisos de administrador, ByteForest recurre a un recorrido normal de direc
 - **Búsquedas predefinidas con un clic** para los devoradores de espacio habituales (`node_modules`, `target`, `.venv`, `.git`, imágenes de disco, archivos de más de 1 GB), con el tamaño total que se puede recuperar.
 - **Barra lateral** con tus unidades, Escritorio, Descargas y Documentos, y con los análisis recientes para repetirlos con un clic.
 - **Instantáneas y comparación**: guarda un análisis en un archivo pequeño y compáralo con uno posterior para ver qué creció, qué se redujo y qué es nuevo.
+- **Instantáneas automáticas y reapertura inmediata**: cada análisis terminado se guarda en segundo plano (por defecto se conservan las últimas 10), así que puedes reabrirlo al instante desde la barra lateral, en solo lectura y sin volver a analizar, o compararlo con el análisis actual.
 - **Exclusiones de análisis**: en los ajustes puedes excluir nombres, patrones (`node_modules`, `*.tmp`) o rutas completas. Lo excluido no cuenta en ningún total.
 - **Informes CSV y JSON** de cualquier carpeta para hojas de cálculo y scripts (**Export report…**).
 - **Herramienta de línea de comandos** para unidades, análisis, instantáneas, exclusiones, informes y mediciones.
@@ -125,14 +126,13 @@ El árbol analizado se queda en Rust. La interfaz solo pide fragmentos: los hijo
 
 ## Privacidad
 
-ByteForest funciona totalmente sin conexión. No tiene telemetría y su código no realiza llamadas de red; la ventana de la aplicación solo puede comunicarse con el backend local en Rust (la Content Security Policy no permite nada más). La configuración se guarda en `%APPDATA%\ByteForest\settings.json` y los registros en `%LOCALAPPDATA%\ByteForest\logs`, ambos en tu equipo.
+ByteForest funciona totalmente sin conexión. No tiene telemetría y su código no realiza llamadas de red; la ventana de la aplicación solo puede comunicarse con el backend local en Rust (la Content Security Policy no permite nada más). La configuración se guarda en `%APPDATA%\ByteForest\settings.json` y los registros en `%LOCALAPPDATA%\ByteForest\logs`, ambos en tu equipo. Las instantáneas automáticas (nombres y tamaños de los elementos analizados) se guardan solo en tu equipo, en `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` en macOS), y se pueden desactivar o limitar en Ajustes.
 
 ## Hoja de ruta
 
 - Uso de memoria de 120 bytes por entrada o menos (hoy unos 400).
 - Vista Sunburst junto al treemap.
 - Discard Pile: reunir elementos y eliminarlos juntos.
-- Instantáneas automáticas.
 - Reanálisis incrementales con el diario USN de NTFS.
 - Interfaz localizada.
 

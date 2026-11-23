@@ -10,6 +10,7 @@ import {
 import { getTreemap } from '../api';
 import { formatBytes } from '../format';
 import { deleteKeyIntent, isContextMenuKey } from '../contextMenu';
+import { guardWritable } from '../readOnly';
 import { useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
 import { useDebouncedSize } from '../hooks/useDebouncedSize';
@@ -216,6 +217,7 @@ export function TreemapCanvas() {
       if (!layout || selectedIndex <= 0 || resultScanId === null) return;
       e.preventDefault();
       const id = layout.rects[selectedIndex].id;
+      if (!guardWritable()) return;
       if (intent === 'queue') useDiscardPile.getState().add([id]);
       else void useFileActions.getState().requestTrash(resultScanId, id);
       return;

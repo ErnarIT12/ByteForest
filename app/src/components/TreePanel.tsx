@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import type { NodeView } from '../api';
 import { useTreeModel } from '../hooks/useTreeModel';
 import { deleteKeyIntent, isContextMenuKey } from '../contextMenu';
+import { guardWritable } from '../readOnly';
 import { useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
 import { useAppStore } from '../store';
@@ -139,6 +140,7 @@ export function TreePanel({ root, scanId }: { root: NodeView; scanId: number }) 
       // Delete only queues; Shift+Delete asks before moving to the Recycle Bin / Trash.
       if (selectedId === null || !rowIndex.has(selectedId) || selectedId === model.rootId) return;
       e.preventDefault();
+      if (!guardWritable()) return;
       if (intent === 'queue') useDiscardPile.getState().add([selectedId]);
       else void useFileActions.getState().requestTrash(scanId, selectedId);
       return;

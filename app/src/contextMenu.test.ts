@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { NodeDetails } from './api';
 import {
   buildMenuEntries,
+  buildSnapshotRowEntries,
   deleteKeyIntent,
   buildSnapshotEntries,
   clampMenuPosition,
@@ -121,5 +122,43 @@ describe('buildSnapshotEntries', () => {
 
   it('never disables an entry', () => {
     expect(buildSnapshotEntries({ comparing: true }).every((e) => e.type !== 'item' || !e.disabled)).toBe(true);
+  });
+});
+
+describe('read-only snapshot view', () => {
+  it('disables queueing and trashing with the reason, but keeps copy and reveal', () => {
+    const entries = buildMenuEntries(details(false), { isMac: false, isRoot: false, readOnly: true });
+    const byAction = (action: string) =>
+      entries.find((e) => e.type === 'item' && e.action === action);
+    expect(byAction('discardAdd')).toMatchObject({
+      disabled: true,
+      title: 'This view is a snapshot; rescan to make changes.',
+    });
+    expect(byAction('trash')).toMatchObject({ disabled: true });
+    expect(byAction('copy')).toMatchObject({ disabled: false });
+    expect(byAction('reveal')).toMatchObject({ disabled: false });
+  });
+
+  it('leaves the entries enabled for a live result', () => {
+    const entries = buildMenuEntries(details(false), { isMac: false, isRoot: false });
+    expect(entries.every((e) => e.type === 'separator' || !e.disabled)).toBe(true);
+  });
+});
+
+describe('buildSnapshotRowEntries', () => {
+  it('offers open, compare and a danger delete', () => {
+    const entries = buildSnapshotRowEntries({ compareReason: null });
+    expect(entries.map((e) => (e.type === 'item' ? e.action : '-'))).toEqual([
+      'snapshotRowOpen', 'snapshotRowCompare', '-', 'snapshotRowDelete',
+    ]);
+    expect(entries.at(-1)).toMatchObject({ danger: true });
+    expect(entries[1]).toMatchObject({ disabled: false });
+  });
+
+  it('disables compare with the reason', () => {
+    expect(buildSnapshotRowEntries({ compareReason: 'Rescan to compare.' })[1]).toMatchObject({
+      disabled: true,
+      title: 'Rescan to compare.',
+    });
   });
 });

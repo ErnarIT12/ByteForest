@@ -35,8 +35,20 @@ export const mergeSettings = (current: Settings, patch: Partial<Settings>): Sett
   ...patch,
 });
 
+/** Choices of "keep last N" automatic snapshots; 0 is off. */
+export const AUTO_SNAPSHOT_CHOICES = [0, 5, 10, 20, 50] as const;
+export const DEFAULT_AUTO_SNAPSHOT_KEEP = 10;
+export const MAX_AUTO_SNAPSHOT_KEEP = 50;
+
+/** A usable count (an integer in 0..=50); anything else falls back to the default. */
+export function normalizeAutoSnapshotKeep(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isInteger(value)) return DEFAULT_AUTO_SNAPSHOT_KEEP;
+  return Math.max(0, Math.min(MAX_AUTO_SNAPSHOT_KEEP, value));
+}
+
 /** Settings from the backend with every field present, whatever an older file contained. */
 export const normalizeSettings = (s: Partial<Settings>): Settings => ({
   always_elevated: s.always_elevated ?? false,
   exclusions: Array.isArray(s.exclusions) ? s.exclusions : [],
+  auto_snapshot_keep: normalizeAutoSnapshotKeep(s.auto_snapshot_keep),
 });

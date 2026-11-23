@@ -26,6 +26,10 @@ export const strings = {
   alwaysElevated: 'Always run as administrator',
   alwaysElevatedHelp:
     'ByteForest will ask for permission each time it starts, so scans of NTFS drives are always fast.',
+  autoSnapshotsLabel: 'Automatic snapshots: keep last',
+  autoSnapshotsOff: 'Off',
+  autoSnapshotsHelp:
+    'After every scan a snapshot is saved in the app data folder on this computer, so you can reopen it instantly or compare it later. Snapshots contain file and folder names and sizes. Nothing leaves your computer.',
   settingsLoadFailed: 'Could not load settings',
   settingsSaveFailed: (reason: string) => `Could not save the setting: ${reason}`,
 
@@ -230,6 +234,31 @@ export const strings = {
   recentTitle: 'Recent Scans',
   recentEmpty: 'Scans you run will show up here.',
   recentRescan: (label: string) => `Scan ${label} again`,
+  snapshotRowsLabel: 'Saved snapshots',
+  snapshotOpen: 'Open',
+  snapshotOpenAria: (label: string, when: string) => `Open the snapshot of ${label} from ${when}`,
+  snapshotCompareCurrent: 'Compare with Current',
+  snapshotCompareAria: (label: string, when: string) =>
+    `Compare the current result with the snapshot of ${label} from ${when}`,
+  snapshotMoreActions: 'More snapshot actions',
+  snapshotDelete: 'Delete…',
+  snapshotShowAll: (count: string) => `Show all (${count})`,
+  snapshotShowFewer: 'Show fewer',
+  snapshotOpenFailed: 'Could not open the snapshot',
+  snapshotDeleteFailed: 'Could not delete the snapshot',
+  snapshotDeleteTitle: 'Delete this snapshot?',
+  snapshotDeleteBody: (label: string, when: string) =>
+    `The saved snapshot of ${label} from ${when} will be deleted from this computer. Your files are not touched.`,
+  snapshotDeleteConfirm: 'Delete',
+  snapshotBannerLabel: 'Snapshot view',
+  snapshotBanner: (target: string, date: string) =>
+    `Viewing snapshot of ${target} from ${date} — read-only`,
+  snapshotBadge: 'Snapshot',
+  snapshotRescan: 'Rescan',
+  snapshotReadOnly: 'This view is a snapshot; rescan to make changes.',
+  announceSnapshotOpened: (target: string) => `Opened the snapshot of ${target}. Read-only.`,
+  statusSnapshot: (files: string, dirs: string) =>
+    `Snapshot · ${files} files, ${dirs} folders`,
   discardTitle: 'Discard Pile',
   discardEmpty: 'Queue files here to clean up in one go',
   discardEmptyHint: 'Add files or folders from the tree or the map, then move them all at once.',

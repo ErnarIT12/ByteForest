@@ -8,10 +8,14 @@ export function ScanAnnouncer() {
   const scanTarget = useAppStore((s) => s.scanTarget);
   const outcome = useAppStore((s) => s.lastOutcome);
   const stats = useAppStore((s) => s.stats);
+  const source = useAppStore((s) => s.resultSource);
+  const resultTarget = useAppStore((s) => s.resultTarget);
 
   let text = '';
   if (scanning) text = strings.announceStart(scanTarget ?? '');
-  else if (outcome === 'done' && stats) {
+  else if (outcome === 'done' && source.kind === 'snapshot') {
+    text = strings.announceSnapshotOpened(resultTarget ?? '');
+  } else if (outcome === 'done' && stats) {
     text = strings.announceDone(formatInt(stats.files), formatSeconds(stats.elapsed_ms));
   } else if (outcome === 'cancelled') text = strings.announceCancelled;
   else if (outcome === 'failed') text = strings.announceFailed;

@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { getNode, getSunburst } from '../api';
 import { deleteKeyIntent, isContextMenuKey } from '../contextMenu';
+import { guardWritable } from '../readOnly';
 import { useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
 import { formatBytes } from '../format';
@@ -255,6 +256,7 @@ export function SunburstCanvas() {
       if (!layout || !isNodeArc(layout, selectedIndex) || resultScanId === null) return;
       e.preventDefault();
       const id = layout.arcs[selectedIndex].id;
+      if (!guardWritable()) return;
       if (intent === 'queue') useDiscardPile.getState().add([id]);
       else void useFileActions.getState().requestTrash(resultScanId, id);
       return;

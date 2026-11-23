@@ -6,6 +6,7 @@ import { useAppStore } from '../store';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ChangesList } from './ChangesList';
 import { CompareBanner } from './CompareBanner';
+import { SnapshotBanner } from './SnapshotBanner';
 import { FileSearch } from './FileSearch';
 import { NodeDetailsPanel } from './NodeDetailsPanel';
 import { strings } from '../strings';
@@ -142,6 +143,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       </section>
       {!mapOnly && <Splitter value={split} min={0.45} max={0.82} onChange={onSplitChange} />}
       <section id="result-browser" hidden={mapOnly} className="explorer-sidebar" aria-label="Scan results">
+        <SnapshotBanner />
         <CompareBanner />
         <div className="explorer-modes" role="group" aria-label="Result view">
           <button type="button" ref={treeButton} aria-pressed={!search && !changes} onClick={() => showSearch(false)}>Tree</button>

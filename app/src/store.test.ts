@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SCAN_CANCELLED, type NodeView, type ScanDone } from './api';
+import { SCAN_CANCELLED, type NodeView, type OpenedSnapshot, type ScanDone } from './api';
 import { acceptEvent, useAppStore } from './store';
 
 const node = (id: number, name: string): NodeView => ({
@@ -370,5 +370,49 @@ describe('recent scans', () => {
     s.scanResolved(1);
     s.handleError({ scan_id: 1, message: 'boom' });
     expect(useAppStore.getState().recentScans).toEqual([]);
+  });
+});
+
+describe('opened snapshots', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  const opened = (scanId: number): OpenedSnapshot => ({
+    scan_id: scanId,
+    target: 'C:',
+    files: 5,
+    dirs: 2,
+    bytes: 100,
+    root: node(0, 'C:'),
+    source: { kind: 'snapshot', created_unix_ms: 1234 },
+  });
+
+  it('shows the snapshot as a read-only result and leaves the recent scans alone', () => {
+    scanned();
+    const before = useAppStore.getState().recentScans;
+    useAppStore.getState().setBaseline({
+      label: 'C:', created_unix_ms: 1, total_delta: 5,
+      added: { bytes: 0, count: 0 }, removed: { bytes: 0, count: 0 },
+    });
+    useAppStore.getState().handleOpened(opened(7));
+    const s = useAppStore.getState();
+    expect(s.resultScanId).toBe(7);
+    expect(s.resultSource).toEqual({ kind: 'snapshot', created_unix_ms: 1234 });
+    expect(s.resultTarget).toBe('C:');
+    expect(s.target).toBe('C');
+    expect(s.baseline).toBeNull();
+    expect(s.scanning).toBe(false);
+    expect(s.stats?.files).toBe(5);
+    expect(s.focusPath).toEqual([{ id: 0, name: 'C:' }]);
+    expect(s.recentScans).toBe(before);
+    expect(acceptEvent(s.gate, 7)).toBe(true);
+  });
+
+  it('becomes live again after a scan finishes', () => {
+    useAppStore.getState().handleOpened(opened(7));
+    const s = useAppStore.getState();
+    s.beginScan('C:');
+    s.scanResolved(8);
+    useAppStore.getState().handleDone(done(8));
+    expect(useAppStore.getState().resultSource).toEqual({ kind: 'live' });
   });
 });

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 /// User settings. Missing fields fall back to their defaults.
-#[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default)]
 pub struct Settings {
     /// Restart as administrator at every start.
@@ -14,12 +14,31 @@ pub struct Settings {
     /// Names, wildcards and absolute paths left out of every scan; see
     /// [`bf_core::ExclusionSet::from_patterns`] for the syntax.
     pub exclusions: Vec<String>,
+    /// How many automatic snapshots to keep (`0` turns them off).
+    pub auto_snapshot_keep: u8,
+}
+
+/// Automatic snapshots kept unless the user changes it.
+pub const DEFAULT_AUTO_SNAPSHOT_KEEP: u8 = 10;
+/// Most automatic snapshots that can be kept.
+pub const MAX_AUTO_SNAPSHOT_KEEP: u8 = 50;
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            always_elevated: false,
+            exclusions: Vec::new(),
+            auto_snapshot_keep: DEFAULT_AUTO_SNAPSHOT_KEEP,
+        }
+    }
 }
 
 impl Settings {
-    /// The settings with `exclusions` trimmed, deduplicated and capped.
+    /// The settings with `exclusions` trimmed, deduplicated and capped and the snapshot
+    /// count limited to `0..=50`.
     pub fn sanitized(mut self) -> Self {
         self.exclusions = bf_core::normalize_patterns(&self.exclusions);
+        self.auto_snapshot_keep = self.auto_snapshot_keep.min(MAX_AUTO_SNAPSHOT_KEEP);
         self
     }
 }
@@ -155,12 +174,14 @@ mod tests {
         let s = Settings {
             always_elevated: false,
             exclusions: vec![" a ".into(), "a".into(), String::new(), "x".repeat(300)],
+            ..Settings::default()
         }
         .sanitized();
         assert_eq!(s.exclusions, vec!["a".to_string()]);
         let many = Settings {
             always_elevated: false,
             exclusions: (0..400).map(|i| format!("p{i}")).collect(),
+            ..Settings::default()
         }
         .sanitized();
         assert_eq!(many.exclusions.len(), 200);
@@ -173,10 +194,28 @@ mod tests {
         let s = Settings {
             always_elevated: true,
             exclusions: vec!["node_modules".to_string(), r"C:\Windows\WinSxS".to_string()],
+            auto_snapshot_keep: 20,
         };
         save(&path, &s).unwrap();
         assert_eq!(load(&path), s);
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains("\"always_elevated\""), "{text}");
+    }
+
+    #[test]
+    fn auto_snapshot_keep_defaults_to_ten_and_is_clamped() {
+        let dir = temp_dir();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"always_elevated": true}"#).unwrap();
+        assert_eq!(load(&path).auto_snapshot_keep, 10);
+        std::fs::write(&path, "{}").unwrap();
+        assert_eq!(load(&path).auto_snapshot_keep, 10);
+        std::fs::write(&path, r#"{"auto_snapshot_keep": 0}"#).unwrap();
+        assert_eq!(load(&path).auto_snapshot_keep, 0);
+        let big = Settings {
+            auto_snapshot_keep: 200,
+            ..Settings::default()
+        };
+        assert_eq!(big.sanitized().auto_snapshot_keep, 50);
     }
 }

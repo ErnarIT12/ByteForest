@@ -12,6 +12,8 @@ import {
   type FileCategory,
   type LocationStep,
   type NodeView,
+  type OpenedSnapshot,
+  type ResultSource,
   type ExcludedInfo,
   type ScanDone,
   type ScanErrorEvent,
@@ -24,6 +26,7 @@ import {
 import { survivingSelection } from './discardModel';
 import { loadMapView, saveMapView, type MapView } from './mapView';
 import { addRecentScan, loadRecentScans, saveRecentScans, type RecentScan } from './recentScans';
+import { locationOf } from './scanTargets';
 import { orderUserFolders } from './sidebarModel';
 import { strings } from './strings';
 
@@ -115,6 +118,8 @@ interface AppState {
   /** Exact target of the shown result: "C:" or a folder path. */
   resultTarget: string | null;
   resultScanId: number | null;
+  /** Where the shown result came from; a snapshot is read-only. */
+  resultSource: ResultSource;
   /** Bumped for every new result so views drop their caches. */
   generation: number;
   /** Snapshot the result is being compared with, or null. */
@@ -156,6 +161,8 @@ interface AppActions {
   handleProgress(p: ScanProgress): void;
   handleDone(d: ScanDone): void;
   handleError(e: ScanErrorEvent): void;
+  /** Shows a snapshot opened from disk as the current (read-only) result. */
+  handleOpened(o: OpenedSnapshot): void;
 
   /** Zooms to directory `id`. `path` (root..id) is needed unless `id` is already on the path. */
   setFocus(id: number, path?: Crumb[]): void;
@@ -209,6 +216,7 @@ const initialState: AppState = {
   rootId: null,
   resultTarget: null,
   resultScanId: null,
+  resultSource: { kind: 'live' },
   generation: 0,
   baseline: null,
   baselineSeq: 0,
@@ -352,6 +360,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       rootId: d.root.id,
       resultTarget: s.scanTarget,
       resultScanId: d.scan_id,
+      resultSource: { kind: 'live' },
       generation: s.generation + 1,
       baseline: null,
       baselineSeq: s.baselineSeq + 1,
@@ -375,6 +384,46 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       lastOutcome: e.message === SCAN_CANCELLED ? 'cancelled' : 'failed',
       error: e.message === SCAN_CANCELLED ? null : e.message,
       errorTitle: null,
+    });
+  },
+
+  handleOpened: (o) => {
+    const s = get();
+    set({
+      scanning: false,
+      progress: null,
+      error: null,
+      errorTitle: null,
+      gate: { pending: false, current: o.scan_id, lastKnown: Math.max(s.gate.lastKnown, o.scan_id) },
+      lastFinished: o.scan_id,
+      lastOutcome: 'done',
+      stats: {
+        files: o.files,
+        dirs: o.dirs,
+        bytes: o.bytes,
+        elapsed_ms: 0,
+        method: 'Walk',
+        fallback_reason: null,
+        skipped_records: 0,
+        errors: 0,
+      },
+      excluded: null,
+      root: o.root,
+      rootId: o.root.id,
+      resultTarget: o.target,
+      resultScanId: o.scan_id,
+      resultSource: o.source,
+      // "Scan" in the top bar then rescans what the snapshot shows.
+      target: locationOf(o.target),
+      generation: s.generation + 1,
+      baseline: null,
+      baselineSeq: s.baselineSeq + 1,
+      focusId: o.root.id,
+      focusPath: [{ id: o.root.id, name: o.root.name }],
+      selectedId: null,
+      reveal: null,
+      invalidation: null,
+      searchPreset: null,
     });
   },
 

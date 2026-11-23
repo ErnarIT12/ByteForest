@@ -448,3 +448,8 @@ button.type-row:hover { background: var(--hover); }
 .selection-size {
   font-variant-numeric: tabular-nums;
 }
+
+/* Banner of a result opened from a saved snapshot */
+.snapshot-banner { background: var(--warn-soft, var(--accent-soft)); }
+.snapshot-banner .compare-text { white-space: normal; }
+.snapshot-badge { margin-left: 6px; }

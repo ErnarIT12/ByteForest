@@ -4,6 +4,7 @@ import {
   MAX_EXCLUSION_LENGTH,
   addExclusion,
   mergeSettings,
+  normalizeAutoSnapshotKeep,
   normalizeSettings,
   removeExclusion,
 } from './settingsModel';
@@ -38,21 +39,35 @@ describe('removeExclusion', () => {
 
 describe('mergeSettings', () => {
   it('keeps the fields the change did not touch', () => {
-    const current = { always_elevated: true, exclusions: ['*.tmp'] };
+    const current = { always_elevated: true, exclusions: ['*.tmp'], auto_snapshot_keep: 20 };
     expect(mergeSettings(current, { exclusions: ['*.tmp', 'x'] })).toEqual({
       always_elevated: true,
       exclusions: ['*.tmp', 'x'],
+      auto_snapshot_keep: 20,
     });
-    expect(mergeSettings(current, { always_elevated: false })).toEqual({
-      always_elevated: false,
+    expect(mergeSettings(current, { auto_snapshot_keep: 0 })).toEqual({
+      always_elevated: true,
       exclusions: ['*.tmp'],
+      auto_snapshot_keep: 0,
     });
   });
 });
 
 describe('normalizeSettings', () => {
   it('fills missing fields', () => {
-    expect(normalizeSettings({})).toEqual({ always_elevated: false, exclusions: [] });
-    expect(normalizeSettings({ always_elevated: true })).toEqual({ always_elevated: true, exclusions: [] });
+    expect(normalizeSettings({})).toEqual({
+      always_elevated: false,
+      exclusions: [],
+      auto_snapshot_keep: 10,
+    });
+    expect(normalizeSettings({ always_elevated: true }).always_elevated).toBe(true);
+  });
+
+  it('keeps the snapshot count in range and falls back for junk', () => {
+    expect(normalizeSettings({ auto_snapshot_keep: 0 }).auto_snapshot_keep).toBe(0);
+    expect(normalizeSettings({ auto_snapshot_keep: 99 }).auto_snapshot_keep).toBe(50);
+    expect(normalizeSettings({ auto_snapshot_keep: -3 }).auto_snapshot_keep).toBe(0);
+    expect(normalizeSettings({ auto_snapshot_keep: 2.5 }).auto_snapshot_keep).toBe(10);
+    expect(normalizeAutoSnapshotKeep('5')).toBe(10);
   });
 });

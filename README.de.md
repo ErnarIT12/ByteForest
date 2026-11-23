@@ -49,6 +49,7 @@ Ohne Administratorrechte weicht ByteForest auf einen normalen Verzeichnisdurchla
 - **Suchvorlagen mit einem Klick** für typische Platzfresser (`node_modules`, `target`, `.venv`, `.git`, Datenträgerabbilder, Dateien über 1 GB) mit der Gesamtgröße, die sich freigeben lässt.
 - **Seitenleiste** mit Laufwerken, Desktop, Downloads und Dokumenten sowie zuletzt gescannten Orten, die sich mit einem Klick erneut scannen lassen.
 - **Snapshots und Vergleich**: Speichern Sie einen Scan in einer kleinen Datei und vergleichen Sie einen späteren Scan damit, um zu sehen, was gewachsen, geschrumpft oder neu ist.
+- **Automatische Snapshots und sofortiges Wiederöffnen**: Jeder abgeschlossene Scan wird im Hintergrund gespeichert (standardmäßig die letzten 10). So öffnen Sie ihn in der Seitenleiste sofort und schreibgeschützt, ohne neu zu scannen, oder vergleichen ihn mit dem aktuellen Scan.
 - **Scan-Ausschlüsse**: In den Einstellungen lassen sich Namen, Muster (`node_modules`, `*.tmp`) oder vollständige Pfade ausschließen. Ausgeschlossenes zählt in keiner Summe mit.
 - **CSV- und JSON-Berichte** zu jedem Ordner für Tabellenkalkulationen und Skripte (**Export report…**).
 - **Kommandozeilenwerkzeug** für Laufwerke, Scans, Snapshots, Ausschlüsse, Berichte und Benchmarks.
@@ -125,14 +126,13 @@ Der gescannte Baum bleibt in Rust. Die Oberfläche fragt nur Ausschnitte ab: die
 
 ## Datenschutz
 
-ByteForest arbeitet vollständig offline. Es gibt keine Telemetrie und der Code macht keine Netzwerkaufrufe; das App-Fenster darf nur mit dem lokalen Rust-Backend kommunizieren (die Content Security Policy erlaubt nichts anderes). Einstellungen liegen in `%APPDATA%\ByteForest\settings.json`, Logs in `%LOCALAPPDATA%\ByteForest\logs`, beides auf Ihrem Rechner.
+ByteForest arbeitet vollständig offline. Es gibt keine Telemetrie und der Code macht keine Netzwerkaufrufe; das App-Fenster darf nur mit dem lokalen Rust-Backend kommunizieren (die Content Security Policy erlaubt nichts anderes). Einstellungen liegen in `%APPDATA%\ByteForest\settings.json`, Logs in `%LOCALAPPDATA%\ByteForest\logs`, beides auf Ihrem Rechner. Automatische Snapshots (Namen und Größen gescannter Elemente) liegen nur auf Ihrem Rechner unter `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` unter macOS) und lassen sich in den Einstellungen abschalten oder begrenzen.
 
 ## Roadmap
 
 - Speicherverbrauch von höchstens 120 Byte pro Eintrag (heute etwa 400).
 - Sunburst-Ansicht neben der Treemap.
 - Discard Pile: Elemente sammeln und gemeinsam entfernen.
-- Automatische Snapshots.
 - Inkrementelle Neu-Scans über das NTFS-USN-Journal.
 - Lokalisierte Oberfläche.
 

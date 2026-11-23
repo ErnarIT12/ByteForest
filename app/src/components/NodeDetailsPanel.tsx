@@ -4,6 +4,7 @@ import { deltaCell } from '../diffView';
 import { formatBytes, formatDelta, formatFiletime, formatInt, formatScanShare } from '../format';
 import { toggleQueued, useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
+import { canChangeDisk } from '../snapshotsModel';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { FileTypeBreakdown } from './FileTypeBreakdown';
@@ -15,6 +16,7 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
   const isMac = useAppStore((s) => s.isMac);
   const rootId = useAppStore((s) => s.rootId);
   const comparing = useAppStore((s) => s.baseline !== null);
+  const readOnly = useAppStore((s) => !canChangeDisk(s.resultSource));
   const queued = useDiscardPile((s) => s.idSet.has(id));
 
   useEffect(() => {
@@ -103,12 +105,14 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
               </button>
               {id !== rootId && (
                 <button type="button" className="btn" aria-pressed={queued}
+                  disabled={readOnly && !queued} title={readOnly ? strings.snapshotReadOnly : undefined}
                   onClick={() => toggleQueued(id)}>
                   {queued ? strings.removeFromDiscardPile : strings.addToDiscardPile}
                 </button>
               )}
               {id !== rootId && (
-                <button type="button" className="btn danger" disabled={busy}
+                <button type="button" className="btn danger" disabled={busy || readOnly}
+                  title={readOnly ? strings.snapshotReadOnly : undefined}
                   onClick={() => void useFileActions.getState().requestTrash(scanId, id)}>
                   {isMac ? strings.moveToTrash : strings.moveToRecycleBin}
                 </button>

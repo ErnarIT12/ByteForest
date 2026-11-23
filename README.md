@@ -49,6 +49,7 @@ Without administrator rights ByteForest falls back to a regular directory walk, 
 - **One-click search presets** for common space hogs (`node_modules`, `target`, `.venv`, `.git`, disk images, files over 1 GB) with the total size you could reclaim.
 - **Sidebar** with your drives, Desktop, Downloads and Documents, plus recent scans you can rescan in one click.
 - **Snapshots and compare mode**: save a scan to a small file, then compare a later scan with it to see what grew, shrank or is new.
+- **Automatic snapshots and instant reopen**: every finished scan is saved in the background (the last 10 are kept by default), so you can reopen it from the sidebar in an instant, read-only, without rescanning, or compare it with the current scan.
 - **Scan exclusions**: leave names, wildcards (`node_modules`, `*.tmp`) or full paths out of every scan in Settings. Excluded items are not counted in any total.
 - **CSV and JSON reports** of any folder for spreadsheets and scripts (**Export report…**).
 - **Command-line tool** for drives, scans, snapshots, exclusions, reports and benchmarks.
@@ -136,14 +137,13 @@ The scanned tree stays in Rust. The UI only asks for slices: the children of one
 
 ## Privacy
 
-ByteForest works fully offline. It has no telemetry and its code makes no network calls; the app window may only talk to the local Rust backend (the Content Security Policy allows nothing else). Settings are stored in `%APPDATA%\ByteForest\settings.json` and logs in `%LOCALAPPDATA%\ByteForest\logs`, both on your machine.
+ByteForest works fully offline. It has no telemetry and its code makes no network calls; the app window may only talk to the local Rust backend (the Content Security Policy allows nothing else). Settings are stored in `%APPDATA%\ByteForest\settings.json` and logs in `%LOCALAPPDATA%\ByteForest\logs`, both on your machine. Automatic snapshots (names and sizes of scanned items) are stored only on your machine in `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` on macOS) and can be turned off or limited in Settings.
 
 ## Roadmap
 
 - Memory use of 120 bytes per entry or less (today about 400).
 - Sunburst view next to the treemap.
 - Discard Pile: collect items and remove them together.
-- Automatic snapshots.
 - Incremental rescans from the NTFS USN journal.
 - Localized interface.
 

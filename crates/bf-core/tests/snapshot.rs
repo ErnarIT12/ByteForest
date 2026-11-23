@@ -2,7 +2,7 @@ use std::io::Write;
 
 use bf_core::{
     EntryRecord, NodeFlags, NodeId, SnapshotError, SnapshotLimits, Tree, TreeBuilder,
-    read_snapshot, read_snapshot_with_limits, write_snapshot,
+    read_snapshot, read_snapshot_header, read_snapshot_with_limits, write_snapshot,
 };
 use flate2::Compression;
 use flate2::write::DeflateEncoder;
@@ -512,4 +512,54 @@ fn declared_huge_payload_is_refused_by_the_ratio_guard() {
         read_snapshot_with_limits(bytes.as_slice(), limits).unwrap_err(),
         SnapshotError::LimitExceeded(_)
     ));
+}
+
+#[test]
+fn header_reports_label_time_and_counts_without_reading_the_payload() {
+    let bytes = encode(&sample());
+    // Cut the file right after the header: the payload is not needed.
+    let header_len = 6 + 2 + 2 + 8 + 4 + r"C:\data".len() + 4 + 8 + 4;
+    let header = read_snapshot_header(&bytes[..header_len]).unwrap();
+    assert_eq!(header.label, r"C:\data");
+    assert_eq!(header.created_unix_ms, 1_700_000_000_123);
+    assert_eq!(header.node_count, sample().len() as u32);
+    assert!(header.payload_len > 0);
+    let full = read_snapshot(bytes.as_slice()).unwrap();
+    assert_eq!(full.label, header.label);
+    assert_eq!(full.created_unix_ms, header.created_unix_ms);
+}
+
+#[test]
+fn header_with_bad_magic_or_version_is_reported() {
+    let mut b = Raw::new(&good_nodes()).bytes();
+    b[0] = b'X';
+    assert_eq!(
+        read_snapshot_header(b.as_slice()).unwrap_err(),
+        SnapshotError::BadMagic
+    );
+    let mut raw = Raw::new(&good_nodes());
+    raw.version = 2;
+    assert_eq!(
+        read_snapshot_header(raw.bytes().as_slice()).unwrap_err(),
+        SnapshotError::UnsupportedVersion(2)
+    );
+}
+
+#[test]
+fn header_truncated_at_every_offset_is_an_error() {
+    let bytes = Raw::new(&good_nodes()).bytes();
+    let header_len = 6 + 2 + 2 + 8 + 4 + 1 + 4 + 8 + 4;
+    for cut in 0..header_len {
+        let err = read_snapshot_header(&bytes[..cut]).unwrap_err();
+        assert_eq!(err, SnapshotError::Truncated, "cut at {cut}");
+    }
+    assert!(read_snapshot_header(&bytes[..header_len]).is_ok());
+}
+
+#[test]
+fn header_with_over_long_label_is_rejected() {
+    let mut raw = Raw::new(&good_nodes());
+    raw.label = vec![b'x'; 4097];
+    let err = read_snapshot_header(raw.bytes().as_slice()).unwrap_err();
+    assert!(matches!(err, SnapshotError::Corrupt(_)), "{err:?}");
 }

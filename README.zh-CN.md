@@ -49,6 +49,7 @@
 - 针对常见占空间大户（`node_modules`、`target`、`.venv`、`.git`、磁盘镜像、超过 1 GB 的文件）的**一键搜索预设**，并显示可释放的总大小。
 - **侧边栏**列出磁盘、桌面、下载和文档，以及可一键重新扫描的最近扫描。
 - **快照与对比**：把一次扫描保存为小文件，之后用新的扫描与它对比，查看哪些增长、缩小或是新增。
+- **自动快照与即时重新打开**：每次扫描完成后都会在后台保存（默认保留最近 10 个），你可以直接从侧边栏以只读方式立即打开，无需重新扫描，也可以与当前扫描对比。
 - **扫描排除**：在设置中排除名称、通配符（`node_modules`、`*.tmp`）或完整路径。被排除的内容不计入任何总计。
 - 为表格和脚本提供任意文件夹的 **CSV 和 JSON 报告**（**Export report…**）。
 - 用于列出磁盘、扫描、快照、排除、报告和基准测试的**命令行工具**。
@@ -125,14 +126,13 @@ flowchart LR
 
 ## 隐私
 
-ByteForest 完全离线运行。它没有遥测，代码也不发起任何网络调用；应用窗口只能与本地 Rust 后端通信（内容安全策略不允许其他访问）。设置保存在 `%APPDATA%\ByteForest\settings.json`，日志保存在 `%LOCALAPPDATA%\ByteForest\logs`，都在你自己的电脑上。
+ByteForest 完全离线运行。它没有遥测，代码也不发起任何网络调用；应用窗口只能与本地 Rust 后端通信（内容安全策略不允许其他访问）。设置保存在 `%APPDATA%\ByteForest\settings.json`，日志保存在 `%LOCALAPPDATA%\ByteForest\logs`，都在你自己的电脑上。 自动快照（所扫描项目的名称和大小）只保存在你自己的电脑上，位置为 `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto`（macOS 上为 `~/Library/Application Support/dev.byteforest.app/snapshots/auto`），可在设置中关闭或限制数量。
 
 ## 路线图
 
 - 每个条目的内存占用降到 120 字节或更低（目前约 400）。
 - 与 treemap 并列的 Sunburst（旭日图）视图。
 - Discard Pile：集中收集项目并一起删除。
-- 自动快照。
 - 基于 NTFS USN 日志的增量重新扫描。
 - 本地化界面。
 
