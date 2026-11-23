@@ -109,7 +109,8 @@ fn treemap_excludes_removed_nodes() {
 fn largest_files_excludes_removed_descendants() {
     let mut t = sample();
     t.remove_subtree(NodeId(3)).unwrap();
-    let (count, ids) = t.largest_files(&FileFilter::default(), 10);
+    let found = t.largest_files(&FileFilter::default(), 10);
+    let (count, ids) = (found.total, found.ids);
     assert_eq!(count, 3);
     assert!(!ids.contains(&NodeId(5)));
     assert!(!ids.contains(&NodeId(6)));

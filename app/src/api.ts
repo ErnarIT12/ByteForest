@@ -128,17 +128,29 @@ export interface FileFilter {
   category?: FileCategory;
   /** Only files inside this node's subtree. */
   under?: number;
+  /** `files` (default) or outermost `folders` sized by their whole subtree. */
+  kind?: SearchKind;
+  /** Exact names, case-insensitive. */
+  names?: string[];
+  /** Any-of extensions (files only). */
+  extensions?: string[];
 }
+
+export type SearchKind = 'files' | 'folders';
 
 export interface FileMatch {
   id: number;
   name: string;
   path: string;
+  /** Total size for folders. */
   size: number;
+  is_dir: boolean;
 }
 
 export interface SearchResults {
   total: number;
+  /** Summed size of every match, not only the listed ones. */
+  total_bytes: number;
   files: FileMatch[];
 }
 

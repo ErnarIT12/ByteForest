@@ -337,6 +337,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.result-kind {
+  margin-right: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  color: var(--text-2);
+  font-size: 11px;
+  font-style: normal;
+}
 .file-result small {
   grid-column: 1 / -1;
   color: var(--text-2);

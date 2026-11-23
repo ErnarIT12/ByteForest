@@ -162,14 +162,15 @@ fn file_filter_matches_category_and_restricts_to_subtree() {
         category: Some(FileCategory::Video),
         ..Default::default()
     };
-    assert_eq!(t.largest_files(&by_cat, 10).0, 2);
+    assert_eq!(t.largest_files(&by_cat, 10).total, 2);
 
     let docs = find(&t, "docs");
     let scoped = FileFilter {
         under: Some(docs.0),
         ..Default::default()
     };
-    let (n, ids) = t.largest_files(&scoped, 10);
+    let found = t.largest_files(&scoped, 10);
+    let (n, ids) = (found.total, found.ids);
     assert_eq!(n, 4);
     assert!(ids.iter().all(|&i| t.path_of(i).contains("docs")));
 
@@ -178,14 +179,14 @@ fn file_filter_matches_category_and_restricts_to_subtree() {
         category: Some(FileCategory::Archive),
         ..Default::default()
     };
-    assert_eq!(t.largest_files(&both, 10).0, 1);
+    assert_eq!(t.largest_files(&both, 10).total, 1);
 
     let outside = FileFilter {
         under: Some(docs.0),
         category: Some(FileCategory::Video),
         ..Default::default()
     };
-    assert_eq!(t.largest_files(&outside, 10), (0, Vec::new()));
+    assert_eq!(t.largest_files(&outside, 10), Default::default());
 }
 
 #[test]
@@ -198,7 +199,7 @@ fn file_filter_under_removed_or_unknown_node_is_empty() {
             under: Some(under),
             ..Default::default()
         };
-        assert_eq!(t.largest_files(&f, 10), (0, Vec::new()));
+        assert_eq!(t.largest_files(&f, 10), Default::default());
     }
 }
 

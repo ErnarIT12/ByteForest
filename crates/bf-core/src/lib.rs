@@ -23,4 +23,4 @@ pub use record::EntryRecord;
 pub use remove::{RemoveError, Removed};
 pub use tree::{DirAgg, NodeId, Tree};
 pub use treemap::{Rect, TreemapOptions, header_fits};
-pub use view::{FileFilter, NodeView, SortKey};
+pub use view::{FileFilter, NodeView, SearchKind, SearchOutcome, SortKey};

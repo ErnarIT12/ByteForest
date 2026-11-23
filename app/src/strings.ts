@@ -135,6 +135,22 @@ export const strings = {
   searchInFolder: (name: string) => `in ${name}`,
   searchClearScope: 'Search everywhere',
   searchScopeLabel: 'Search scope',
+  searchPresetsLabel: 'Quick searches',
+  searchPresetNames: {
+    node_modules: 'node_modules',
+    target: 'target',
+    venv: '.venv',
+    git: '.git',
+    diskImages: 'Disk images',
+    huge: 'Over 1 GB',
+  },
+  searchFoldersHint: 'Searching folders by name. File type filters do not apply.',
+  searchFilesInstead: 'Search files',
+  searchFolderMarker: 'Folder',
+  searchNone: (folders: boolean) => (folders ? 'No matching folders' : 'No matching files'),
+  searchSummary: (shown: string, total: string, noun: string, size: string) =>
+    shown === total ? `${total} ${noun} · ${size}` : `Showing ${shown} of ${total} ${noun} · ${size}`,
+  searchNouns: { files: 'files', folders: 'folders' },
   breakdownRow: (name: string, size: string, share: string) => `${name}, ${size}, ${share}`,
   tooltipCategory: (name: string) => `Type: ${name}`,
 

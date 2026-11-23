@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Add one-click search presets (node_modules, target, .venv, .git, disk images, files over 1 GB) that find outermost build and cache folders or large files and show the total size reclaimable.
 - Show a file-type breakdown (categories and top extensions) for the selected folder, with click-through to a search limited to that folder, and add a Folders / File types color mode to the treemap with a legend.
 - Apply the silver ByteForest mark across the desktop app, add Graphite, Silver and System appearances, and keep the file inspector beside the map and browser.
 - Graphite (dark) is the default appearance on fresh installs. Silver (light) and System are available in Settings, and the title bar and logo follow the selected theme.

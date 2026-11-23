@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { searchFiles, type FileCategory, type FileFilter, type SearchResults } from '../api';
+import {
+  searchFiles,
+  type FileCategory,
+  type FileFilter,
+  type SearchKind,
+  type SearchResults,
+} from '../api';
 import { formatBytes, formatInt } from '../format';
 import { useAppStore } from '../store';
+import { SEARCH_PRESET_IDS, presetFilter, type SearchPresetId } from '../searchPresets';
 import { strings } from '../strings';
 import { CATEGORIES } from '../treemapPaint';
 
@@ -31,6 +38,10 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
   const [minSize, setMinSize] = useState(0);
   const [category, setCategory] = useState<FileCategory | ''>('');
   const [scope, setScope] = useState<{ id: number; name: string } | null>(null);
+  const [kind, setKind] = useState<SearchKind>('files');
+  const [names, setNames] = useState<string[]>([]);
+  const [extensions, setExtensions] = useState<string[]>([]);
+  const [activePreset, setActivePreset] = useState<SearchPresetId | null>(null);
   const preset = useAppStore((s) => s.searchPreset);
   const [appliedSeq, setAppliedSeq] = useState(preset?.seq ?? 0);
   // A new preset replaces the filters (adjusting state while rendering, not in an effect).
@@ -41,6 +52,10 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
     setCategory(preset.category ?? '');
     setExtension(preset.extension ?? '');
     setScope(preset.under);
+    setKind('files');
+    setNames([]);
+    setExtensions([]);
+    setActivePreset(null);
   }
   const [response, setResponse] = useState<RequestResult | null>(null);
   const filter = useMemo<FileFilter>(
@@ -50,8 +65,11 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
       min_size: minSize,
       category: category || undefined,
       under: scope?.id,
+      kind,
+      names,
+      extensions,
     }),
-    [name, extension, minSize, category, scope],
+    [name, extension, minSize, category, scope, kind, names, extensions],
   );
   const current = response?.filter === filter ? response : null;
 
@@ -71,6 +89,29 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
   }, [active, current, filter, scanId]);
 
   const results = current?.results;
+  const folders = kind === 'folders';
+
+  const togglePreset = (id: SearchPresetId) => {
+    if (activePreset === id) {
+      setActivePreset(null);
+      setKind('files');
+      setNames([]);
+      setExtensions([]);
+      setMinSize(0);
+      return;
+    }
+    const next = presetFilter(id);
+    setActivePreset(id);
+    setKind(next.kind);
+    setNames(next.names);
+    setExtensions(next.extensions);
+    setMinSize(next.min_size);
+    setName('');
+    setExtension('');
+    setCategory('');
+  };
+  const edited = () => setActivePreset(null);
+  const noun = strings.searchNouns[folders ? 'folders' : 'files'];
   return (
     <section className="file-search" aria-label="Largest files">
       {scope && (
@@ -81,31 +122,61 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
           </button>
         </div>
       )}
+      <div className="chip-row" role="group" aria-label={strings.searchPresetsLabel}>
+        {SEARCH_PRESET_IDS.map((id) => (
+          <button key={id} type="button" className="chip" aria-pressed={activePreset === id}
+            onClick={() => togglePreset(id)}>
+            {strings.searchPresetNames[id]}
+          </button>
+        ))}
+      </div>
+      {folders && (
+        <p className="file-result-summary">
+          {strings.searchFoldersHint}{' '}
+          <button type="button" className="btn" onClick={() => {
+            setKind('files');
+            setNames([]);
+            setExtensions([]);
+            edited();
+          }}>{strings.searchFilesInstead}</button>
+        </p>
+      )}
       <div className="file-filters">
-        <label>File name
+        <label>{folders ? 'Folder name' : 'File name'}
           <input type="search" value={name} maxLength={255}
-            placeholder="Search files" onChange={(event) => setName(event.target.value)} />
+            placeholder={folders ? 'Search folders' : 'Search files'}
+            onChange={(event) => { setName(event.target.value); edited(); }} />
         </label>
-        <label>Extension
-          <input value={extension} maxLength={64}
-            placeholder=".zip" onChange={(event) => setExtension(event.target.value)} />
-        </label>
-        <label>{strings.searchCategory}
-          <select value={category} onChange={(event) => setCategory(event.target.value as FileCategory | '')}>
-            <option value="">{strings.searchAnyType}</option>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{strings.categoryNames[c]}</option>)}
-          </select>
-        </label>
+        {!folders && (
+          <label>Extension
+            <input value={extension} maxLength={64}
+              placeholder={extensions.length > 0 ? extensions.join(', ') : '.zip'}
+              onChange={(event) => { setExtension(event.target.value); setExtensions([]); edited(); }} />
+          </label>
+        )}
+        {!folders && (
+          <label>{strings.searchCategory}
+            <select value={category} onChange={(event) => { setCategory(event.target.value as FileCategory | ''); edited(); }}>
+              <option value="">{strings.searchAnyType}</option>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{strings.categoryNames[c]}</option>)}
+            </select>
+          </label>
+        )}
         <label>Minimum size
-          <select value={minSize} onChange={(event) => setMinSize(Number(event.target.value))}>
+          <select value={minSize} onChange={(event) => { setMinSize(Number(event.target.value)); edited(); }}>
             {MIN_SIZES.map(({ label, value }) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
       </div>
       <p className="file-result-summary" role="status">
         {opening ? 'Locating file…' : !current ? 'Searching…' : results && (
-          results.total === 0 ? 'No matching files' :
-            'Showing ' + formatInt(results.files.length) + ' of ' + formatInt(results.total) + ' files'
+          results.total === 0 ? strings.searchNone(folders) :
+            strings.searchSummary(
+              formatInt(results.files.length),
+              formatInt(results.total),
+              noun,
+              formatBytes(results.total_bytes),
+            )
         )}
       </p>
       {(navigationError || current?.error) && (
@@ -115,7 +186,7 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
         {results?.files.map((file) => (
           <li key={file.id}>
             <button type="button" className="file-result" onClick={() => onOpen(file.id)} title={file.path}>
-              <span>{file.name}</span>
+              <span>{file.is_dir && <em className="result-kind">{strings.searchFolderMarker}</em>}{file.name}</span>
               <strong>{formatBytes(file.size)}</strong>
               <small>{file.path}</small>
             </button>

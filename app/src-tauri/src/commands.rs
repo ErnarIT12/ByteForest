@@ -435,11 +435,13 @@ pub struct FileMatch {
     name: String,
     path: String,
     size: u64,
+    is_dir: bool,
 }
 
 #[derive(Serialize)]
 pub struct SearchResults {
     total: usize,
+    total_bytes: u64,
     files: Vec<FileMatch>,
 }
 
@@ -451,17 +453,23 @@ pub async fn search_files(
 ) -> Result<SearchResults, String> {
     let tree = current_tree(&state, Some(scan_id))?;
     tauri::async_runtime::spawn_blocking(move || {
-        let (total, ids) = tree.largest_files(&filter, 200);
-        let files = ids
+        let found = tree.largest_files(&filter, 200);
+        let files = found
+            .ids
             .into_iter()
             .map(|id| FileMatch {
                 id: id.0,
                 name: tree.name(id).to_owned(),
                 path: display_path(&tree, id),
                 size: tree.total(id).size,
+                is_dir: tree.flags(id).contains(NodeFlags::DIR),
             })
             .collect();
-        SearchResults { total, files }
+        SearchResults {
+            total: found.total,
+            total_bytes: found.total_bytes,
+            files,
+        }
     })
     .await
     .map_err(|err| err.to_string())
