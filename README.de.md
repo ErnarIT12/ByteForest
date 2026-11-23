@@ -39,7 +39,7 @@ Ohne Administratorrechte weicht ByteForest auf einen normalen Verzeichnisdurchla
 - **Ordnerbaum** mit Größe, Anteil am übergeordneten Ordner, Dateianzahl und Änderungsdatum.
 - **Squarified Treemap** mit Zoom in Ordner, Brotkrumennavigation und Tooltips.
 - **Synchronisierte Auswahl** zwischen Baum, Treemap und Statusleiste.
-- **Schaltfläche „⚡ Fast scan (admin)“**: startet ByteForest mit Administratorrechten neu und setzt den Scan automatisch fort.
+- **Schaltfläche „Fast scan (admin)“**: startet ByteForest mit Administratorrechten neu und setzt den Scan automatisch fort.
 - Einstellung **„Always run as administrator“**, damit jeder Start schnell ist.
 - **Helles und dunkles Design** in der Farbpalette des Logos mit WCAG-AA-Kontrast.
 - **Kommandozeilenwerkzeug** für Laufwerke, Scans und Benchmarks.
@@ -62,7 +62,7 @@ Voraussetzungen: Windows 10/11 x64 und WebView2 (unter Windows 11 vorinstalliert
 
 ## Verwendung
 
-**App.** Wählen Sie ein Laufwerk und klicken Sie auf **Scan**, oder auf **⚡ Fast scan (admin)**, um mit erhöhten Rechten neu zu starten und sofort zu scannen. Wählen Sie Ordner im Baum oder Rechtecke in der Treemap (beides bleibt synchron). Ein Klick auf einen Ordner in der Treemap zoomt hinein; zurück geht es über die Brotkrumen, den Aufwärtspfeil oder das Mausrad.
+**App.** Wählen Sie ein Laufwerk und klicken Sie auf **Scan**, oder auf **Fast scan (admin)**, um mit erhöhten Rechten neu zu starten und sofort zu scannen. Wählen Sie Ordner im Baum oder Rechtecke in der Treemap (beides bleibt synchron). Ein Doppelklick auf einen Ordner in der Treemap zoomt hinein; zurück geht es über die Brotkrumen, den Aufwärtspfeil oder das Mausrad.
 
 **CLI.**
 

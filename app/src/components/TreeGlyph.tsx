@@ -1,4 +1,4 @@
-import logo from '../assets/logo-128.png';
+import logo from '../assets/byteforest-mono-cycle.svg';
 
 /** The app logo, shown next to the app name and in the empty state. */
 export function TreeGlyph({ size = 26 }: { size?: number }) {

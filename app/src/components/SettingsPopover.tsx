@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { getSettings, setSettings } from '../api';
+import { getAppearance, setAppearance, type Appearance } from '../hooks/useColorScheme';
+import { useAppStore } from '../store';
 import { strings } from '../strings';
 
 /** Gear button with a small popover holding the app settings. */
@@ -16,12 +18,13 @@ export function SettingsPopover() {
   const [error, setError] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
-  const checkbox = useRef<HTMLInputElement>(null);
+  const appearance = useRef<HTMLSelectElement>(null);
+  const isMac = useAppStore((s) => s.isMac);
   const panelId = useId();
 
   // Load the stored value each time the popover opens.
   useEffect(() => {
-    if (!open) return;
+    if (!open || isMac) return;
     let cancelled = false;
     getSettings().then(
       (s) => {
@@ -38,12 +41,12 @@ export function SettingsPopover() {
       cancelled = true;
       setLoaded(false);
     };
-  }, [open]);
+  }, [open, isMac]);
 
-  // Move focus into the popover once the checkbox is enabled.
+  // Put keyboard focus on the appearance control when the panel opens.
   useEffect(() => {
-    if (open && loaded) checkbox.current?.focus();
-  }, [open, loaded]);
+    if (open) appearance.current?.focus();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -94,9 +97,17 @@ export function SettingsPopover() {
       </button>
       {open && (
         <div className="popover" id={panelId} role="dialog" aria-label={strings.settings}>
-          <label className="setting-row">
+          <h2>Settings</h2>
+          <label className="appearance-setting">Appearance
+            <select ref={appearance} defaultValue={getAppearance()}
+              onChange={(e) => setAppearance(e.target.value as Appearance)}>
+              <option value="dark">Graphite</option>
+              <option value="light">Silver</option>
+              <option value="system">System</option>
+            </select>
+          </label>
+          {!isMac && <><label className="setting-row">
             <input
-              ref={checkbox}
               type="checkbox"
               checked={always}
               disabled={!loaded}
@@ -104,7 +115,7 @@ export function SettingsPopover() {
             />
             <span>{strings.alwaysElevated}</span>
           </label>
-          <p className="muted">{strings.alwaysElevatedHelp}</p>
+          <p className="muted">{strings.alwaysElevatedHelp}</p></>}
           {error && (
             <p className="setting-error" role="alert">
               {error}

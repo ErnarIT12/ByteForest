@@ -175,7 +175,7 @@ export function TreemapCanvas() {
     if (focusPath[focusPath.length - 1]?.id !== layout.rects[0].id) return;
     const r = layout.rects[i];
     const path = crumbsTo(layout, i, focusPath);
-    if (r.is_dir) useAppStore.getState().setFocus(r.id, path);
+    if (r.is_dir && e.detail === 2) useAppStore.getState().setFocus(r.id, path);
     else useAppStore.getState().revealNode(path.map((c) => c.id));
   };
 

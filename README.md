@@ -39,7 +39,7 @@ Without administrator rights ByteForest falls back to a regular directory walk, 
 - **Folder tree** with size, share of parent, file count and modification date.
 - **Squarified treemap** with zoom into a folder, breadcrumbs and tooltips.
 - **Synchronized selection** between the tree, the treemap and the status bar.
-- **"⚡ Fast scan (admin)" button**: restarts ByteForest with administrator rights and resumes the scan automatically.
+- **"Fast scan (admin)" button**: restarts ByteForest with administrator rights and resumes the scan automatically.
 - **"Always run as administrator"** setting, so every start is fast.
 - **Light and dark theme** in the logo palette, with WCAG AA contrast.
 - **Command-line tool** for drives, scans and benchmarks.
@@ -71,7 +71,7 @@ ByteForest offers your home folder, the Mac data volume, locally mounted disks, 
 
 After scanning, open **Largest Files** to search by name, extension, or size across all scanned folders. Choose a result to jump to it in the tree and map. Select a file or folder to copy its path or reveal it in Explorer or Finder.
 
-**App.** Pick a drive and press **Scan**, or press **⚡ Fast scan (admin)** to restart elevated and scan right away. Select folders in the tree or rectangles in the treemap (both stay in sync). Click a folder in the treemap to zoom into it; use the breadcrumbs, the up arrow or the mouse wheel to zoom back out.
+**App.** Pick a drive and press **Scan**, or press **Fast scan (admin)** to restart elevated and scan right away. Select folders in the tree or rectangles in the treemap (both stay in sync). Double-click a folder in the treemap to zoom into it; use the breadcrumbs, the up arrow or the mouse wheel to zoom back out.
 
 **CLI.**
 

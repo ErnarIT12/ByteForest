@@ -9,7 +9,7 @@ interface Props {
   onChange(value: number): void;
 }
 
-/** Vertical drag handle between the tree and the treemap; arrow keys move it too. */
+/** Vertical drag handle between the treemap and the tree; arrow keys move it too. */
 export function Splitter({ value, min, max, onChange }: Props) {
   const dragging = useRef(false);
   const clamp = (v: number) => Math.min(max, Math.max(min, v));

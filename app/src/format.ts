@@ -23,6 +23,14 @@ export function formatBytes(n: number, decimals = 1): string {
   return `${value.toFixed(decimals)} ${BYTE_UNITS[unit]}`;
 }
 
+/** Share of logical bytes in a scan. Keep very small nonempty files distinguishable from zero. */
+export function formatScanShare(bytes: number, total: number): string {
+  if (total <= 0) return '—';
+  const percent = 100 * bytes / total;
+  if (percent > 0 && percent < 0.01) return '<0.01%';
+  return percent.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '%';
+}
+
 const COUNT_UNITS = [
   { div: 1e9, suffix: 'B' },
   { div: 1e6, suffix: 'M' },

@@ -3,3 +3,9 @@ node_modules/
 dist/
 *.bfsnap
 *.tsbuildinfo
+
+# Personal AI assistant configuration
+.claude/
+.agents/
+.codex/
+CLAUDE.local.md
