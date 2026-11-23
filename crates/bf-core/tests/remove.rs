@@ -143,3 +143,31 @@ fn clone_is_independent_of_the_original() {
     assert!(!t.is_removed(NodeId(8)));
     assert_eq!(t.child_count(t.root()), 3);
 }
+
+fn ids(raw: &[u32]) -> Vec<NodeId> {
+    raw.iter().map(|&n| NodeId(n)).collect()
+}
+
+#[test]
+fn outermost_collapses_nested_ids_into_their_ancestor() {
+    let t = sample();
+    // alice (3) and its files (5, 6) sit under Users (1); notes.txt (4) too.
+    assert_eq!(t.outermost(&ids(&[5, 3, 6, 1, 4, 8])), ids(&[1, 8]));
+    assert_eq!(t.outermost(&ids(&[5, 6, 4])), ids(&[5, 6, 4]));
+}
+
+#[test]
+fn outermost_ignores_duplicates_invalid_removed_and_root_ids() {
+    let mut t = sample();
+    t.remove_subtree(NodeId(2)).unwrap();
+    let input = ids(&[8, 8, 0, 999, u32::MAX, 2, 7, 4, 8]);
+    assert_eq!(t.outermost(&input), ids(&[8, 4]));
+    assert!(t.outermost(&[]).is_empty());
+}
+
+#[test]
+fn outermost_keeps_the_input_order_of_survivors() {
+    let t = sample();
+    assert_eq!(t.outermost(&ids(&[8, 7, 6, 2, 5])), ids(&[8, 6, 2, 5]));
+    assert_eq!(t.outermost(&ids(&[6, 5, 8])), ids(&[6, 5, 8]));
+}

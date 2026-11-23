@@ -194,6 +194,65 @@ describe('store applyRemoval', () => {
   });
 });
 
+describe('store applyBatchRemoval', () => {
+  beforeEach(() => useAppStore.getState().reset());
+  const batch = (moved: { id: number; parent: number; bytes: number }[]) => ({
+    moved: moved.map((m) => ({ ...m, files: 1, dirs: 0 })),
+    failed: [],
+    bytes: moved.reduce((n, m) => n + m.bytes, 0),
+    files: moved.length,
+    dirs: 0,
+  });
+
+  it('applies every removal at once: totals, one generation bump, one invalidation', () => {
+    scanned();
+    const before = useAppStore.getState();
+    before.applyBatchRemoval(batch([
+      { id: 5, parent: 0, bytes: 30 },
+      { id: 6, parent: 3, bytes: 20 },
+    ]));
+    const s = useAppStore.getState();
+    expect(s.root).toMatchObject({ size: 50, files: 0 });
+    expect(s.stats).toMatchObject({ bytes: 50 });
+    expect(s.generation).toBe(before.generation + 1);
+    expect(s.invalidation).toMatchObject({ seq: 1, all: true });
+  });
+
+  it('selects the parent of a removed selection', () => {
+    scanned();
+    useAppStore.getState().select(6);
+    useAppStore.getState().applyBatchRemoval(batch([{ id: 6, parent: 3, bytes: 1 }]));
+    expect(useAppStore.getState().selectedId).toBe(3);
+  });
+
+  it('selects the surviving ancestor of a selection inside a removed folder', () => {
+    scanned();
+    useAppStore.getState().select(9);
+    useAppStore.getState().applyBatchRemoval(batch([{ id: 6, parent: 3, bytes: 1 }]), [0, 3, 6, 9]);
+    expect(useAppStore.getState().selectedId).toBe(3);
+  });
+
+  it('keeps an unaffected selection and moves the focus out of a removed folder', () => {
+    scanned();
+    useAppStore.getState().setFocus(3, [
+      { id: 0, name: 'C:' },
+      { id: 3, name: 'Users' },
+    ]);
+    useAppStore.getState().select(7);
+    useAppStore.getState().applyBatchRemoval(batch([{ id: 3, parent: 0, bytes: 1 }]), [0, 7]);
+    const s = useAppStore.getState();
+    expect(s.selectedId).toBe(7);
+    expect(s.focusId).toBe(0);
+  });
+
+  it('ignores an empty batch', () => {
+    scanned();
+    const before = useAppStore.getState().generation;
+    useAppStore.getState().applyBatchRemoval(batch([]));
+    expect(useAppStore.getState().generation).toBe(before);
+  });
+});
+
 describe('search preset', () => {
   beforeEach(() => useAppStore.getState().reset());
 

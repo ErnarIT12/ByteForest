@@ -719,6 +719,119 @@ pub struct TrashResult {
     parent: u32,
 }
 
+/// One node a batch moved to the trash and removed from the tree.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+pub struct MovedItem {
+    id: u32,
+    bytes: u64,
+    files: u64,
+    dirs: u64,
+    /// Parent of the removed node.
+    parent: u32,
+}
+
+/// One node a batch could not move.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+pub struct FailedItem {
+    id: u32,
+    name: String,
+    error: String,
+}
+
+/// Outcome of `move_nodes_to_trash`: totals cover the moved items only.
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct BatchTrashResult {
+    moved: Vec<MovedItem>,
+    failed: Vec<FailedItem>,
+    bytes: u64,
+    files: u64,
+    dirs: u64,
+}
+
+impl BatchTrashResult {
+    fn new(moved: Vec<MovedItem>, failed: Vec<FailedItem>) -> Self {
+        let sum = |field: fn(&MovedItem) -> u64| {
+            moved
+                .iter()
+                .fold(0u64, |acc, item| acc.saturating_add(field(item)))
+        };
+        Self {
+            bytes: sum(|m| m.bytes),
+            files: sum(|m| m.files),
+            dirs: sum(|m| m.dirs),
+            moved,
+            failed,
+        }
+    }
+}
+
+/// Most node ids a Discard Pile command accepts at once.
+const MAX_DISCARD_IDS: usize = 10_000;
+
+/// One row of the Discard Pile.
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct DiscardItem {
+    id: u32,
+    name: String,
+    path: String,
+    size: u64,
+    is_dir: bool,
+}
+
+/// The queued items that still exist, nested ones folded into their ancestor.
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct DiscardSummary {
+    items: Vec<DiscardItem>,
+    count: usize,
+    bytes: u64,
+}
+
+fn checked_batch(nodes: &[u32]) -> Result<(), String> {
+    if nodes.len() > MAX_DISCARD_IDS {
+        Err(format!("Too many items (at most {MAX_DISCARD_IDS})."))
+    } else {
+        Ok(())
+    }
+}
+
+/// Builds the summary of the outermost existing nodes among `nodes`.
+fn discard_summary_of(tree: &Tree, nodes: &[u32]) -> DiscardSummary {
+    let ids: Vec<NodeId> = nodes.iter().map(|&n| NodeId(n)).collect();
+    let items: Vec<DiscardItem> = tree
+        .outermost(&ids)
+        .into_iter()
+        .map(|id| DiscardItem {
+            id: id.0,
+            name: tree.name(id).to_owned(),
+            path: display_path(tree, id),
+            size: tree.total(id).size,
+            is_dir: tree.flags(id).contains(NodeFlags::DIR),
+        })
+        .collect();
+    let bytes = items
+        .iter()
+        .fold(0u64, |acc, item| acc.saturating_add(item.size));
+    DiscardSummary {
+        count: items.len(),
+        bytes,
+        items,
+    }
+}
+
+/// Describes the queued nodes for the Discard Pile (outermost, existing ones only).
+#[tauri::command]
+pub async fn discard_summary(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    nodes: Vec<u32>,
+) -> Result<DiscardSummary, String> {
+    checked_batch(&nodes)?;
+    let tree = current_tree(&state, Some(scan_id))?;
+    tauri::async_runtime::spawn_blocking(move || discard_summary_of(&tree, &nodes))
+        .await
+        .map_err(|err| err.to_string())
+}
+
 /// The path of a node that may be moved to the trash, derived only from the tree.
 ///
 /// Refuses the scanned root, filesystem roots and entries without a usable native path.
@@ -734,6 +847,106 @@ pub fn trash_target(tree: &Tree, node: u32) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+/// Runs `f` on the current tree while holding the scan lock, after checking that `scan_id`
+/// is still the current scan.
+fn with_current_scan<T>(
+    state: &AppState,
+    scan_id: u64,
+    f: impl FnOnce(&Tree) -> Result<T, String>,
+) -> Result<T, String> {
+    let slot = state
+        .scan
+        .lock()
+        .map_err(|_| "internal error: state poisoned")?;
+    if slot.id != scan_id {
+        return Err("A scan is in progress or the results have changed.".to_owned());
+    }
+    let tree = current_tree(state, Some(scan_id))?;
+    let result = f(&tree);
+    drop(slot);
+    result
+}
+
+/// Moves `path` to the Recycle Bin / Trash on a blocking thread, then checks it is gone.
+async fn trash_path(path: PathBuf) -> Result<(), String> {
+    let target = path.clone();
+    tauri::async_runtime::spawn_blocking(move || trash::delete(&target))
+        .await
+        .map_err(|err| err.to_string())?
+        .map_err(|err| format!("Could not move the item to the trash: {err}"))?;
+    match std::fs::symlink_metadata(&path) {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(format!("Unable to verify the item was removed: {err}")),
+        Ok(_) => Err("The item is still on disk after moving it to the trash.".to_owned()),
+    }
+}
+
+/// Removes every node of `ids` that still exists from `tree`; ids that are already gone or
+/// refuse removal are skipped.
+fn remove_all(tree: &mut Tree, ids: &[u32]) -> Vec<MovedItem> {
+    let mut moved = Vec::with_capacity(ids.len());
+    for &node in ids {
+        let Ok(id) = node_id_checked(tree, node) else {
+            continue;
+        };
+        let parent = tree.parent(id).map_or(0, |p| p.0);
+        match tree.remove_subtree(id) {
+            Ok(removed) => moved.push(MovedItem {
+                id: node,
+                bytes: removed.bytes,
+                files: removed.files,
+                dirs: removed.dirs,
+                parent,
+            }),
+            Err(err) => tracing::warn!("could not remove node {node} from the tree: {err}"),
+        }
+    }
+    moved
+}
+
+/// What the baseline needs after a removal: the snapshot tree and the changed live tree.
+type BaselineRecompute = Option<(Arc<Tree>, Arc<Tree>)>;
+
+/// Removes `ids` (already moved to the trash) from the shared tree under the scan, tree and
+/// baseline locks, taken once for the whole batch.
+fn apply_removals(
+    state: &AppState,
+    scan_id: u64,
+    ids: &[u32],
+) -> Result<(Vec<MovedItem>, BaselineRecompute), String> {
+    let slot = state
+        .scan
+        .lock()
+        .map_err(|_| "internal error: state poisoned")?;
+    if slot.id != scan_id {
+        return Err("The item was moved to the trash, but a new scan has started.".to_owned());
+    }
+    let mut guard = state
+        .tree
+        .write()
+        .map_err(|_| "internal error: state poisoned")?;
+    let scan = guard.as_mut().ok_or("no scan yet")?;
+    if scan.id != scan_id {
+        return Err("The item was moved to the trash, but the scan results changed.".to_owned());
+    }
+    // Copy-on-write: clones the tree only if a reader still holds the previous `Arc`.
+    let moved = remove_all(Arc::make_mut(&mut scan.tree), ids);
+    // The comparison must reflect the removal; it is recomputed off the locks.
+    let recompute = if moved.is_empty() {
+        None
+    } else {
+        state
+            .baseline
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .filter(|b| b.scan_id == scan_id)
+            .map(|b| (Arc::clone(&b.base), Arc::clone(&scan.tree)))
+    };
+    drop(slot);
+    Ok((moved, recompute))
+}
+
 /// Moves a node to the Recycle Bin / Trash and removes it from the in-memory tree.
 #[tauri::command]
 pub async fn move_node_to_trash(
@@ -741,76 +954,79 @@ pub async fn move_node_to_trash(
     scan_id: u64,
     node: u32,
 ) -> Result<TrashResult, String> {
-    let path = {
-        let slot = state
-            .scan
-            .lock()
-            .map_err(|_| "internal error: state poisoned")?;
-        if slot.id != scan_id {
-            return Err("A scan is in progress or the results have changed.".to_owned());
+    let path = with_current_scan(&state, scan_id, |tree| trash_target(tree, node))?;
+    trash_path(path).await?;
+
+    let (moved, recompute) = apply_removals(&state, scan_id, &[node])?;
+    let item = moved.into_iter().next().ok_or("unknown node")?;
+    if let Some((base, current)) = recompute {
+        refresh_baseline(&state, scan_id, base, current).await;
+    }
+    Ok(TrashResult {
+        bytes: item.bytes,
+        files: item.files,
+        dirs: item.dirs,
+        parent: item.parent,
+    })
+}
+
+/// A node of a batch with the path it resolved to (or why it has none).
+struct PlannedItem {
+    id: u32,
+    name: String,
+    path: Result<PathBuf, String>,
+}
+
+/// The outermost existing nodes of `nodes`, each with its path derived only from the tree.
+fn plan_batch(tree: &Tree, nodes: &[u32]) -> Vec<PlannedItem> {
+    let ids: Vec<NodeId> = nodes.iter().map(|&n| NodeId(n)).collect();
+    tree.outermost(&ids)
+        .into_iter()
+        .map(|id| PlannedItem {
+            id: id.0,
+            name: tree.name(id).to_owned(),
+            path: trash_target(tree, id.0),
+        })
+        .collect()
+}
+
+/// Moves several nodes to the Recycle Bin / Trash, one at a time so a failure does not stop
+/// the others, then removes the ones that moved from the in-memory tree in a single step.
+#[tauri::command]
+pub async fn move_nodes_to_trash(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    nodes: Vec<u32>,
+) -> Result<BatchTrashResult, String> {
+    checked_batch(&nodes)?;
+    let plan = with_current_scan(&state, scan_id, |tree| Ok(plan_batch(tree, &nodes)))?;
+
+    let mut moved_ids = Vec::new();
+    let mut failed = Vec::new();
+    for item in plan {
+        let outcome = match item.path {
+            Ok(path) => trash_path(path).await,
+            Err(error) => Err(error),
+        };
+        match outcome {
+            Ok(()) => moved_ids.push(item.id),
+            Err(error) => failed.push(FailedItem {
+                id: item.id,
+                name: item.name,
+                error,
+            }),
         }
-        let tree = current_tree(&state, Some(scan_id))?;
-        trash_target(&tree, node)?
-    };
-
-    let target = path.clone();
-    tauri::async_runtime::spawn_blocking(move || trash::delete(&target))
-        .await
-        .map_err(|err| err.to_string())?
-        .map_err(|err| format!("Could not move the item to the trash: {err}"))?;
-
-    match std::fs::symlink_metadata(&path) {
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-        Err(err) => return Err(format!("Unable to verify the item was removed: {err}")),
-        Ok(_) => return Err("The item is still on disk after moving it to the trash.".to_owned()),
     }
 
-    let (result, recompute) = {
-        let slot = state
-            .scan
-            .lock()
-            .map_err(|_| "internal error: state poisoned")?;
-        if slot.id != scan_id {
-            return Err("The item was moved to the trash, but a new scan has started.".to_owned());
-        }
-        let mut guard = state
-            .tree
-            .write()
-            .map_err(|_| "internal error: state poisoned")?;
-        let scan = guard.as_mut().ok_or("no scan yet")?;
-        if scan.id != scan_id {
-            return Err(
-                "The item was moved to the trash, but the scan results changed.".to_owned(),
-            );
-        }
-        let id = node_id_checked(&scan.tree, node)?;
-        let parent = scan.tree.parent(id).map_or(0, |p| p.0);
-        // Copy-on-write: clones the tree only if a reader still holds the previous `Arc`.
-        let removed = Arc::make_mut(&mut scan.tree)
-            .remove_subtree(id)
-            .map_err(|err| err.to_string())?;
-        // The comparison must reflect the removal; it is recomputed below, off the locks.
-        let recompute = state
-            .baseline
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .as_ref()
-            .filter(|b| b.scan_id == scan_id)
-            .map(|b| (Arc::clone(&b.base), Arc::clone(&scan.tree)));
-        (
-            TrashResult {
-                bytes: removed.bytes,
-                files: removed.files,
-                dirs: removed.dirs,
-                parent,
-            },
-            recompute,
-        )
+    let (moved, recompute) = if moved_ids.is_empty() {
+        (Vec::new(), None)
+    } else {
+        apply_removals(&state, scan_id, &moved_ids)?
     };
     if let Some((base, current)) = recompute {
         refresh_baseline(&state, scan_id, base, current).await;
     }
-    Ok(result)
+    Ok(BatchTrashResult::new(moved, failed))
 }
 
 /// Recomputes the comparison for `current` and swaps it in, unless the scan or the baseline
@@ -1304,6 +1520,90 @@ mod tests {
         assert!(trash_target(&tree, 99).is_err());
         tree.remove_subtree(NodeId(1)).unwrap();
         assert!(trash_target(&tree, 1).is_err());
+    }
+
+    /// root -> dir -> { f1, sub -> f2 }, plus a root-level file.
+    /// Ids: 1 dir, 2 f1, 3 sub, 4 f2, 5 top.bin.
+    fn nested_tree() -> Tree {
+        let rec = |key, parent_key, name: &str, size, dir: bool| EntryRecord {
+            key,
+            parent_key,
+            name: name.into(),
+            flags: if dir {
+                NodeFlags::DIR
+            } else {
+                NodeFlags::empty()
+            },
+            size,
+            alloc: size,
+            mtime: 0,
+        };
+        let mut b = TreeBuilder::new(1, "C:");
+        b.push(rec(2, 1, "dir", 0, true));
+        b.push(rec(3, 2, "f1", 10, false));
+        b.push(rec(4, 2, "sub", 0, true));
+        b.push(rec(5, 4, "f2", 20, false));
+        b.push(rec(6, 1, "top.bin", 100, false));
+        b.finish()
+    }
+
+    #[test]
+    fn discard_summary_folds_nested_items_and_drops_stale_ids() {
+        let mut tree = nested_tree();
+        tree.remove_subtree(NodeId(5)).unwrap();
+        let summary = discard_summary_of(&tree, &[4, 3, 1, 5, 0, 999, 1]);
+        assert_eq!(summary.count, 1);
+        assert_eq!(summary.items[0].id, 1);
+        assert_eq!(summary.items[0].name, "dir");
+        assert!(summary.items[0].is_dir);
+        assert_eq!(summary.bytes, 30);
+        assert_eq!(summary.items[0].size, 30);
+    }
+
+    #[test]
+    fn batch_results_add_up_only_the_moved_items() {
+        let item = |id, bytes, files, dirs| MovedItem {
+            id,
+            bytes,
+            files,
+            dirs,
+            parent: 0,
+        };
+        let failed = vec![FailedItem {
+            id: 9,
+            name: "x".into(),
+            error: "locked".into(),
+        }];
+        let result = BatchTrashResult::new(vec![item(1, 30, 2, 2), item(5, 100, 1, 0)], failed);
+        assert_eq!((result.bytes, result.files, result.dirs), (130, 3, 2));
+        assert_eq!(result.failed.len(), 1);
+    }
+
+    #[test]
+    fn removing_a_batch_skips_ids_that_are_already_gone() {
+        let mut tree = nested_tree();
+        let moved = remove_all(&mut tree, &[3, 5, 3, 999]);
+        let ids: Vec<u32> = moved.iter().map(|m| m.id).collect();
+        assert_eq!(ids, [3, 5]);
+        assert_eq!(moved[0].parent, 1);
+        assert_eq!((moved[0].bytes, moved[0].files, moved[0].dirs), (20, 1, 1));
+        assert_eq!(tree.total(tree.root()).size, 10);
+        assert!(remove_all(&mut tree, &[3, 5]).is_empty());
+    }
+
+    #[test]
+    fn batch_plan_refuses_the_root_and_keeps_only_outermost_nodes() {
+        let tree = nested_tree();
+        let plan = plan_batch(&tree, &[0, 4, 3, 1, 5]);
+        let ids: Vec<u32> = plan.iter().map(|p| p.id).collect();
+        assert_eq!(ids, [1, 5]);
+        assert_eq!(plan[0].name, "dir");
+    }
+
+    #[test]
+    fn batches_over_the_limit_are_refused() {
+        assert!(checked_batch(&vec![1; MAX_DISCARD_IDS]).is_ok());
+        assert!(checked_batch(&vec![1; MAX_DISCARD_IDS + 1]).is_err());
     }
 
     #[test]

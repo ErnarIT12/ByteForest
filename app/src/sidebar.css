@@ -107,6 +107,67 @@
   margin-bottom: 4px;
 }
 .discard-dock .sidebar-note { padding-left: 34px; }
+.discard-icon { position: relative; display: inline-flex; flex: none; }
+.discard-badge {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  letter-spacing: 0;
+}
+.discard-summary {
+  margin: 0 0 6px;
+  padding: 0 8px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.discard-list {
+  display: grid;
+  gap: 1px;
+  max-height: 168px;
+  margin: 0 0 8px;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.discard-row { display: flex; align-items: center; gap: 2px; }
+.discard-item {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+.discard-item:hover { background: var(--hover); }
+.discard-item:active { background: var(--pressed); }
+.discard-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.discard-size { flex: none; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.discard-remove { flex: none; width: 24px; height: 24px; }
+.discard-actions { display: flex; justify-content: space-between; gap: 6px; padding: 0 2px; }
+.discard-outcome { margin-top: 8px; padding: 0 8px; color: var(--text-2); font-size: 12px; }
+.discard-outcome p { margin: 0 0 6px; overflow-wrap: anywhere; }
+.discard-outcome ul { margin: 4px 0 6px; padding-left: 16px; }
+.discard-outcome li { overflow-wrap: anywhere; }
+.discard-outcome summary { cursor: pointer; }
+.discard-rail-btn { justify-content: center; }
+.discard-rail-btn:disabled { opacity: 0.7; }
 
 /* Rail: icons only. Labels stay available to assistive technology. */
 .sidebar[data-rail] .sidebar-text,

@@ -44,6 +44,8 @@ export type MenuAction =
   | 'open'
   | 'reveal'
   | 'copy'
+  | 'discardAdd'
+  | 'discardRemove'
   | 'trash'
   | 'snapshotSave'
   | 'snapshotCompare'
@@ -53,10 +55,13 @@ export type MenuEntry =
   | { type: 'separator' }
   | { type: 'item'; action: MenuAction; label: string; disabled: boolean; danger: boolean };
 
-/** The entries for one node. The root cannot be trashed, so it gets no trash entry. */
+/**
+ * The entries for one node. The root cannot be trashed or queued, so it gets neither entry.
+ * `queued` turns "Add to Discard Pile" into "Remove from Discard Pile".
+ */
 export function buildMenuEntries(
   details: NodeDetails,
-  opts: { isMac: boolean; isRoot: boolean },
+  opts: { isMac: boolean; isRoot: boolean; queued?: boolean },
 ): MenuEntry[] {
   const pathBased = !details.has_native_path;
   const entries: MenuEntry[] = [];
@@ -76,6 +81,13 @@ export function buildMenuEntries(
   if (!opts.isRoot) {
     entries.push(
       { type: 'separator' },
+      {
+        type: 'item',
+        action: opts.queued ? 'discardRemove' : 'discardAdd',
+        label: opts.queued ? strings.removeFromDiscardPile : strings.addToDiscardPile,
+        disabled: opts.queued ? false : pathBased,
+        danger: false,
+      },
       {
         type: 'item',
         action: 'trash',
@@ -103,6 +115,21 @@ export function buildSnapshotEntries(opts: { comparing: boolean }): MenuEntry[] 
   ];
   if (opts.comparing) entries.push({ type: 'separator' }, item('snapshotStop', strings.snapshotStop));
   return entries;
+}
+
+/**
+ * What a Delete key press on a focused item means: `queue` adds it to the Discard Pile (no
+ * deletion), Shift+Delete asks to move it to the Recycle Bin / Trash right away.
+ */
+export function deleteKeyIntent(e: {
+  key: string;
+  shiftKey: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+}): 'queue' | 'trash' | null {
+  if (e.key !== 'Delete' || e.ctrlKey || e.altKey || e.metaKey) return null;
+  return e.shiftKey ? 'trash' : 'queue';
 }
 
 /** Whether the key event asks for a context menu from the keyboard (Shift+F10 or Menu key). */

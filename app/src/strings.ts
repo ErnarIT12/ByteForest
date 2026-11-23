@@ -220,6 +220,35 @@ export const strings = {
   recentRescan: (label: string) => `Scan ${label} again`,
   discardTitle: 'Discard Pile',
   discardEmpty: 'Queue files here to clean up in one go',
+  discardEmptyHint: 'Add files or folders from the tree or the map, then move them all at once.',
+  addToDiscardPile: 'Add to Discard Pile',
+  removeFromDiscardPile: 'Remove from Discard Pile',
+  inDiscardPile: 'In Discard Pile',
+  discardSummary: (count: string, size: string, one: boolean) =>
+    `${count} ${one ? 'item' : 'items'} · ${size}`,
+  discardListLabel: 'Items in the Discard Pile',
+  discardRemoveItem: (name: string) => `Remove ${name} from Discard Pile`,
+  discardShowItem: (name: string, path: string) => `Show ${name} in the folder tree. ${path}`,
+  discardClear: 'Clear',
+  discardMoveAll: (isMac: boolean) =>
+    isMac ? 'Move All to Trash…' : 'Move All to Recycle Bin…',
+  discardBadge: (count: string) => `${count} in the Discard Pile`,
+  discardConfirmTitle: (count: string, bin: string, one: boolean) =>
+    `Move ${count} ${one ? 'item' : 'items'} to the ${bin}?`,
+  discardConfirmBody: (bin: string) =>
+    `They will be moved to the ${bin}. You can restore them from there. Disk space is freed once the ${bin} is emptied.`,
+  discardMoving: 'Moving…',
+  discardMovingStatus: (count: string) => `Moving ${count} items…`,
+  discardResult: (moved: string, size: string, failed: string, movedOne: boolean) => {
+    const head = moved === '0'
+      ? 'Nothing was moved.'
+      : `Moved ${moved} ${movedOne ? 'item' : 'items'} (${size}).`;
+    return failed === '0' ? head : `${head} ${failed} couldn't be moved.`;
+  },
+  discardFailedList: (failed: string) => `Show the ${failed} that couldn't be moved`,
+  discardFailedLabel: 'Items that could not be moved',
+  discardFailedItem: (name: string, reason: string) => `${name}: ${reason}`,
+  discardBatchFailed: (reason: string) => `Could not move the items: ${reason}`,
 
   // View switch
   mapViewLabel: 'Disk map',

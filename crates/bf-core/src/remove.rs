@@ -1,5 +1,6 @@
 //! Removing a subtree from a finished tree (e.g. after the user moved it to the trash).
 
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::OnceLock;
 
@@ -141,6 +142,35 @@ impl Tree {
             self.sorted[slot] = [OnceLock::new(), OnceLock::new(), OnceLock::new()];
         }
         Ok(removed)
+    }
+
+    /// The outermost of `ids`: drops ids that are out of range, removed, the root or repeated,
+    /// and every id with an ancestor that is also kept. The order of the survivors follows
+    /// `ids`. Each ancestor walk is bounded by the node count, so corrupt parent links end
+    /// the walk instead of looping.
+    pub fn outermost(&self, ids: &[NodeId]) -> Vec<NodeId> {
+        let mut candidates = HashSet::with_capacity(ids.len());
+        let valid: Vec<NodeId> = ids
+            .iter()
+            .copied()
+            .filter(|&id| id.idx() != 0 && id.idx() < self.len() && !self.is_removed(id))
+            .filter(|&id| candidates.insert(id.0))
+            .collect();
+        valid
+            .into_iter()
+            .filter(|&id| {
+                let mut cur = self.parent[id.idx()];
+                let mut steps = 0usize;
+                while cur != NONE && (cur as usize) < self.len() && steps <= self.len() {
+                    if candidates.contains(&cur) {
+                        return false;
+                    }
+                    cur = self.parent[cur as usize];
+                    steps += 1;
+                }
+                true
+            })
+            .collect()
     }
 
     /// Ids of `root` and all its descendants, using an explicit stack and at most

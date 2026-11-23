@@ -2,7 +2,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { NodeView } from '../api';
 import { useTreeModel } from '../hooks/useTreeModel';
-import { isContextMenuKey } from '../contextMenu';
+import { deleteKeyIntent, isContextMenuKey } from '../contextMenu';
+import { useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
@@ -19,6 +20,7 @@ export function TreePanel({ root, scanId }: { root: NodeView; scanId: number }) 
   const reveal = useAppStore((s) => s.reveal);
   const select = useAppStore((s) => s.select);
   const comparing = useAppStore((s) => s.baseline !== null);
+  const queued = useDiscardPile((s) => s.idSet);
   const setFocus = useAppStore((s) => s.setFocus);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -132,6 +134,15 @@ export function TreePanel({ root, scanId }: { root: NodeView; scanId: number }) 
       openMenu(selectedId, box.left + 32, box.bottom);
       return;
     }
+    const intent = deleteKeyIntent(e);
+    if (intent) {
+      // Delete only queues; Shift+Delete asks before moving to the Recycle Bin / Trash.
+      if (selectedId === null || !rowIndex.has(selectedId) || selectedId === model.rootId) return;
+      e.preventDefault();
+      if (intent === 'queue') useDiscardPile.getState().add([selectedId]);
+      else void useFileActions.getState().requestTrash(scanId, selectedId);
+      return;
+    }
     const cur = cursorRow();
     const row = cur >= 0 ? rows[cur] : undefined;
     const curId = row?.kind === 'node' ? row.id : null;
@@ -210,6 +221,7 @@ export function TreePanel({ root, scanId }: { root: NodeView; scanId: number }) 
                 showDelta={comparing}
                 selected={r.id === selectedId}
                 focused={r.id === focusId}
+                queued={queued.has(r.id)}
                 top={it.start}
                 onSelect={select}
                 onToggle={toggle}

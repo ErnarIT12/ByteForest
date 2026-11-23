@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -9,7 +10,8 @@ import {
 } from 'react';
 import { getTreemap } from '../api';
 import { formatBytes } from '../format';
-import { isContextMenuKey } from '../contextMenu';
+import { deleteKeyIntent, isContextMenuKey } from '../contextMenu';
+import { useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { useTreemapColorMode } from '../hooks/useTreemapColorMode';
@@ -85,6 +87,7 @@ export function TreemapCanvas() {
     s.reveal?.path.at(-1) === s.selectedId ? s.reveal?.filename : undefined,
   );
   const generation = useAppStore((s) => s.generation);
+  const queuedIds = useDiscardPile((s) => s.idSet);
   const theme = useColorScheme();
   const colorMode = useTreemapColorMode();
 
@@ -142,6 +145,15 @@ export function TreemapCanvas() {
   const hoverIndex = hover?.i ?? -1;
   const selectedIndex = layout && selectedId !== null ? (layout.index.get(selectedId) ?? -1) : -1;
   const selectionBelowResolution = layout?.rects[0]?.id === focusId && searchFilename && selectedIndex < 0;
+  const queuedIndexes = useMemo(() => {
+    if (!layout) return [];
+    const found: number[] = [];
+    for (const id of queuedIds) {
+      const i = layout.index.get(id);
+      if (i !== undefined && i > 0) found.push(i);
+    }
+    return found;
+  }, [layout, queuedIds]);
   useEffect(() => {
     const canvas = overlayRef.current;
     const ctx = canvas?.getContext('2d');
@@ -154,13 +166,14 @@ export function TreemapCanvas() {
     if (canvas.height !== layout.height) canvas.height = layout.height;
     const css = getComputedStyle(canvas);
     const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
-    paintHighlights(ctx, layout, hoverIndex, selectedIndex, {
+    paintHighlights(ctx, layout, hoverIndex, selectedIndex, queuedIndexes, {
       accent: token('--accent', '#5edb7f'),
       hoverFill: token('--tm-hover-fill', 'rgba(255,255,255,0.08)'),
       hoverLine: token('--tm-hover-line', 'rgba(206,251,246,0.85)'),
       selectedInner: token('--tm-sel-inner', '#000000'),
+      queued: token('--tm-discard', '#7a1626'),
     });
-  }, [layout, hoverIndex, selectedIndex, theme]);
+  }, [layout, hoverIndex, selectedIndex, queuedIndexes, theme]);
 
   const indexAt = (e: MouseEvent<HTMLElement>): number => {
     if (!layout) return -1;
@@ -234,6 +247,17 @@ export function TreemapCanvas() {
         box.left + (r.x + r.w / 2) / layout.dpr,
         box.top + (r.y + r.h / 2) / layout.dpr,
       );
+      return;
+    }
+    const intent = deleteKeyIntent(e);
+    if (intent && e.target === e.currentTarget) {
+      // Delete only queues; Shift+Delete asks before moving to the Recycle Bin / Trash.
+      const { resultScanId } = useAppStore.getState();
+      if (!layout || selectedIndex <= 0 || resultScanId === null) return;
+      e.preventDefault();
+      const id = layout.rects[selectedIndex].id;
+      if (intent === 'queue') useDiscardPile.getState().add([id]);
+      else void useFileActions.getState().requestTrash(resultScanId, id);
       return;
     }
     if (e.ctrlKey || e.altKey || e.metaKey || e.target !== e.currentTarget) return;

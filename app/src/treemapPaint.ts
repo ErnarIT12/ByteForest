@@ -286,6 +286,30 @@ export interface HighlightColors {
   hoverFill: string;
   hoverLine: string;
   selectedInner: string;
+  /** Marker of items in the Discard Pile. */
+  queued: string;
+}
+
+/** Spacing of the hatch lines on queued rectangles, CSS pixels. */
+const HATCH_GAP_CSS_PX = 7;
+
+/**
+ * Diagonal (bottom-left to top-right) lines that hatch rectangle (`x`, `y`, `w`, `h`), `gap`
+ * apart. Endpoints may lie outside the rectangle; clip when drawing.
+ */
+export function hatchLines(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  gap: number,
+): [x1: number, y1: number, x2: number, y2: number][] {
+  if (w <= 0 || h <= 0 || gap <= 0) return [];
+  const lines: [number, number, number, number][] = [];
+  for (let d = gap; d < w + h; d += gap) {
+    lines.push([x + d, y, x, y + d]);
+  }
+  return lines;
 }
 
 /** Paints the hover and selection outlines on the overlay canvas. */
@@ -294,6 +318,7 @@ export function paintHighlights(
   layout: TreemapLayout,
   hover: number,
   selected: number,
+  queued: readonly number[],
   colors: HighlightColors,
 ): void {
   const { rects, dpr } = layout;
@@ -307,6 +332,36 @@ export function paintHighlights(
     ctx.strokeStyle = style;
     ctx.strokeRect(r.x + o, r.y + o, r.w - 2 * o, r.h - 2 * o);
   };
+  if (queued.length > 0) {
+    const gap = HATCH_GAP_CSS_PX * dpr;
+    const dash = Math.max(1, Math.round(1.5 * dpr));
+    ctx.save();
+    ctx.strokeStyle = colors.queued;
+    for (const i of queued) {
+      const r = rects[i];
+      if (r.w < 3 || r.h < 3) continue;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(r.x, r.y, r.w, r.h);
+      ctx.clip();
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = Math.max(1, Math.round(dpr));
+      ctx.beginPath();
+      for (const [x1, y1, x2, y2] of hatchLines(r.x, r.y, r.w, r.h, gap)) {
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      }
+      ctx.stroke();
+      ctx.restore();
+      // A dashed outline keeps small and busy rectangles recognisable.
+      ctx.setLineDash([4 * dpr, 3 * dpr]);
+      ctx.lineWidth = dash;
+      const o = dash / 2;
+      if (r.w > 2 * o && r.h > 2 * o) ctx.strokeRect(r.x + o, r.y + o, r.w - 2 * o, r.h - 2 * o);
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
   if (hover > 0 && hover !== selected) {
     const r = rects[hover];
     ctx.fillStyle = colors.hoverFill;

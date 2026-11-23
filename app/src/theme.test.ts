@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { contrastRatio, mixSrgb } from './contrast';
-import { HUES, labelColors, treemapColor, type Role, type Theme } from './treemapPaint';
+import {
+  CATEGORIES,
+  HUES,
+  categoryColor,
+  labelColors,
+  treemapColor,
+  type Role,
+  type Theme,
+} from './treemapPaint';
 
 // Representative token pairs from styles.css, including the raised inspector surface.
 const surfaces = {
@@ -215,6 +223,42 @@ describe('sidebar and flat panel contrast', () => {
     it(`${theme} selected row and accent indicators stand out from the page`, () => {
       for (const page of t.pages) {
         expect(contrastRatio(t.accent, page)).toBeGreaterThanOrEqual(3);
+      }
+    });
+  }
+});
+
+// Discard Pile (v0.4): the treemap marker (--tm-discard) is a non-text graphic and must stand
+// out from every fill it can be drawn on, in both colour modes; the dock's list rows put text
+// on the hover and pressed tints over the dock surface.
+const discardMarker: Record<Theme, string> = { light: '#4a0d18', dark: '#ffe9bd' };
+
+describe('Discard Pile marker contrast', () => {
+  for (const theme of ['light', 'dark'] as const) {
+    it(`${theme} marker meets 3:1 on every treemap fill`, () => {
+      const marker = discardMarker[theme];
+      const roles: Role[] = ['file', 'dirFill'];
+      for (const role of roles) {
+        for (let slot = 0; slot < HUES.length; slot += 1) {
+          for (let depth = 1; depth <= 12; depth += 1) {
+            const fill = treemapColor(theme, slot, depth, role);
+            expect(contrastRatio(marker, fill), `${role} ${fill}`).toBeGreaterThanOrEqual(3);
+          }
+        }
+        for (const category of [...CATEGORIES, null]) {
+          const fill = categoryColor(theme, category, role);
+          expect(contrastRatio(marker, fill), `${role} ${category} ${fill}`).toBeGreaterThanOrEqual(3);
+        }
+      }
+    });
+
+    it(`${theme} dock text on hovered and pressed rows meets AA`, () => {
+      const t = v04[theme];
+      for (const [tint, amount] of [['hover', 7], ['pressed', 12]] as const) {
+        const row = mixSrgb(t.text, t.surface, amount);
+        for (const ink of [t.text, t.text2, t.text3]) {
+          expect(contrastRatio(ink, row), `${tint} ${ink} on ${row}`).toBeGreaterThanOrEqual(4.5);
+        }
       }
     });
   }

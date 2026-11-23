@@ -43,6 +43,7 @@ Without administrator rights ByteForest falls back to a regular directory walk, 
 - **"Always run as administrator"** setting, so every start is fast.
 - **Graphite (dark) and Silver (light) themes**, or follow the system, with WCAG AA contrast.
 - **Right-click context menu** on the folder tree and the treemap: open, show in Explorer/Finder, copy the path, or move to the Recycle Bin/Trash after confirmation. The tree, the treemap and the totals update instantly, without a rescan.
+- **Discard Pile**: queue files and folders from the tree, the treemap or the inspector (Delete key or right-click), review the running total in the sidebar, then move everything to the Recycle Bin/Trash in one confirmed step. Nothing is deleted until you confirm, and items that cannot be moved stay queued.
 - **File-type breakdown** of the selected folder (categories and top extensions) and a **Folders / File types** color mode for the treemap.
 - **One-click search presets** for common space hogs (`node_modules`, `target`, `.venv`, `.git`, disk images, files over 1 GB) with the total size you could reclaim.
 - **Sidebar** with your drives, Desktop, Downloads and Documents, plus recent scans you can rescan in one click.

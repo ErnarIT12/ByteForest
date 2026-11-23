@@ -7,6 +7,7 @@ import {
   categoryColor,
   crumbsTo,
   headerFits,
+  hatchLines,
   hitTest,
   labelColors,
   type Role,
@@ -101,5 +102,25 @@ describe('category colour mode', () => {
         expect(contrastRatio(fill, main), `${theme} ${category}`).toBeGreaterThanOrEqual(4.5);
       }
     }
+  });
+});
+
+describe('hatchLines', () => {
+  it('covers the whole rectangle with evenly spaced diagonals', () => {
+    const lines = hatchLines(10, 20, 30, 12, 6);
+    expect(lines.length).toBe(Math.ceil((30 + 12) / 6) - 1);
+    expect(lines[0]).toEqual([16, 20, 10, 26]);
+    // Every line runs from the top edge line to the left edge line, one gap further each time.
+    lines.forEach(([x1, y1, x2, y2], i) => {
+      expect(x1 - 10).toBe(6 * (i + 1));
+      expect(y1).toBe(20);
+      expect(x2).toBe(10);
+      expect(y2 - 20).toBe(6 * (i + 1));
+    });
+  });
+
+  it('draws nothing for empty rectangles or a bad gap', () => {
+    expect(hatchLines(0, 0, 0, 10, 4)).toEqual([]);
+    expect(hatchLines(0, 0, 10, 10, 0)).toEqual([]);
   });
 });

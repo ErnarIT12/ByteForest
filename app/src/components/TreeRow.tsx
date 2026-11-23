@@ -3,7 +3,7 @@ import { deltaCell } from '../diffView';
 import { formatBytes, formatCount, formatFiletime, formatPercent } from '../format';
 import { strings } from '../strings';
 import type { NodeView } from '../api';
-import { ChevronRight, File, Folder, Icon } from './Icon';
+import { ChevronRight, File, Folder, Icon, Trash2 } from './Icon';
 
 const INDENT_PX = 16;
 
@@ -17,6 +17,8 @@ interface Props {
   showDelta: boolean;
   selected: boolean;
   focused: boolean;
+  /** In the Discard Pile. */
+  queued: boolean;
   /** Offset in the virtual list, pixels. */
   top: number;
   onSelect(id: number): void;
@@ -47,6 +49,7 @@ export const TreeRow = memo(function TreeRow({
   showDelta,
   selected,
   focused,
+  queued,
   top,
   onSelect,
   onToggle,
@@ -95,6 +98,7 @@ export const TreeRow = memo(function TreeRow({
         <span className="name-text" title={node.name}>
           {node.name}
         </span>
+        {queued && <Icon icon={Trash2} size={13} className="queued-mark" label={strings.inDiscardPile} />}
       </div>
       <div className="cell num">{formatBytes(node.size)}</div>
       {showDelta && (

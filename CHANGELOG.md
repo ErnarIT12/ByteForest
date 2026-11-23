@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Add a working Discard Pile: queue files and folders from the folder tree, treemap or inspector (right-click, the Delete key, or the inspector button; Shift+Delete still moves one item right away), review the item count and total size in the sidebar, and move everything to the Recycle Bin/Trash in one confirmed step. Items that cannot be moved stay queued and are listed with the reason, and the tree, treemap and totals update once without losing expanded folders. Queued items are marked in the tree and on the treemap.
 - Redesign the workspace around a left sidebar with drives, Desktop, Downloads and Documents, recent scans and a Discard Pile dock (it collapses to an icon rail), add a Treemap | Sunburst switch to the top bar (Sunburst is not available yet), use Lucide icons throughout, and replace panel borders with soft elevation in Graphite and Silver.
 - Add one-click search presets (node_modules, target, .venv, .git, disk images, files over 1 GB) that find outermost build and cache folders or large files and show the total size reclaimable.
 - Show a file-type breakdown (categories and top extensions) for the selected folder, with click-through to a search limited to that folder, and add a Folders / File types color mode to the treemap with a legend.

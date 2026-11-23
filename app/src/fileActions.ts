@@ -12,6 +12,7 @@ import {
   type NodeDetails,
 } from './api';
 import type { MenuAction } from './contextMenu';
+import { useDiscardPile } from './discardPile';
 import { useAppStore } from './store';
 import { strings } from './strings';
 
@@ -107,6 +108,12 @@ export const useFileActions = create<FileActionsState>()((set, get) => {
           break;
         case 'copy':
           void perform(scanId, id, copyNodePath, strings.pathCopied);
+          break;
+        case 'discardAdd':
+          if (useAppStore.getState().resultScanId === scanId) useDiscardPile.getState().add([id]);
+          break;
+        case 'discardRemove':
+          if (useAppStore.getState().resultScanId === scanId) useDiscardPile.getState().remove(id);
           break;
         case 'trash':
           set({ confirm: { scanId, details, busy: false } });

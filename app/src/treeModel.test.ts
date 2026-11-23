@@ -144,6 +144,24 @@ describe('TreeModel.replaceChildren', () => {
   });
 });
 
+describe('TreeModel.loadedFolders', () => {
+  it('lists folders with loaded children, parents first, with their loaded counts', () => {
+    const m = new TreeModel(node(0));
+    m.addPage(0, 0, [node(1), node(2), node(3, false)], 10);
+    m.addPage(1, 0, [node(4), node(5, false)], 10);
+    m.addPage(4, 0, [node(6, false)], 10);
+    expect(m.loadedFolders()).toEqual([
+      { id: 0, loaded: 3 },
+      { id: 1, loaded: 2 },
+      { id: 4, loaded: 1 },
+    ]);
+  });
+
+  it('is empty for a root without loaded children', () => {
+    expect(new TreeModel(node(0)).loadedFolders()).toEqual([]);
+  });
+});
+
 describe('TreeModel.refreshViews', () => {
   const withDiff = (n: NodeView, delta: number): NodeView => ({
     ...n,

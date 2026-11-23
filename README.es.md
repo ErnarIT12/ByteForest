@@ -43,6 +43,7 @@ Sin permisos de administrador, ByteForest recurre a un recorrido normal de direc
 - Opción **«Always run as administrator»**, para que cada inicio sea rápido.
 - Temas **Graphite (oscuro) y Silver (claro)**, o el del sistema, con contraste WCAG AA.
 - **Menú contextual** (clic derecho) en el árbol de carpetas y el treemap: abrir, mostrar en el Explorador/Finder, copiar la ruta o mover a la Papelera tras confirmar. El árbol, el treemap y los totales se actualizan al instante, sin volver a analizar.
+- **Discard Pile (pila de descarte)**: pon en cola archivos y carpetas desde el árbol, el treemap o el inspector (tecla Supr o clic derecho), revisa el total acumulado en la barra lateral y muévelo todo a la Papelera en un solo paso con confirmación. No se borra nada hasta que confirmes, y los elementos que no se puedan mover siguen en la cola.
 - **Desglose por tipo de archivo** de la carpeta seleccionada (categorías y extensiones principales) y el modo de color del treemap **Folders / File types**.
 - **Búsquedas predefinidas con un clic** para los devoradores de espacio habituales (`node_modules`, `target`, `.venv`, `.git`, imágenes de disco, archivos de más de 1 GB), con el tamaño total que se puede recuperar.
 - **Barra lateral** con tus unidades, Escritorio, Descargas y Documentos, y con los análisis recientes para repetirlos con un clic.

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { copyNodePath, exportReport, nodeDetails, revealNodeInFileManager, type NodeDetails } from '../api';
 import { deltaCell } from '../diffView';
 import { formatBytes, formatDelta, formatFiletime, formatInt, formatScanShare } from '../format';
+import { toggleQueued, useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
@@ -14,6 +15,7 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
   const isMac = useAppStore((s) => s.isMac);
   const rootId = useAppStore((s) => s.rootId);
   const comparing = useAppStore((s) => s.baseline !== null);
+  const queued = useDiscardPile((s) => s.idSet.has(id));
 
   useEffect(() => {
     let alive = true;
@@ -99,6 +101,12 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
                 onClick={() => void perform(revealNodeInFileManager)}>
                 {isMac ? strings.showInFinder : strings.showInExplorer}
               </button>
+              {id !== rootId && (
+                <button type="button" className="btn" aria-pressed={queued}
+                  onClick={() => toggleQueued(id)}>
+                  {queued ? strings.removeFromDiscardPile : strings.addToDiscardPile}
+                </button>
+              )}
               {id !== rootId && (
                 <button type="button" className="btn danger" disabled={busy}
                   onClick={() => void useFileActions.getState().requestTrash(scanId, id)}>

@@ -160,6 +160,11 @@
   flex: none;
   margin-right: 4px;
 }
+.queued-mark {
+  flex: none;
+  margin-left: 6px;
+  color: var(--text-2);
+}
 .kind-icon.folder { color: var(--folder-edge); }
 .kind-icon.file { color: var(--text-3); }
 .cell.percent {

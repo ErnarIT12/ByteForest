@@ -255,6 +255,59 @@ export interface TrashResult {
 export const moveNodeToTrash = (scanId: number, node: number) =>
   invoke<TrashResult>('move_node_to_trash', { scanId, node });
 
+/** A node a batch moved to the Recycle Bin / Trash. */
+export interface MovedItem {
+  id: number;
+  bytes: number;
+  files: number;
+  dirs: number;
+  /** Parent of the removed node. */
+  parent: number;
+}
+
+/** A node a batch could not move, with the reason. */
+export interface FailedItem {
+  id: number;
+  name: string;
+  error: string;
+}
+
+/** What `moveNodesToTrash` did; the totals cover the moved items only. */
+export interface BatchTrashResult {
+  moved: MovedItem[];
+  failed: FailedItem[];
+  bytes: number;
+  files: number;
+  dirs: number;
+}
+
+/** One entry of the Discard Pile as the backend sees it. */
+export interface DiscardItem {
+  id: number;
+  name: string;
+  path: string;
+  /** Total size for folders. */
+  size: number;
+  is_dir: boolean;
+}
+
+/** The queued nodes that still exist; nested ones are folded into their ancestor. */
+export interface DiscardSummary {
+  items: DiscardItem[];
+  count: number;
+  bytes: number;
+}
+
+/** Most node ids the Discard Pile commands accept at once. */
+export const MAX_DISCARD_IDS = 10_000;
+
+/** Describes the queued nodes: outermost, still existing ones only. */
+export const discardSummary = (scanId: number, nodes: number[]) =>
+  invoke<DiscardSummary>('discard_summary', { scanId, nodes });
+/** Moves the outermost of `nodes` to the Recycle Bin / Trash one by one; failures are reported per item. */
+export const moveNodesToTrash = (scanId: number, nodes: number[]) =>
+  invoke<BatchTrashResult>('move_nodes_to_trash', { scanId, nodes });
+
 /**
  * Rectangles of the subtree under `node`, breadth-first (parents first). `header` (pixels)
  * reserves a name strip at the top of non-root directories at least 3 strips wide and tall.

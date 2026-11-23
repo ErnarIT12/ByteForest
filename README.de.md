@@ -43,6 +43,7 @@ Ohne Administratorrechte weicht ByteForest auf einen normalen Verzeichnisdurchla
 - Einstellung **„Always run as administrator“**, damit jeder Start schnell ist.
 - Designs **Graphite (dunkel) und Silver (hell)** oder Anpassung an das System, mit WCAG-AA-Kontrast.
 - **Kontextmenü** (Rechtsklick) im Ordnerbaum und in der Treemap: öffnen, im Explorer/Finder anzeigen, Pfad kopieren oder nach Bestätigung in den Papierkorb verschieben. Baum, Treemap und Summen aktualisieren sich sofort, ohne neuen Scan.
+- **Discard Pile (Ablagestapel)**: Dateien und Ordner aus Baum, Treemap oder Inspektor vormerken (Entf-Taste oder Rechtsklick), die laufende Summe in der Seitenleiste prüfen und alles in einem bestätigten Schritt in den Papierkorb verschieben. Bis zur Bestätigung wird nichts gelöscht; Elemente, die sich nicht verschieben lassen, bleiben vorgemerkt.
 - **Aufschlüsselung nach Dateityp** für den gewählten Ordner (Kategorien und häufigste Erweiterungen) und der Treemap-Farbmodus **Folders / File types**.
 - **Suchvorlagen mit einem Klick** für typische Platzfresser (`node_modules`, `target`, `.venv`, `.git`, Datenträgerabbilder, Dateien über 1 GB) mit der Gesamtgröße, die sich freigeben lässt.
 - **Seitenleiste** mit Laufwerken, Desktop, Downloads und Dokumenten sowie zuletzt gescannten Orten, die sich mit einem Klick erneut scannen lassen.

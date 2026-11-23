@@ -50,6 +50,20 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
     }
   }
 
+  // A reveal that comes from outside the tree (the Discard Pile) brings the tree back.
+  const revealSeq = useAppStore((s) => (s.reveal?.showTree ? s.reveal.seq : 0));
+  const [seenReveal, setSeenReveal] = useState(revealSeq);
+  if (revealSeq !== seenReveal) {
+    setSeenReveal(revealSeq);
+    if (revealSeq > 0) {
+      setOpening(false);
+      setError(null);
+      setSearch(false);
+      setChangesMode(false);
+      setMapOnly(false);
+    }
+  }
+
   // Drops a pending "locate file" request so it cannot switch the pane back.
   useEffect(() => {
     request.current += 1;

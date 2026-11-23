@@ -106,7 +106,10 @@ export function useTreeModel(root: NodeView, scanId: number): TreeController {
     if (!invalidation || invalidation.seq === handled.current) return;
     handled.current = invalidation.seq;
     let alive = true;
-    void refreshAfterRemoval(model, invalidation, scanId, () => alive, inflight.current).then((ok) => {
+    const refreshing = invalidation.all
+      ? refreshAllLoaded(model, scanId, () => alive, inflight.current)
+      : refreshAfterRemoval(model, invalidation, scanId, () => alive, inflight.current);
+    void refreshing.then((ok) => {
       if (!alive) return;
       refresh();
       if (!ok) void loadMore(model.rootId);
@@ -188,4 +191,62 @@ async function refreshAfterRemoval(
   } catch {
     return alive() ? reset() : true;
   }
+}
+
+/**
+ * After a batch removal: re-reads the loaded children of every folder that has any, so sizes
+ * and the lists are right wherever the removed items were (their parents need not be loaded).
+ * Expansion state of the surviving nodes is kept. All fetches run first; the results are then
+ * applied from the root down, skipping folders that vanished with a removed parent. Returns
+ * false when the model had to be reset because a folder that still exists failed to load.
+ */
+async function refreshAllLoaded(
+  model: TreeModel,
+  scanId: number,
+  alive: () => boolean,
+  inflight: Map<number, Promise<void>>,
+): Promise<boolean> {
+  const root = useAppStore.getState().root;
+  if (!root) return true;
+  await Promise.all([...inflight.values()]);
+  if (!alive()) return true;
+  model.setNode(root);
+  const jobs = model.loadedFolders();
+  const fetched = new Map<number, { nodes: NodeView[]; complete: boolean } | null>();
+  let next = 0;
+  const worker = async () => {
+    while (alive() && next < jobs.length) {
+      const { id, loaded } = jobs[next++];
+      try {
+        const nodes: NodeView[] = [];
+        let complete = false;
+        while (nodes.length < loaded) {
+          const page = await getChildren(id, 'SizeDesc', nodes.length, PAGE_SIZE, scanId);
+          nodes.push(...page);
+          if (page.length < PAGE_SIZE) {
+            complete = true;
+            break;
+          }
+        }
+        fetched.set(id, { nodes, complete });
+      } catch {
+        fetched.set(id, null);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, jobs.length) }, worker));
+  if (!alive()) return true;
+  let ok = true;
+  for (const { id } of jobs) {
+    // Dropped together with a removed ancestor: nothing to update.
+    if (!model.get(id)) continue;
+    const result = fetched.get(id);
+    if (result) model.replaceChildren(id, result.nodes, result.complete);
+    else ok = false;
+  }
+  if (!ok) {
+    model.resetPages(root);
+    return false;
+  }
+  return true;
 }

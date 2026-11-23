@@ -134,6 +134,19 @@ export class TreeModel {
     parent.failed = false;
   }
 
+  /**
+   * Folders that have loaded children, parents before children, each with the number of
+   * children loaded contiguously from the start.
+   */
+  loadedFolders(): { id: number; loaded: number }[] {
+    const found: { id: number; loaded: number; level: number }[] = [];
+    for (const [id, e] of this.entries) {
+      if (e.children.length > 0) found.push({ id, loaded: e.children.length, level: e.level });
+    }
+    found.sort((a, b) => a.level - b.level);
+    return found.map(({ id, loaded }) => ({ id, loaded }));
+  }
+
   /** Offsets of the pages that are loaded under `parentId`, contiguous and located ones. */
   loadedPageOffsets(parentId: number, pageSize = PAGE_SIZE): number[] {
     const e = this.entries.get(parentId);

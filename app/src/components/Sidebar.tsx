@@ -191,7 +191,7 @@ export function Sidebar() {
         </section>
         <RecentScans items={recent} />
       </div>
-      <DiscardPileDock />
+      <DiscardPileDock rail={rail} />
     </nav>
   );
 }

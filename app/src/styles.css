@@ -26,6 +26,7 @@
   --btn-grad-hover: linear-gradient(160deg, #424b59, #272b33);
   --tm-bg: #d8dce2;
   --tm-hover-line: #101722;
+  --tm-discard: #4a0d18;
   --tm-sel-inner: #ffffff;
   --tm-hover-fill: rgb(255 255 255 / 12%);
   --danger: #a62839;
@@ -120,6 +121,7 @@
   --btn-shadow-hover: 0 0 0 1px rgba(255, 255, 255, 0.28), 0 4px 12px rgba(0, 0, 0, 0.45);
   --tm-bg: #181a1e;
   --tm-hover-line: #ffffff;
+  --tm-discard: #ffe9bd;
   --tm-sel-inner: #141518;
   --tm-hover-fill: rgb(255 255 255 / 8%);
   --danger: #ff9ea9;
