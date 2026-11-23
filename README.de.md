@@ -15,11 +15,11 @@
   <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4">
 </p>
 
-![ByteForest-Hauptfenster: Ordnerbaum neben einer Treemap](docs/screenshots/explorer-dark.png)
+![ByteForest-Hauptfenster mit Treemap, Ordnerbaum und Detailbereich (Graphite-Design)](docs/screenshots/explorer-dark.png)
 
 *Die Screenshots zeigen fiktive Demodaten, die mit [`scripts/make-demo-data.ps1`](scripts/make-demo-data.ps1) erzeugt wurden.*
 
-## Warum ByteForest
+## Blitzschnelles Scannen: MFT und Verzeichnisdurchlauf, mit Ausschlüssen
 
 Auf NTFS-Laufwerken liest ByteForest die Master File Table (MFT) direkt, statt Windows nach jedem Ordner einzeln zu fragen. Das ist der Unterschied zwischen Sekunden und Minuten.
 
@@ -29,32 +29,41 @@ Auf NTFS-Laufwerken liest ByteForest die Master File Table (MFT) direkt, statt W
 | GitHub-Actions-Runner | MFT | ~1,2 Mio. Dateien | 11,6 s |
 | GitHub-Actions-Runner | Verzeichnisdurchlauf | ~1,2 Mio. Dateien | 541 s |
 
-Ohne Administratorrechte weicht ByteForest auf einen normalen Verzeichnisdurchlauf aus, der deutlich langsamer ist. Das sind Messwerte einzelner Rechner, kein formaler Benchmark; messen Sie Ihren eigenen mit `byteforest bench` (siehe [Verwendung](#verwendung)).
+Das sind Messwerte einzelner Rechner, kein formaler Benchmark; messen Sie Ihren eigenen mit `byteforest bench` (siehe [Verwendung](#verwendung)).
 
-## Funktionen
-
-- **MFT-Scan** von NTFS-Laufwerken mit Administratorrechten.
+- **MFT-Scan** von NTFS-Laufwerken. Er erfordert Windows und Administratorrechte.
 - **Datensatzweiser Ausweichmodus**, wenn der Rohzugriff auf das Laufwerk blockiert ist (z. B. durch Anti-Cheat-Treiber): Die MFT wird Eintrag für Eintrag über das Dateisystem gelesen, was immer noch schnell ist.
-- **Verzeichnisdurchlauf als Ausweichlösung** ohne Administratorrechte oder auf Nicht-NTFS-Laufwerken.
-- **Ordnerbaum** mit Größe, Anteil am übergeordneten Ordner, Dateianzahl und Änderungsdatum.
-- **Squarified Treemap** mit Zoom in Ordner, Brotkrumennavigation und Tooltips.
-- **Synchronisierte Auswahl** zwischen Baum, Treemap und Statusleiste.
-- **Schaltfläche „Fast scan (admin)“**: startet ByteForest mit Administratorrechten neu und setzt den Scan automatisch fort.
-- Einstellung **„Always run as administrator“**, damit jeder Start schnell ist.
-- Designs **Graphite (dunkel) und Silver (hell)** oder Anpassung an das System, mit WCAG-AA-Kontrast.
-- **Kontextmenü** (Rechtsklick) im Ordnerbaum und in der Treemap: öffnen, im Explorer/Finder anzeigen, Pfad kopieren oder nach Bestätigung in den Papierkorb verschieben. Baum, Treemap und Summen aktualisieren sich sofort, ohne neuen Scan.
-- **Discard Pile (Ablagestapel)**: Dateien und Ordner aus Baum, Treemap oder Inspektor vormerken (Entf-Taste oder Rechtsklick), die laufende Summe in der Seitenleiste prüfen und alles in einem bestätigten Schritt in den Papierkorb verschieben. Bis zur Bestätigung wird nichts gelöscht; Elemente, die sich nicht verschieben lassen, bleiben vorgemerkt.
-- **Aufschlüsselung nach Dateityp** für den gewählten Ordner (Kategorien und häufigste Erweiterungen) und der Treemap-Farbmodus **Folders / File types**.
-- **Sunburst-Diagramm** (Umschalter Treemap | Sunburst in der oberen Leiste) mit demselben Zoom, derselben Auswahl, Tastatur- und Kontextmenü-Bedienung, dazu **Hervorhebungen beim Vergleich mit einem Snapshot**: gewachsene, neue und geschrumpfte Elemente werden in Treemap und Sunburst umrandet (durchgezogen, gepunktet bzw. gestrichelt, mit der Größenänderung als Beschriftung).
-- **Suchvorlagen mit einem Klick** für typische Platzfresser (`node_modules`, `target`, `.venv`, `.git`, Datenträgerabbilder, Dateien über 1 GB) mit der Gesamtgröße, die sich freigeben lässt.
-- **Seitenleiste** mit Laufwerken, Desktop, Downloads und Dokumenten sowie zuletzt gescannten Orten, die sich mit einem Klick erneut scannen lassen.
-- **Snapshots und Vergleich**: Speichern Sie einen Scan in einer kleinen Datei und vergleichen Sie einen späteren Scan damit, um zu sehen, was gewachsen, geschrumpft oder neu ist.
-- **Automatische Snapshots und sofortiges Wiederöffnen**: Jeder abgeschlossene Scan wird im Hintergrund gespeichert (standardmäßig die letzten 10). So öffnen Sie ihn in der Seitenleiste sofort und schreibgeschützt, ohne neu zu scannen, oder vergleichen ihn mit dem aktuellen Scan.
-- **Scan-Ausschlüsse**: In den Einstellungen lassen sich Namen, Muster (`node_modules`, `*.tmp`) oder vollständige Pfade ausschließen. Ausgeschlossenes zählt in keiner Summe mit.
+- **Verzeichnisdurchlauf** ohne Administratorrechte, auf Nicht-NTFS-Laufwerken und unter macOS, wo es keinen MFT-Scan gibt. Auf großen Laufwerken ist er deutlich langsamer.
+- **Schaltfläche „Fast scan (admin)“** (Windows): startet ByteForest mit Administratorrechten neu und setzt den Scan automatisch fort. Die Einstellung **„Always run as administrator“** macht jeden Start schnell.
+- **Scan-Ausschlüsse**: In den Einstellungen lassen sich Namen und Muster (`*` und `?`, etwa `node_modules` oder `*.tmp`) ausschließen, die in jedem Ordner greifen, oder ein absoluter Pfad unterhalb des Scan-Ordners. Ausgeschlossenes zählt in keiner Summe mit, und die Statusleiste zeigt, wie viel ausgelassen wurde.
+- **Suche im gesamten Scan** unter **Largest Files** nach Name, Erweiterung und Mindestgröße sowie Suchvorlagen mit einem Klick für typische Platzfresser (`node_modules`, `target`, `.venv`, `.git`, Datenträgerabbilder, Dateien über 1 GB) mit der Gesamtgröße, die sich freigeben lässt.
 - **CSV- und JSON-Berichte** zu jedem Ordner für Tabellenkalkulationen und Skripte (**Export report…**).
 - **Kommandozeilenwerkzeug** für Laufwerke, Scans, Snapshots, Ausschlüsse, Berichte und Benchmarks.
 
-![Treemap-Tooltip mit Dateiname, vollständigem Pfad, Größe und Anteil an der Ansicht](docs/screenshots/treemap-tooltip.png)
+## Interaktive Erkundung mit Treemap und Sunburst
+
+- **Ordnerbaum** mit Größe, Anteil am übergeordneten Ordner, Dateianzahl und Änderungsdatum.
+- **Squarified Treemap** und **Sunburst-Diagramm**, umschaltbar über **Treemap | Sunburst** in der oberen Leiste. Beide bieten Zoom in Ordner, Brotkrumennavigation, Tooltips, Tastaturbedienung und das Kontextmenü.
+- **Synchronisierte Auswahl** zwischen Baum, Karte und Statusleiste. Ein Doppelklick öffnet einen Ordner; zurück geht es über die Brotkrumen, den Aufwärtspfeil oder das Mausrad.
+- **Aufschlüsselung nach Dateityp** für den gewählten Ordner (Kategorien und häufigste Erweiterungen) und der Farbmodus **Folders / File types** für die Karten, mit Legende.
+- **Kontextmenü** per Rechtsklick (auch Umschalt+F10) im Baum und auf den Karten: öffnen, im Explorer/Finder anzeigen, Pfad kopieren oder nach Bestätigung in den Papierkorb verschieben. Alles aktualisiert sich sofort, ohne neuen Scan.
+
+![Treemap-Tooltip beim Überfahren mit Dateiname, vollständigem Pfad, Größe und Anteil an der Ansicht](docs/screenshots/treemap-tooltip.png)
+
+## Discard Pile, automatische Snapshots und Vergleich
+
+- **Discard Pile (Ablagestapel)**: Dateien und Ordner aus Baum, Karten oder Inspektor vormerken (Entf-Taste oder Rechtsklick), die laufende Summe in der Seitenleiste prüfen und alles in einem bestätigten Schritt in den Papierkorb verschieben. Bis zur Bestätigung wird nichts gelöscht; Elemente, die sich nicht verschieben lassen, bleiben mit Begründung vorgemerkt.
+- **Snapshots**: Speichern Sie einen Scan in einer kleinen `.bfsnap`-Datei und vergleichen Sie einen späteren Scan damit, um zu sehen, was gewachsen, geschrumpft oder neu ist. Die Ansicht Changes listet die größten Zuwächse auf.
+- **Vergleichshervorhebung auf beiden Karten**: Beim Vergleich werden gewachsene, neue und geschrumpfte Elemente in Treemap und Sunburst umrandet (durchgezogen, gepunktet bzw. gestrichelt, mit der Größenänderung als Beschriftung).
+- **Automatische Snapshots**: Jeder abgeschlossene Scan wird im Hintergrund gespeichert (standardmäßig die letzten 10; in den Einstellungen 0 bis 50 oder aus). Öffnen Sie einen in der Seitenleiste sofort und schreibgeschützt, ohne neu zu scannen, oder vergleichen Sie ihn mit dem aktuellen Scan.
+- **Vergleich in der CLI**: `byteforest scan <target> --save-snapshot <FILE>` und `--diff <FILE>` (siehe [Verwendung](#verwendung)).
+
+## Minimalistische Oberfläche und 100 % Datenschutz offline
+
+- **Minimalistische, von Radix inspirierte Oberfläche** mit einer einheitlichen linken Seitenleiste: Laufwerke, Desktop, Downloads und Dokumente, zuletzt gescannte Orte und der Discard Pile; sie lässt sich zu einer Symbolleiste einklappen.
+- Designs **Graphite (dunkel, Standard) und Silver (hell)** oder Anpassung an das System, mit WCAG-AA-Kontrast. Hover-Effekte beachten die Einstellung für reduzierte Bewegung.
+- **Arbeitet vollständig offline.** Es gibt keine Telemetrie, kein Konto und keine Update-Prüfung, und der Code stellt keine Netzwerkanfragen. Das App-Fenster darf nur mit dem lokalen Rust-Backend kommunizieren; die Content Security Policy erlaubt nichts anderes.
+- **Ihre Daten bleiben auf Ihrem Rechner.** Einstellungen liegen in `%APPDATA%\ByteForest\settings.json`, Logs in `%LOCALAPPDATA%\ByteForest\logs`. Automatische Snapshots (Namen und Größen gescannter Elemente) liegen unter `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` unter macOS) und lassen sich in den Einstellungen abschalten oder begrenzen.
 
 ## Installation
 
@@ -70,7 +79,15 @@ Das Installationsprogramm installiert ByteForest für alle Benutzer in Program F
 
 Voraussetzungen: Windows 10/11 x64 und WebView2 (unter Windows 11 vorinstalliert; unter Windows 10 lädt das Installationsprogramm es bei Bedarf nach).
 
+### macOS-Beta
+
+Laden Sie das universelle DMG von [GitHub Releases](https://github.com/ErnarIT12/byteforest/releases) herunter, prüfen Sie es mit SHA256SUMS.txt und ziehen Sie ByteForest in den Ordner „Programme“. Die Beta erfordert macOS 15 oder neuer und unterstützt Apple Silicon und Intel. Die App ist ad hoc signiert. Da sie nicht von Apple notarisiert ist, verlangt Gatekeeper beim ersten Start unter „Datenschutz & Sicherheit“ unter Umständen eine Freigabe. [Anleitung von Apple zum ersten Start](https://support.apple.com/en-us/102445)
+
+ByteForest bietet Ihren Home-Ordner, das Mac-Datenvolume, lokal eingebundene Laufwerke und eine native Ordnerauswahl an. Es durchläuft Verzeichnisse mit den Rechten des aktuellen Benutzers. Übersprungene Einträge werden in der Statusleiste gemeldet. Belegte Größen sind Schätzwerte. APFS-Klone, gemeinsam genutzte Blöcke und Snapshots können dazu führen, dass die Scan-Summen von der Volume-Belegung abweichen.
+
 ## Verwendung
+
+Öffnen Sie nach dem Scan **Largest Files**, um über alle gescannten Ordner hinweg nach Name, Erweiterung oder Größe zu suchen. Wählen Sie ein Ergebnis, um im Baum und auf der Karte dorthin zu springen. Wählen Sie eine Datei oder einen Ordner, um den Pfad zu kopieren oder ihn im Explorer oder Finder anzuzeigen.
 
 **App.** Wählen Sie ein Laufwerk und klicken Sie auf **Scan**, oder auf **Fast scan (admin)**, um mit erhöhten Rechten neu zu starten und sofort zu scannen. Wählen Sie Ordner im Baum oder Rechtecke in der Treemap (beides bleibt synchron). Ein Doppelklick auf einen Ordner in der Treemap zoomt hinein; zurück geht es über die Brotkrumen, den Aufwärtspfeil oder das Mausrad.
 
@@ -105,6 +122,8 @@ cargo test --workspace             # Tests (zuerst das Frontend bauen: npm --pre
 
 Der Entwicklungsablauf und die Tests, die Administratorrechte brauchen, stehen in [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Installieren Sie unter macOS die Xcode Command Line Tools und beide Rust-Targets und bauen Sie dann mit `npm --prefix app run tauri build -- --target universal-apple-darwin --bundles dmg`. Siehe die [Tauri-DMG-Anleitung](https://v2.tauri.app/distribute/dmg/).
+
 ## Architektur
 
 ```mermaid
@@ -124,15 +143,9 @@ flowchart LR
 
 Der gescannte Baum bleibt in Rust. Die Oberfläche fragt nur Ausschnitte ab: die Kinder eines Ordners (höchstens 1000 Knoten) oder die Rechtecke einer Treemap-Ansicht (höchstens 20 000).
 
-## Datenschutz
-
-ByteForest arbeitet vollständig offline. Es gibt keine Telemetrie und der Code macht keine Netzwerkaufrufe; das App-Fenster darf nur mit dem lokalen Rust-Backend kommunizieren (die Content Security Policy erlaubt nichts anderes). Einstellungen liegen in `%APPDATA%\ByteForest\settings.json`, Logs in `%LOCALAPPDATA%\ByteForest\logs`, beides auf Ihrem Rechner. Automatische Snapshots (Namen und Größen gescannter Elemente) liegen nur auf Ihrem Rechner unter `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` unter macOS) und lassen sich in den Einstellungen abschalten oder begrenzen.
-
 ## Roadmap
 
 - Speicherverbrauch von höchstens 120 Byte pro Eintrag (heute etwa 400).
-- Sunburst-Ansicht neben der Treemap.
-- Discard Pile: Elemente sammeln und gemeinsam entfernen.
 - Inkrementelle Neu-Scans über das NTFS-USN-Journal.
 - Lokalisierte Oberfläche.
 
@@ -155,4 +168,4 @@ Sofern Sie nicht ausdrücklich etwas anderes erklären, wird jeder Beitrag, der 
 
 ## Danksagung
 
-Inspiriert von Festplattenanalysatoren wie WinDirStat, WizTree und [Radix](https://github.com/colinvkim/Radix).
+Inspiriert von Festplattenanalysatoren wie WinDirStat und WizTree. Die minimalistische Oberfläche orientiert sich in der Bedienung an [Radix](https://github.com/colinvkim/Radix) (MIT); Radix-Code wird nicht verwendet. Die Icons stammen von [Lucide](https://lucide.dev) (ISC).
