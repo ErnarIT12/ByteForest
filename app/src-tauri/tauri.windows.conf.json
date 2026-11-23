@@ -1,4 +1,16 @@
 {
+  "app": {
+    "windows": [
+      {
+        "title": "ByteForest",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "decorations": false
+      }
+    ]
+  },
   "bundle": {
     "targets": ["nsis", "msi"]
   }

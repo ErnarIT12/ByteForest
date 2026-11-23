@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { copyNodePath, nodeDetails, revealNodeInFileManager, type NodeDetails } from '../api';
-import { formatBytes, formatFiletime } from '../format';
+import { formatBytes, formatFiletime, formatScanShare } from '../format';
 import { useAppStore } from '../store';
 
-export function NodeDetailsPanel({ scanId, id }: { scanId: number; id: number }) {
+export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id: number; scanSize: number }) {
   const [details, setDetails] = useState<NodeDetails | null>(null);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -35,10 +35,17 @@ export function NodeDetailsPanel({ scanId, id }: { scanId: number; id: number })
     <section className="node-details" aria-label="Selection details">
       {details && (
         <>
-          <strong className="details-name" title={details.node.name}>{details.node.name}</strong>
+          <div className="details-heading">
+            <strong className="details-name" title={details.node.name}>{details.node.name}</strong>
+            <strong className="selection-size">{formatBytes(details.node.size)}</strong>
+          </div>
           <div className="details-path" title={details.path}>{details.path}</div>
+          <div className="share-meter" aria-hidden="true"><span style={{
+            width: scanSize > 0 ? Math.min(100, details.node.size * 100 / scanSize) + '%' : '0%',
+          }} /></div>
           <dl>
-            <div><dt>Size</dt><dd>{formatBytes(details.node.size)}</dd></div>
+            <div><dt>Kind</dt><dd>{details.node.is_dir ? 'Folder' : 'File'}</dd></div>
+            <div><dt>Of scan</dt><dd>{formatScanShare(details.node.size, scanSize)}</dd></div>
             <div><dt>Allocated (estimate)</dt><dd>{formatBytes(details.node.alloc)}</dd></div>
             <div><dt>Modified</dt><dd>{formatFiletime(details.node.mtime) || '—'}</dd></div>
           </dl>

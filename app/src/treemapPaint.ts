@@ -19,11 +19,8 @@ const SIZE_LINE_MIN_H = 34;
 
 const FONT_STACK = '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif';
 
-/**
- * One hue per top-level item of the focused folder (cycled): six from the logo family
- * (greens, teals, blue-teals, lime) plus a muted amber and violet so siblings stay apart.
- */
-export const HUES = [145, 175, 200, 95, 160, 215, 42, 268];
+/** Muted blue, jade, amber and violet groups distinguish neighboring directory branches. */
+export const HUES = [211, 165, 34, 254, 187, 355, 83, 233];
 
 export interface TreemapLayout {
   rects: Rect[];
@@ -105,7 +102,7 @@ function hsl(theme: Theme, slot: number, depth: number, role: Role): [number, nu
   if (theme === 'light') {
     switch (role) {
       case 'file':
-        return [h, 46, clamp(76 - 4 * d, 62, 82)];
+        return [h, 37, clamp(76 - 4 * d, 62, 82)];
       case 'dirFill':
         return [h, 32, clamp(94 - 4 * d, 72, 96)];
       case 'dirStroke':
@@ -116,13 +113,13 @@ function hsl(theme: Theme, slot: number, depth: number, role: Role): [number, nu
   }
   switch (role) {
     case 'file':
-      return [h, 42, clamp(32 - 3 * d, 20, 33)];
+      return [h, 30, clamp(38 - 2 * d, 27, 38)];
     case 'dirFill':
       return [h, 26, clamp(14 + 2 * d, 12, 22)];
     case 'dirStroke':
       return [h, 28, clamp(30 + 3 * d, 26, 44)];
     case 'header':
-      return [h, 32, clamp(22 + 3 * d, 20, 34)];
+      return [h, 23, clamp(23 + 2 * d, 23, 33)];
   }
 }
 
@@ -140,8 +137,8 @@ function hslToHex(h: number, sPct: number, lPct: number): string {
   return `#${channel(0)}${channel(8)}${channel(4)}`;
 }
 
-const LIGHT_LABEL = { main: '#e6f4f1', sub: '#bcd3ce' };
-const DARK_LABEL = { main: '#062018', sub: '#1a3a2f' };
+const LIGHT_LABEL = { main: '#ffffff', sub: '#e3e5e9' };
+const DARK_LABEL = { main: '#08090a', sub: '#26292d' };
 
 /** Label colours for text drawn on `fill`: whichever of light/dark text contrasts more. */
 export function labelColors(fill: string): { main: string; sub: string } {

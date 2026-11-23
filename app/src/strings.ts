@@ -20,7 +20,7 @@ export const strings = {
   starting: 'Starting',
   files: 'files',
 
-  fastScan: '⚡ Fast scan (admin)',
+  fastScan: 'Fast scan (admin)',
   fastScanAria: 'Fast scan (admin): restart as administrator and scan the selected drive quickly',
   waitingForPermission: 'Waiting for permission…',
   settings: 'Settings',
@@ -37,8 +37,8 @@ export const strings = {
   badgeRestartHint: 'Click to restart with administrator rights for fast scanning',
 
   // Empty and scanning states
-  emptyTitle: 'See what takes up space',
-  emptyBody: 'Pick a drive and scan it to see what takes up space.',
+  emptyTitle: 'Explore your storage',
+  emptyBody: 'Select a drive to explore its folders and largest files.',
   scanningTitle: (drive: string) => `Scanning ${drive}`,
 
   // Tree
@@ -63,7 +63,7 @@ export const strings = {
   treemapEmpty: 'This folder is empty',
 
   // Splitter
-  splitterLabel: 'Resize the folder tree',
+  splitterLabel: 'Resize the disk map',
 
   // Status bar
   ready: 'Ready',

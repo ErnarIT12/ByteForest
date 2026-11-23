@@ -1,0 +1,42 @@
+/* Animated logo. Colors come from the --logo-* tokens in styles.css. */
+.bf-logo .bf-platter-cw { transform-origin: 120px 122px; animation: bfSpinCW 18s linear infinite; }
+.bf-logo .bf-platter-ccw { transform-origin: 120px 122px; animation: bfSpinCCW 26s linear infinite; }
+.bf-logo .bf-scanner-arm { transform-origin: 120px 122px; animation: bfSpinCW 5.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
+.bf-logo .bf-sector { stroke: var(--logo-sector); opacity: 0.16; animation: bfSectorPulse 5.6s ease-in-out infinite; }
+.bf-logo .bf-s1 { animation-delay: calc(5.6s * -0.88); }
+.bf-logo .bf-s2 { animation-delay: calc(5.6s * -0.75); }
+.bf-logo .bf-s3 { animation-delay: calc(5.6s * -0.62); }
+.bf-logo .bf-s4 { animation-delay: calc(5.6s * -0.48); }
+.bf-logo .bf-s5 { animation-delay: calc(5.6s * -0.35); }
+.bf-logo .bf-s6 { animation-delay: calc(5.6s * -0.22); }
+.bf-logo .bf-s7 { animation-delay: calc(5.6s * -0.10); }
+.bf-logo .bf-tier { transform-origin: 120px 128px; animation: bfTierBreathe 5.6s ease-in-out infinite; }
+.bf-logo .bf-t1 { animation-delay: 0s; }
+.bf-logo .bf-t2 { animation-delay: calc(5.6s * 0.12); }
+.bf-logo .bf-t3 { animation-delay: calc(5.6s * 0.22); }
+.bf-logo .bf-t4 { animation-delay: calc(5.6s * 0.34); }
+.bf-logo .bf-t5 { animation-delay: calc(5.6s * 0.44); }
+.bf-logo .bf-t6 { animation-delay: calc(5.6s * 0.54); }
+.bf-logo .bf-apex { fill: var(--logo-apex); animation: bfApexPulse 5.6s ease-in-out infinite; }
+.bf-logo .bf-pcb-1 { stroke: var(--logo-pcb); stroke-dasharray: 7 32; animation: bfPcbFlow 2.2s linear infinite; }
+.bf-logo .bf-pcb-2 { stroke: var(--logo-pcb); stroke-dasharray: 5 26; animation: bfPcbFlow 2.2s linear infinite; animation-delay: calc(2.2s * -0.45); }
+.bf-logo .bf-node { fill: var(--logo-pcb); animation: bfNodeBlink 2.2s ease-in-out infinite; }
+.bf-logo .bf-node-2 { animation-delay: calc(2.2s * -0.5); }
+.bf-logo .bf-pt { fill: var(--logo-ink); animation: bfParticleRise 3.8s ease-in-out infinite; }
+.bf-logo .bf-pt-line { stroke: var(--logo-ink); animation: bfParticleRise 3.8s ease-in-out infinite; }
+.bf-logo .bf-d1 { animation-delay: 0s; }
+.bf-logo .bf-d2 { animation-delay: calc(3.8s * -0.25); }
+.bf-logo .bf-d3 { animation-delay: calc(3.8s * -0.52); }
+.bf-logo .bf-d4 { animation-delay: calc(3.8s * -0.74); }
+.bf-logo .bf-d5 { animation-delay: calc(3.8s * -0.15); }
+.bf-logo .bf-d6 { animation-delay: calc(3.8s * -0.63); }
+
+@keyframes bfSpinCW { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes bfSpinCCW { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+@keyframes bfSectorPulse { 0%, 100% { opacity: 0.14; stroke-width: 6.5; } 18% { opacity: 0.82; stroke-width: 8.5; } 42% { opacity: 0.24; stroke-width: 6.5; } }
+@keyframes bfTierBreathe { 0%, 100% { transform: translateY(0px) scale(1); filter: brightness(1); } 24% { transform: translateY(-1.6px) scale(1.018); filter: brightness(1.16); } 55% { transform: translateY(0px) scale(1); filter: brightness(1); } }
+@keyframes bfApexPulse { 0%, 100% { opacity: 0.45; } 25% { opacity: 0.95; } 60% { opacity: 0.5; } }
+@keyframes bfPcbFlow { from { stroke-dashoffset: 39; } to { stroke-dashoffset: 0; } }
+@keyframes bfNodeBlink { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+@keyframes bfParticleRise { 0% { transform: translateY(5px); opacity: 0; } 30% { opacity: 0.9; } 75% { opacity: 0.75; } 100% { transform: translateY(-9px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .bf-logo * { animation: none !important; } }

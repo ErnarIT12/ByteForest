@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filetimeToDate, formatBytes, formatCount, formatFiletime, formatSeconds } from './format';
+import { filetimeToDate, formatBytes, formatCount, formatFiletime, formatScanShare, formatSeconds } from './format';
 
 describe('formatBytes', () => {
   it('formats the brief values', () => {
@@ -22,6 +22,15 @@ describe('formatBytes', () => {
   it('covers terabytes and custom precision', () => {
     expect(formatBytes(2.5 * 1024 ** 4)).toBe('2.5 TB');
     expect(formatBytes(476.9 * 1024 ** 3, 0)).toBe('477 GB');
+  });
+});
+
+describe('formatScanShare', () => {
+  it('distinguishes tiny files, empty files, and an empty scan', () => {
+    expect(formatScanShare(1, 1_000_000)).toBe('<0.01%');
+    expect(formatScanShare(0, 100)).toBe('0%');
+    expect(formatScanShare(0, 0)).toBe('—');
+    expect(formatScanShare(1, 3)).toBe('33.33%');
   });
 });
 

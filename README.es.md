@@ -39,9 +39,9 @@ Sin permisos de administrador, ByteForest recurre a un recorrido normal de direc
 - **Árbol de carpetas** con tamaño, proporción respecto al padre, número de archivos y fecha de modificación.
 - **Treemap squarified** con zoom a una carpeta, migas de pan e información emergente.
 - **Selección sincronizada** entre el árbol, el treemap y la barra de estado.
-- **Botón «⚡ Fast scan (admin)»**: reinicia ByteForest con permisos de administrador y retoma el análisis automáticamente.
+- **Botón «Fast scan (admin)»**: reinicia ByteForest con permisos de administrador y retoma el análisis automáticamente.
 - Opción **«Always run as administrator»**, para que cada inicio sea rápido.
-- **Tema claro y oscuro** con la paleta del logotipo y contraste WCAG AA.
+- Temas **Graphite (oscuro) y Silver (claro)**, o el del sistema, con contraste WCAG AA.
 - **Herramienta de línea de comandos** para unidades, análisis y mediciones.
 
 ![Información emergente del treemap: nombre de archivo, ruta completa, tamaño y proporción de la vista](docs/screenshots/treemap-tooltip.png)
@@ -62,7 +62,7 @@ Requisitos: Windows 10/11 x64 y WebView2 (viene preinstalado en Windows 11; en W
 
 ## Uso
 
-**Aplicación.** Elige una unidad y pulsa **Scan**, o pulsa **⚡ Fast scan (admin)** para reiniciar con permisos elevados y analizar de inmediato. Selecciona carpetas en el árbol o rectángulos en el treemap (ambos se mantienen sincronizados). Haz clic en una carpeta del treemap para hacer zoom; vuelve atrás con las migas de pan, la flecha hacia arriba o la rueda del ratón.
+**Aplicación.** Elige una unidad y pulsa **Scan**, o pulsa **Fast scan (admin)** para reiniciar con permisos elevados y analizar de inmediato. Selecciona carpetas en el árbol o rectángulos en el treemap (ambos se mantienen sincronizados). Haz doble clic en una carpeta del treemap para hacer zoom; vuelve atrás con las migas de pan, la flecha hacia arriba o la rueda del ratón.
 
 **CLI.**
 
