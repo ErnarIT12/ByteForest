@@ -55,6 +55,8 @@ export const strings = {
 
   // Treemap and breadcrumbs
   treemapLabel: 'Treemap of the focused folder',
+  treemapRoleDescription: 'treemap',
+  treemapSelected: (name: string, kind: string, size: string) => `${name}, ${kind}, ${size}`,
   breadcrumbsLabel: 'Path of the focused folder',
   up: 'Up one level',
   ofView: 'of view',

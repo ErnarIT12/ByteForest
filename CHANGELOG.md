@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Open (zoom into) a treemap folder with a double click. A single click selects it.
 - Integrate the title bar with the workspace, show disk usage before scanning, and place the map beside a right-hand file browser.
 - Choose a scan location from a list with available space, expand the disk map, and inspect the selected item’s share of the scan.
+- Navigate the treemap with the keyboard: arrow keys move the selection, Enter opens the selected folder, and Escape or Backspace goes up a level.
+- Add hover feedback to primary buttons in both Graphite and Silver, respecting the reduced-motion setting.
+- Remove the "⚡" icon from the Fast scan (admin) label.
+- Hide the "Always run as administrator" setting on macOS.
 
 ## [0.2.0] - 2026-11-23
 

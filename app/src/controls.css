@@ -4,6 +4,7 @@
 
 .btn {
   transition:
+    transform 0.15s ease,
     box-shadow 0.15s ease,
     background 0.15s ease;
   height: 32px;
@@ -29,13 +30,27 @@
 }
 .btn.primary:hover:not(:disabled) {
   background: var(--btn-grad-hover);
-  box-shadow: var(--glow);
+  box-shadow: var(--btn-shadow-hover);
+  transform: translateY(-1px);
 }
 .btn.primary:active:not(:disabled) {
   background: var(--btn-grad);
   color: var(--on-btn);
   filter: brightness(0.92);
   box-shadow: none;
+  transform: none;
+}
+.btn.primary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.primary {
+    transition: none;
+  }
+  .btn.primary:hover:not(:disabled) {
+    transform: none;
+  }
 }
 .btn:disabled {
   opacity: 0.45;
