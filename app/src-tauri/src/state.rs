@@ -15,12 +15,17 @@ pub struct ScanSlot {
     pub token: Option<CancelToken>,
 }
 
+pub struct CompletedScan {
+    pub id: u64,
+    pub tree: Arc<Tree>,
+}
+
 /// The last finished scan and the current scan slot.
 #[derive(Default)]
 pub struct AppState {
     /// Tree of the last finished scan. Readers clone the `Arc` and drop the lock at once.
     /// Lock order: `scan` first, then `tree`.
-    pub tree: RwLock<Option<Arc<Tree>>>,
+    pub tree: RwLock<Option<CompletedScan>>,
     /// Current scan id and cancel token.
     pub scan: Mutex<ScanSlot>,
     /// Folder or drive from the `--scan` startup argument, until the front end takes it.

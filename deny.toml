@@ -1,9 +1,12 @@
 # cargo-deny configuration (https://embarkstudios.github.io/cargo-deny/)
 
 [graph]
-# Windows is the only supported platform. Tauri's Windows tree (wry, webview2-com,
-# windows, ...) is included; the Linux CI job still checks that same graph.
-targets = [{ triple = "x86_64-pc-windows-msvc" }]
+# Resolve dependencies for the supported desktop targets on the audit runner.
+targets = [
+    { triple = "x86_64-pc-windows-msvc" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "x86_64-apple-darwin" },
+]
 
 [advisories]
 version = 2
@@ -30,6 +33,11 @@ allow = [
     "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.9
+# Permissive Boost license used by the Windows clipboard backend.
+exceptions = [
+    { allow = ["BSL-1.0"], crate = "clipboard-win" },
+    { allow = ["BSL-1.0"], crate = "error-code" },
+]
 
 [bans]
 multiple-versions = "warn"

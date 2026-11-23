@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import {
   SCAN_CANCELLED,
+  type LocationStep,
   type NodeView,
   type ScanDone,
   type ScanErrorEvent,
@@ -44,6 +45,8 @@ export function acceptEvent(gate: ScanGate, scanId: number): boolean {
 export interface RevealRequest {
   path: number[];
   seq: number;
+  positions?: (number | null)[];
+  filename?: string;
 }
 
 interface AppState {
@@ -52,6 +55,7 @@ interface AppState {
   /** Drive letter picked in the top bar. */
   target: string | null;
   elevated: boolean | null;
+  isMac: boolean;
 
   scanning: boolean;
   /** Exact target of the running scan: "C:" or a folder path. */
@@ -70,6 +74,7 @@ interface AppState {
   rootId: number | null;
   /** Exact target of the shown result: "C:" or a folder path. */
   resultTarget: string | null;
+  resultScanId: number | null;
   /** Bumped for every new result so views drop their caches. */
   generation: number;
 
@@ -108,6 +113,7 @@ interface AppActions {
   goUp(): void;
   /** Selects `path`'s last node and asks the tree to expand the path to it. */
   revealNode(path: number[]): void;
+  revealSearchResult(scanId: number, steps: LocationStep[]): void;
   dismissError(): void;
   setElevating(elevating: boolean): void;
   /** Shows a non-scan failure of the restart as administrator in the toast. */
@@ -124,6 +130,7 @@ const initialState: AppState = {
   drivesError: null,
   target: null,
   elevated: null,
+  isMac: typeof navigator !== 'undefined' && /Macintosh/i.test(navigator.userAgent),
   scanning: false,
   scanTarget: null,
   scanStartedAt: null,
@@ -135,6 +142,7 @@ const initialState: AppState = {
   root: null,
   rootId: null,
   resultTarget: null,
+  resultScanId: null,
   generation: 0,
   focusId: null,
   focusPath: [],
@@ -158,7 +166,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     set((s) => ({
       drives,
       drivesError: null,
-      target: s.target ?? (drives.find((d) => d.letter === 'C') ?? drives[0])?.letter ?? null,
+      target: s.target ?? drives.find((d) => d.letter === 'C')?.letter ?? drives[0]?.path ?? drives[0]?.letter ?? null,
     })),
   setDrivesError: (message) => set({ drivesError: message, drives: [] }),
   setTarget: (letter) => set({ target: letter }),
@@ -215,6 +223,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       root: d.root,
       rootId: d.root.id,
       resultTarget: s.scanTarget,
+      resultScanId: d.scan_id,
       generation: s.generation + 1,
       focusId: d.root.id,
       focusPath: [{ id: d.root.id, name: d.root.name }],
@@ -271,6 +280,24 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       selectedId: path[path.length - 1],
       reveal: { path, seq: (s.reveal?.seq ?? 0) + 1 },
     }));
+  },
+
+  revealSearchResult: (scanId, steps) => {
+    const s = get();
+    if (s.resultScanId !== scanId || steps.length < 2) return;
+    const file = steps[steps.length - 1];
+    const focusPath = steps.slice(0, -1).map(({ id, name }) => ({ id, name }));
+    set({
+      selectedId: file.id,
+      focusId: focusPath[focusPath.length - 1].id,
+      focusPath,
+      reveal: {
+        path: steps.map((step) => step.id),
+        positions: steps.map((step) => step.position),
+        filename: file.name,
+        seq: (s.reveal?.seq ?? 0) + 1,
+      },
+    });
   },
 
   dismissError: () => set({ error: null, errorTitle: null }),

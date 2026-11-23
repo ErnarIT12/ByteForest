@@ -16,4 +16,4 @@ pub use flags::NodeFlags;
 pub use record::EntryRecord;
 pub use tree::{DirAgg, NodeId, Tree};
 pub use treemap::{Rect, TreemapOptions, header_fits};
-pub use view::{NodeView, SortKey};
+pub use view::{FileFilter, NodeView, SortKey};

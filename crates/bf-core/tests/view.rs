@@ -240,3 +240,53 @@ fn unknown_node_id_panics_with_clear_message() {
     let t = tree_with_files(&[("a", 1)]);
     t.child_count(NodeId(9999));
 }
+
+#[test]
+fn largest_files_searches_the_whole_tree_with_a_bounded_result() {
+    let mut builder = TreeBuilder::new(0, "root");
+    for (key, parent_key, name, size, flags) in [
+        (1, 0, "Backups", 0, NodeFlags::DIR),
+        (2, 1, "Backup-é.ZIP", 100, NodeFlags::empty()),
+        (3, 1, "Backup-old.zip", 50, NodeFlags::empty()),
+        (4, 0, "Backup-large.bin", 200, NodeFlags::empty()),
+        (5, 0, "Backup-tiny.zip", 20, NodeFlags::empty()),
+        (6, 0, "Backup.zip", 1000, NodeFlags::DIR),
+    ] {
+        builder.push(EntryRecord {
+            key,
+            parent_key,
+            name: name.to_owned(),
+            size,
+            alloc: size,
+            mtime: 0,
+            flags,
+        });
+    }
+    let tree = builder.finish();
+    let filter = bf_core::FileFilter {
+        name: "BACKUP".into(),
+        extension: ".zip".into(),
+        min_size: 50,
+    };
+    let (total, hits) = tree.largest_files(&filter, 1);
+    assert_eq!(total, 2);
+    assert_eq!(tree.name(hits[0]), "Backup-é.ZIP");
+    assert_eq!(tree.largest_files(&filter, 0), (2, Vec::new()));
+
+    let (_, top) = tree.largest_files(&bf_core::FileFilter::default(), 3);
+    assert_eq!(
+        top.iter()
+            .map(|&id| tree.total(id).size)
+            .collect::<Vec<_>>(),
+        vec![200, 100, 50]
+    );
+
+    let node = hits[0];
+    let parent = tree.parent(node).unwrap();
+    let position = tree.child_position(node, SortKey::SizeDesc).unwrap();
+    assert_eq!(
+        tree.children(parent, SortKey::SizeDesc, position, 1)[0].id,
+        node.0
+    );
+    assert_eq!(tree.child_position(tree.root(), SortKey::SizeDesc), None);
+}

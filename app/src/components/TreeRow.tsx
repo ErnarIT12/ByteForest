@@ -108,15 +108,22 @@ export const TreeRow = memo(function TreeRow({
 });
 
 /** Placeholder line under a directory whose next page is loading. */
-export function MoreRow({ level, failed, top }: { level: number; failed: boolean; top: number }) {
+export function MoreRow({ level, failed, top, onLoad }: {
+  level: number;
+  failed: boolean;
+  top: number;
+  onLoad?: () => void;
+}) {
   return (
     <div
       className="tree-row more"
       style={{ transform: `translateY(${top}px)` }}
-      aria-hidden="true"
+      aria-hidden={onLoad ? undefined : true}
     >
       <div className="cell name" style={{ paddingLeft: (level - 1) * INDENT_PX + 26 }}>
-        {failed ? strings.loadFailed : strings.loadingMore}
+        {failed ? strings.loadFailed : onLoad ? (
+          <button className="tree-gap" type="button" onClick={onLoad}>Load more entries</button>
+        ) : strings.loadingMore}
       </div>
     </div>
   );

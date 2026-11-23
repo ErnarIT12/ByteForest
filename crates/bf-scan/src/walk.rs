@@ -1,5 +1,8 @@
 use std::fs::ReadDir;
 use std::io;
+#[cfg(target_os = "macos")]
+use std::os::unix::fs::MetadataExt;
+#[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,6 +12,7 @@ use std::time::Instant;
 use bf_core::{EntryRecord, NodeFlags, TreeBuilder};
 
 use crate::progress::{Phase, ProgressReporter};
+#[cfg(windows)]
 use crate::volumes::cluster_size;
 use crate::{CancelToken, ProgressFn, ScanError, ScanMethod, ScanRoot, ScanStats, Scanner};
 
@@ -18,14 +22,23 @@ const BATCH: usize = 4096;
 const ROOT_KEY: u64 = 0;
 
 // Win32 file attribute bits.
+#[cfg(windows)]
 const ATTR_HIDDEN: u32 = 0x2;
+#[cfg(windows)]
 const ATTR_SYSTEM: u32 = 0x4;
+#[cfg(windows)]
 const ATTR_DIRECTORY: u32 = 0x10;
+#[cfg(windows)]
 const ATTR_SPARSE: u32 = 0x200;
+#[cfg(windows)]
 const ATTR_REPARSE_POINT: u32 = 0x400;
+#[cfg(windows)]
 const ATTR_COMPRESSED: u32 = 0x800;
+#[cfg(windows)]
 const ATTR_OFFLINE: u32 = 0x1000;
+#[cfg(windows)]
 const ATTR_RECALL_ON_OPEN: u32 = 0x4_0000;
+#[cfg(windows)]
 const ATTR_RECALL_ON_DATA_ACCESS: u32 = 0x40_0000;
 
 /// Scanner that walks directories with `std::fs`, one rayon task per directory.
@@ -38,7 +51,10 @@ pub struct WalkScanner;
 
 /// State shared by all worker tasks.
 struct Shared<'a> {
+    #[cfg(windows)]
     cluster: u64,
+    #[cfg(target_os = "macos")]
+    device: u64,
     next_key: AtomicU64,
     errors: AtomicU64,
     records: Mutex<Vec<EntryRecord>>,
@@ -63,7 +79,10 @@ impl Scanner for WalkScanner {
         let root_entries = std::fs::read_dir(&root_path).map_err(root_error)?;
 
         let shared = Shared {
+            #[cfg(windows)]
             cluster: cluster_size(&root_path),
+            #[cfg(target_os = "macos")]
+            device: std::fs::metadata(&root_path).map_err(root_error)?.dev(),
             next_key: AtomicU64::new(ROOT_KEY + 1),
             errors: AtomicU64::new(0),
             records: Mutex::new(Vec::new()),
@@ -108,6 +127,7 @@ impl Scanner for WalkScanner {
 /// Returns the directory to read and the name of the root node.
 fn resolve_root(root: &ScanRoot) -> Result<(PathBuf, String), ScanError> {
     match root {
+        #[cfg(windows)]
         ScanRoot::Volume(letter) => {
             if !letter.is_ascii_alphabetic() {
                 return Err(ScanError::Io(io::Error::new(
@@ -156,6 +176,9 @@ fn process_dir<'s>(
     let mut counts = Counts::default();
 
     for entry in entries {
+        if shared.cancel.is_cancelled() {
+            return;
+        }
         let Ok(entry) = entry else {
             shared.errors.fetch_add(1, Ordering::Relaxed);
             continue;
@@ -166,25 +189,39 @@ fn process_dir<'s>(
             continue;
         };
 
-        let attrs = meta.file_attributes();
-        let is_dir = attrs & ATTR_DIRECTORY != 0;
-        let is_reparse = attrs & ATTR_REPARSE_POINT != 0;
-        let key = shared.next_key.fetch_add(1, Ordering::Relaxed);
+        #[cfg(target_os = "macos")]
+        if meta.dev() != shared.device {
+            continue;
+        }
+        #[cfg(windows)]
+        let (flags, size, alloc, mtime) = {
+            let attrs = meta.file_attributes();
+            let (size, alloc) = entry_sizes(attrs, meta.len(), shared.cluster);
+            (
+                flags_from_attributes(attrs),
+                size,
+                alloc,
+                meta.last_write_time() as i64,
+            )
+        };
+        #[cfg(target_os = "macos")]
+        let (flags, size, alloc, mtime) = unix_entry(&meta);
 
-        let (size, alloc) = entry_sizes(attrs, meta.len(), shared.cluster);
+        let is_dir = flags.contains(NodeFlags::DIR);
+        let key = shared.next_key.fetch_add(1, Ordering::Relaxed);
         batch.push(EntryRecord {
             key,
             parent_key: dir_key,
             name: entry.file_name().to_string_lossy().into_owned(),
             size,
             alloc,
-            mtime: meta.last_write_time() as i64,
-            flags: flags_from_attributes(attrs),
+            mtime,
+            flags,
         });
 
         if is_dir {
             counts.dirs += 1;
-            if !is_reparse {
+            if !flags.contains(NodeFlags::REPARSE) {
                 let child = dir.join(entry.file_name());
                 scope.spawn(move |s| walk_dir(s, shared, child, key));
             }
@@ -195,9 +232,6 @@ fn process_dir<'s>(
 
         if batch.len() >= BATCH {
             flush(shared, &mut batch, &mut counts);
-            if shared.cancel.is_cancelled() {
-                return;
-            }
         }
     }
     flush(shared, &mut batch, &mut counts);
@@ -226,6 +260,7 @@ fn flush(shared: &Shared<'_>, batch: &mut Vec<EntryRecord>, counts: &mut Counts)
         .tick(c.files, c.dirs, c.bytes, Phase::Walking);
 }
 
+#[cfg(windows)]
 fn flags_from_attributes(attrs: u32) -> NodeFlags {
     let mut flags = NodeFlags::empty();
     for (bit, flag) in [
@@ -248,6 +283,7 @@ fn flags_from_attributes(attrs: u32) -> NodeFlags {
 /// Directories (junctions included) count 0. Files, including file reparse points such as
 /// WOF-compressed system files, keep their logical size; their alloc is `len` rounded up to
 /// clusters, except for cloud placeholders whose data is not on the disk (alloc 0).
+#[cfg(windows)]
 fn entry_sizes(attrs: u32, len: u64, cluster: u64) -> (u64, u64) {
     let not_on_disk = ATTR_OFFLINE | ATTR_RECALL_ON_OPEN | ATTR_RECALL_ON_DATA_ACCESS;
     if attrs & ATTR_DIRECTORY != 0 {
@@ -260,11 +296,36 @@ fn entry_sizes(attrs: u32, len: u64, cluster: u64) -> (u64, u64) {
 }
 
 /// Rounds `size` up to a multiple of `cluster` (saturating; `cluster` is never 0).
+#[cfg(windows)]
 fn round_up(size: u64, cluster: u64) -> u64 {
     size.div_ceil(cluster).saturating_mul(cluster)
 }
 
-#[cfg(test)]
+#[cfg(target_os = "macos")]
+fn unix_entry(meta: &std::fs::Metadata) -> (NodeFlags, u64, u64, i64) {
+    let flags = if meta.is_dir() {
+        NodeFlags::DIR
+    } else if meta.is_symlink() {
+        NodeFlags::REPARSE
+    } else {
+        NodeFlags::empty()
+    };
+    let (size, alloc) = if meta.is_file() {
+        (meta.len(), meta.blocks().saturating_mul(512))
+    } else {
+        (0, 0)
+    };
+    // Keep the existing FILETIME representation for the UI and CLI.
+    let ticks = (i128::from(meta.mtime()) + 11_644_473_600) * 10_000_000
+        + i128::from(meta.mtime_nsec()) / 100;
+    let mtime = i64::try_from(ticks)
+        .ok()
+        .filter(|value| *value > 0)
+        .unwrap_or(0);
+    (flags, size, alloc, mtime)
+}
+
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
 

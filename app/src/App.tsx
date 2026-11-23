@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ElevationBar } from './components/ElevationBar';
 import { EmptyState } from './components/EmptyState';
 import { ErrorToast } from './components/ErrorToast';
@@ -20,7 +20,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
 /** Window shell: top bar, the Explorer (or the empty state) and the status bar. */
 export default function App() {
   const root = useAppStore((s) => s.root);
-  const generation = useAppStore((s) => s.generation);
+  const scanId = useAppStore((s) => s.resultScanId);
+  const [split, setSplit] = useState(0.4);
 
   useEffect(() => {
     const ready = listenToScanEvents();
@@ -45,7 +46,7 @@ export default function App() {
     <div className="app">
       <TopBar />
       <ElevationBar />
-      {root ? <Explorer root={root} generation={generation} /> : <EmptyState />}
+      {root && scanId !== null ? <Explorer key={scanId} root={root} scanId={scanId} split={split} onSplitChange={setSplit} /> : <EmptyState />}
       <StatusBar />
       <ErrorToast />
       <ScanAnnouncer />

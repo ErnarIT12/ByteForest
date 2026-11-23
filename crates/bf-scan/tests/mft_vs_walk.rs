@@ -1,3 +1,5 @@
+#![cfg(windows)]
+
 //! Integration tests for `MftScanner` and `scan_auto`.
 //!
 //! `mft_and_walk_agree_on_system_drive` needs administrator rights and reads the whole system

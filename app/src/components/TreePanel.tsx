@@ -9,8 +9,8 @@ import { MoreRow, TreeRow } from './TreeRow';
 const ROW_HEIGHT = 28;
 
 /** Lazily loaded, virtualized folder tree of one scan result. */
-export function TreePanel({ root }: { root: NodeView }) {
-  const tree = useTreeModel(root);
+export function TreePanel({ root, scanId }: { root: NodeView; scanId: number }) {
+  const tree = useTreeModel(root, scanId);
   const { model, rows, loadMore, setExpanded, revealPath, crumbsOf } = tree;
   const selectedId = useAppStore((s) => s.selectedId);
   const focusId = useAppStore((s) => s.focusId);
@@ -39,11 +39,11 @@ export function TreePanel({ root }: { root: NodeView }) {
   }, [rows]);
 
   // Reveal requests (zoom from the treemap, a clicked file): expand the path, then scroll.
-  // A node that cannot be loaded (beyond the page cap) stays selected without scrolling.
+  // Search positions let the tree jump directly to a distant page.
   useEffect(() => {
     if (!reveal) return;
     let alive = true;
-    revealPath(reveal.path, () => !alive).then((found) => {
+    revealPath(reveal.path, () => !alive, reveal.positions).then((found) => {
       if (alive) setScrollTarget(found ? { id: reveal.path[reveal.path.length - 1] } : null);
     });
     return () => {
@@ -64,7 +64,7 @@ export function TreePanel({ root }: { root: NodeView }) {
   const items = virtualizer.getVirtualItems();
   const visibleMore = items
     .map((it) => rows[it.index])
-    .filter((r) => r?.kind === 'more')
+    .filter((r) => r?.kind === 'more' && !r.gap)
     .map((r) => (r.kind === 'more' ? r.parent : -1))
     .join(',');
   useEffect(() => {
@@ -177,7 +177,8 @@ export function TreePanel({ root }: { root: NodeView }) {
             if (!r) return null;
             if (r.kind === 'more') {
               return (
-                <MoreRow key={`more-${r.parent}`} level={r.level} failed={!!model.get(r.parent)?.failed} top={it.start} />
+                <MoreRow key={`more-${r.parent}`} level={r.level} failed={!!model.get(r.parent)?.failed} top={it.start}
+                  onLoad={r.gap ? () => void loadMore(r.parent) : undefined} />
               );
             }
             const entry = model.get(r.id)!;

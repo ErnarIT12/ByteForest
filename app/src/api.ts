@@ -20,7 +20,9 @@ export type Phase = 'Reading' | 'Parsing' | 'Walking' | 'Building';
 
 export interface VolumeSummary {
   /** Upper-case drive letter, e.g. "C". */
-  letter: string;
+  letter?: string;
+  /** Absolute mount or folder path on macOS. */
+  path?: string;
   label: string;
   fs: string;
   /** Bytes. */
@@ -98,13 +100,55 @@ export const SCAN_CANCELLED = 'cancelled';
 export const MAX_CHILDREN = 1000;
 
 export const listDrives = () => invoke<VolumeSummary[]>('list_drives');
+export const pickFolder = () => invoke<string | null>('pick_folder');
 /** Resolves to the scan id. `target` is a drive ("C:", "c:\\", "C") or an existing folder path. */
 export const startScan = (target: string) => invoke<number>('start_scan', { target });
 export const cancelScan = () => invoke<void>('cancel_scan');
-export const getChildren = (node: number, sort: SortKey, offset: number, limit: number) =>
-  invoke<NodeView[]>('get_children', { node, sort, offset, limit });
+export const getChildren = (node: number, sort: SortKey, offset: number, limit: number, scanId?: number) =>
+  invoke<NodeView[]>('get_children', { node, sort, offset, limit, scanId });
 export const getNode = (node: number) => invoke<NodeView>('get_node', { node });
 export const getPath = (node: number) => invoke<string>('get_path', { node });
+export interface FileFilter {
+  name: string;
+  extension: string;
+  min_size: number;
+}
+
+export interface FileMatch {
+  id: number;
+  name: string;
+  path: string;
+  size: number;
+}
+
+export interface SearchResults {
+  total: number;
+  files: FileMatch[];
+}
+
+export interface LocationStep {
+  id: number;
+  name: string;
+  position: number | null;
+}
+
+export interface NodeDetails {
+  node: NodeView;
+  path: string;
+  has_native_path: boolean;
+}
+
+export const searchFiles = (scanId: number, filter: FileFilter) =>
+  invoke<SearchResults>('search_files', { scanId, filter });
+export const locateNode = (scanId: number, node: number) =>
+  invoke<LocationStep[]>('locate_node', { scanId, node });
+export const nodeDetails = (scanId: number, node: number) =>
+  invoke<NodeDetails>('node_details', { scanId, node });
+export const copyNodePath = (scanId: number, node: number) =>
+  invoke<void>('copy_node_path', { scanId, node });
+export const revealNodeInFileManager = (scanId: number, node: number) =>
+  invoke<void>('reveal_node_in_file_manager', { scanId, node });
+
 /**
  * Rectangles of the subtree under `node`, breadth-first (parents first). `header` (pixels)
  * reserves a name strip at the top of non-root directories at least 3 strips wide and tall.

@@ -6,16 +6,28 @@
 //! the machine.
 #![deny(unsafe_code)]
 
+#[cfg(windows)]
 mod auto;
 mod cancel;
+#[cfg(windows)]
 mod elevation;
+#[cfg(windows)]
 mod mft;
+#[cfg(windows)]
 mod mft_fallback;
+#[cfg(windows)]
 mod mft_layout;
+#[cfg(windows)]
 mod mft_merge;
+#[cfg(windows)]
 mod mft_probe;
 mod progress;
+#[cfg(windows)]
 mod volume_io;
+#[cfg(windows)]
+mod volumes;
+#[cfg(target_os = "macos")]
+#[path = "volumes_macos.rs"]
 mod volumes;
 mod walk;
 
@@ -23,15 +35,34 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
+#[cfg(windows)]
 pub use auto::scan_auto;
 pub use cancel::CancelToken;
+#[cfg(windows)]
 pub use elevation::is_elevated;
+#[cfg(windows)]
 pub use mft::MftScanner;
 #[doc(hidden)]
+#[cfg(windows)]
 pub use mft_probe::{probe_mft, probe_mft_records};
 pub use progress::{Phase, ScanProgress};
 pub use volumes::{VolumeSummary, list_volumes};
 pub use walk::WalkScanner;
+
+#[cfg(target_os = "macos")]
+pub fn is_elevated() -> bool {
+    // The app follows the permissions of the user who launched it.
+    false
+}
+
+#[cfg(target_os = "macos")]
+pub fn scan_auto(
+    root: &ScanRoot,
+    progress: ProgressFn<'_>,
+    cancel: &CancelToken,
+) -> Result<(bf_core::Tree, ScanStats), ScanError> {
+    WalkScanner.scan(root, progress, cancel)
+}
 
 /// Callback that receives progress updates; it may be called from several threads.
 pub type ProgressFn<'a> = &'a (dyn Fn(ScanProgress) + Sync);
@@ -70,6 +101,7 @@ pub struct ScanStats {
 #[derive(Clone, Debug)]
 pub enum ScanRoot {
     /// A whole volume, by drive letter.
+    #[cfg(windows)]
     Volume(char),
     /// A folder.
     Folder(PathBuf),

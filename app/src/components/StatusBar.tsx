@@ -9,17 +9,20 @@ import { strings } from '../strings';
 export function StatusBar() {
   const stats = useAppStore((s) => s.stats);
   const elevated = useAppStore((s) => s.elevated);
+  const isMac = useAppStore((s) => s.isMac);
   const drives = useAppStore((s) => s.drives);
   const resultTarget = useAppStore((s) => s.resultTarget);
   const target = useAppStore((s) => s.target);
   const elevating = useAppStore((s) => s.elevating);
   const scanning = useAppStore((s) => s.scanning);
   const resultLetter = resultTarget === null ? null : driveLetterOf(resultTarget);
-  const drive = drives?.find((d) => d.letter.toUpperCase() === resultLetter);
+  const drive = drives?.find((d) =>
+    isMac ? d.path === resultTarget : d.letter?.toUpperCase() === resultLetter,
+  );
 
   const issues = stats ? stats.errors + stats.skipped_records : 0;
-  const used = drive ? drive.total - drive.free : 0;
-  const badge = elevated === null ? null : statusBadge(elevated, stats);
+  const used = drive ? Math.max(0, drive.total - drive.free) : 0;
+  const badge = elevated === null || isMac ? null : statusBadge(elevated, stats);
 
   const clickable =
     elevated === false && target !== null && canOfferFastScan(false, target, drives ?? []);

@@ -79,6 +79,33 @@ describe('TreeModel', () => {
     expect(cancelled.m.get(0)!.children.length).toBe(0);
   });
 
+  it('reveals a late search match without fetching the preceding pages', async () => {
+    const m = new TreeModel(node(0));
+    const far = 65 * PAGE_SIZE;
+    const loads: number[] = [];
+    const sequential = async () => { throw new Error('must not scan preceding pages'); };
+    const locate = async (parent: number) => {
+      loads.push(parent);
+      m.addLocatedPage(parent, far, [node(42, false)]);
+    };
+    expect(await m.reveal([0, 42], sequential, () => {}, 1, () => false, locate)).toBe(true);
+    expect(loads).toEqual([0]);
+    expect(m.get(0)!.children).toEqual([]);
+    expect(m.rows()).toContainEqual({ kind: 'node', id: 42, level: 2 });
+    expect(m.rows()).toContainEqual({ kind: 'more', parent: 0, level: 2, gap: true });
+  });
+
+  it('merges a previously located page as the preceding gap closes', () => {
+    const m = new TreeModel(node(0));
+    m.get(0)!.expanded = true;
+    m.addLocatedPage(0, PAGE_SIZE, [node(201, false)]);
+    const contiguous = Array.from({ length: PAGE_SIZE }, (_, i) => node(i + 1, false));
+    expect(m.addPage(0, 0, contiguous)).toBe(true);
+    expect(m.get(0)!.complete).toBe(true);
+    expect(m.rows().filter((row) => row.kind === 'node')).toHaveLength(202);
+    expect(m.rows().some((row) => row.kind === 'more')).toBe(false);
+  });
+
   it('nests expanded children in order and knows their paths', () => {
     const m = new TreeModel(node(0));
     m.get(0)!.expanded = true;

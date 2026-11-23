@@ -8,6 +8,7 @@ import { TreeGlyph } from './TreeGlyph';
 /** Centered invitation before the first result, or the first scan's progress. */
 export function EmptyState() {
   const scanning = useAppStore((s) => s.scanning);
+  const isMac = useAppStore((s) => s.isMac);
   const scanTarget = useAppStore((s) => s.scanTarget);
 
   return (
@@ -25,7 +26,7 @@ export function EmptyState() {
         ) : (
           <>
             <h1>{strings.emptyTitle}</h1>
-            <p>{strings.emptyBody}</p>
+            <p>{isMac ? "Choose a volume or folder to see what takes up space." : strings.emptyBody}</p>
             <div className="empty-actions">
               <DrivePicker disabled={false} />
               <ScanButton />

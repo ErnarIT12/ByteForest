@@ -10,7 +10,7 @@ export function driveLetterOf(target: string): string | null {
 function isNtfsDrive(target: string, drives: VolumeSummary[]): boolean {
   const letter = driveLetterOf(target);
   if (letter === null) return false;
-  return drives.some((d) => d.letter.toUpperCase() === letter && d.fs.toUpperCase() === 'NTFS');
+  return drives.some((d) => d.letter?.toUpperCase() === letter && d.fs.toUpperCase() === 'NTFS');
 }
 
 /** Whether the "Fast scan (admin)" button makes sense: not elevated yet and an NTFS drive root. */
