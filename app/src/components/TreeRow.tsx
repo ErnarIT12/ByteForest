@@ -18,6 +18,8 @@ interface Props {
   onSelect(id: number): void;
   onToggle(id: number): void;
   onActivate(id: number): void;
+  /** Right click (pointer position) or the Menu key (position of the row). */
+  onContextMenu(id: number, x: number, y: number): void;
 }
 
 function Chevron({ open }: { open: boolean }) {
@@ -52,6 +54,7 @@ export const TreeRow = memo(function TreeRow({
   onSelect,
   onToggle,
   onActivate,
+  onContextMenu,
 }: Props) {
   const expandable = node.is_dir && node.has_children;
   const percent = Math.min(100, Math.max(0, node.percent_of_parent));
@@ -67,6 +70,11 @@ export const TreeRow = memo(function TreeRow({
       style={{ transform: `translateY(${top}px)` }}
       onClick={() => onSelect(node.id)}
       onDoubleClick={() => node.is_dir && onActivate(node.id)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onSelect(node.id);
+        onContextMenu(node.id, e.clientX, e.clientY);
+      }}
     >
       <div className="cell name" style={{ paddingLeft: (level - 1) * INDENT_PX + 4 }}>
         {expandable ? (

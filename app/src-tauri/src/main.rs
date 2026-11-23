@@ -37,6 +37,7 @@ fn main() {
             commands::locate_node,
             commands::node_details,
             commands::copy_node_path,
+            commands::move_node_to_trash,
             commands::reveal_node_in_file_manager,
             commands::get_treemap,
             commands::is_elevated,

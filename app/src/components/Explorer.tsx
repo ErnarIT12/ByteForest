@@ -24,6 +24,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   const treeButton = useRef<HTMLButtonElement>(null);
   const focusId = useAppStore((s) => s.focusId);
   const selected = useAppStore((s) => s.selectedId);
+  const generation = useAppStore((s) => s.generation);
 
   const showSearch = (value: boolean) => {
     request.current += 1;
@@ -91,7 +92,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       </section>
       {!mapOnly && <aside className="inspector">
         <h2>{selected !== null ? 'Selection details' : focusId === root.id ? 'Scan details' : 'Folder details'}</h2>
-        <NodeDetailsPanel key={selected ?? focusId ?? root.id} scanId={scanId} id={selected ?? focusId ?? root.id} scanSize={root.size} />
+        <NodeDetailsPanel key={`${selected ?? focusId ?? root.id}:${generation}`} scanId={scanId} id={selected ?? focusId ?? root.id} scanSize={root.size} />
       </aside>}
     </main>
   );

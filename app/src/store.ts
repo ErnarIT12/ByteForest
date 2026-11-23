@@ -13,9 +13,18 @@ import {
   type ScanErrorEvent,
   type ScanProgress,
   type ScanStats,
+  type TrashResult,
   type VolumeSummary,
 } from './api';
 import { strings } from './strings';
+
+/** Asks the folder tree to re-read the pages of `parentId` and its ancestors after a removal. */
+export interface TreeInvalidation {
+  seq: number;
+  /** The removed node. */
+  nodeId: number;
+  parentId: number;
+}
 
 /** One entry of the focus path (root first). */
 export interface Crumb {
@@ -82,6 +91,8 @@ interface AppState {
   focusPath: Crumb[];
   selectedId: number | null;
   reveal: RevealRequest | null;
+  /** Last removal; the folder tree refreshes its cached pages when `seq` changes. */
+  invalidation: TreeInvalidation | null;
   error: string | null;
   /** Heading of the error toast; null means the default scan failure title. */
   errorTitle: string | null;
@@ -114,6 +125,8 @@ interface AppActions {
   /** Selects `path`'s last node and asks the tree to expand the path to it. */
   revealNode(path: number[]): void;
   revealSearchResult(scanId: number, steps: LocationStep[]): void;
+  /** Applies a successful move to the trash: totals, focus, selection and view refresh. */
+  applyRemoval(id: number, result: TrashResult): void;
   dismissError(): void;
   setElevating(elevating: boolean): void;
   /** Shows a non-scan failure of the restart as administrator in the toast. */
@@ -148,6 +161,7 @@ const initialState: AppState = {
   focusPath: [],
   selectedId: null,
   reveal: null,
+  invalidation: null,
   error: null,
   errorTitle: null,
   elevating: false,
@@ -229,6 +243,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       focusPath: [{ id: d.root.id, name: d.root.name }],
       selectedId: null,
       reveal: null,
+      invalidation: null,
     });
   },
 
@@ -297,6 +312,40 @@ export const useAppStore = create<AppStore>()((set, get) => ({
         filename: file.name,
         seq: (s.reveal?.seq ?? 0) + 1,
       },
+    });
+  },
+
+  applyRemoval: (id, result) => {
+    const s = get();
+    if (!s.root) return;
+    const minus = (value: number, by: number) => Math.max(0, value - by);
+    const root = {
+      ...s.root,
+      size: minus(s.root.size, result.bytes),
+      files: minus(s.root.files, result.files),
+      dirs: minus(s.root.dirs, result.dirs),
+    };
+    const stats = s.stats && {
+      ...s.stats,
+      bytes: minus(s.stats.bytes, result.bytes),
+      files: minus(s.stats.files, result.files),
+      dirs: minus(s.stats.dirs, result.dirs),
+    };
+    // A removed folder on (or above) the focus moves the focus to its parent.
+    const at = s.focusPath.findIndex((c) => c.id === id);
+    const focusPath = at > 0 ? s.focusPath.slice(0, at) : s.focusPath;
+    const focusMoved = focusPath !== s.focusPath;
+    set({
+      root,
+      stats,
+      generation: s.generation + 1,
+      focusPath,
+      focusId: focusPath[focusPath.length - 1]?.id ?? s.focusId,
+      selectedId: result.parent,
+      reveal: focusMoved
+        ? { path: focusPath.map((c) => c.id), seq: (s.reveal?.seq ?? 0) + 1 }
+        : s.reveal,
+      invalidation: { seq: (s.invalidation?.seq ?? 0) + 1, nodeId: id, parentId: result.parent },
     });
   },
 

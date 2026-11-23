@@ -89,6 +89,27 @@ export const strings = {
   announceCancelled: 'Scan cancelled',
   announceFailed: 'Scan failed',
 
+  // Context menu and file actions
+  fileActionsLabel: 'Actions for the selected item',
+  openFolder: 'Open folder',
+  showInExplorer: 'Show in Explorer',
+  showInFinder: 'Show in Finder',
+  copyPath: 'Copy Path',
+  pathCopied: 'Path copied',
+  moveToRecycleBin: 'Move to Recycle Bin',
+  moveToTrash: 'Move to Trash',
+  trashBinName: (isMac: boolean) => (isMac ? 'Trash' : 'Recycle Bin'),
+  confirmTrashTitle: (bin: string) => `Move to ${bin}?`,
+  confirmTrashFolderContents: (files: string, dirs: string) =>
+    `Contains ${files} files and ${dirs} folders.`,
+  confirmTrashBody: (bin: string) =>
+    `It will be moved to the ${bin}. You can restore it from there. Disk space is freed once the ${bin} is emptied.`,
+  confirmTrashSize: (size: string) => `Size: ${size}`,
+  movedToTrash: (name: string, bin: string) => `Moved "${name}" to the ${bin}`,
+  trashFailed: (reason: string) => `Could not move the item: ${reason}`,
+  noNativePath: 'This entry has no usable filesystem path.',
+  working: 'Working…',
+
   // Errors
   scanFailed: 'Scan failed',
   elevateFailed: 'Could not restart as administrator',

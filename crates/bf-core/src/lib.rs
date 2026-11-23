@@ -7,6 +7,7 @@
 mod builder;
 mod flags;
 mod record;
+mod remove;
 mod tree;
 mod treemap;
 mod view;
@@ -14,6 +15,7 @@ mod view;
 pub use builder::TreeBuilder;
 pub use flags::NodeFlags;
 pub use record::EntryRecord;
+pub use remove::{RemoveError, Removed};
 pub use tree::{DirAgg, NodeId, Tree};
 pub use treemap::{Rect, TreemapOptions, header_fits};
 pub use view::{FileFilter, NodeView, SortKey};

@@ -106,6 +106,54 @@ export class TreeModel {
     }
   }
 
+  /** Replaces the stored view of a loaded node (sizes changed); keeps its tree state. */
+  setNode(node: NodeView): void {
+    const e = this.entries.get(node.id);
+    if (e) e.node = node;
+  }
+
+  /**
+   * Replaces the loaded children of `parentId` with a fresh list (same sort order), keeping
+   * the entries, and so the expansion state, of the children that are still there. Entries of
+   * children that disappeared are dropped together with their loaded descendants.
+   */
+  replaceChildren(parentId: number, nodes: NodeView[], complete: boolean): void {
+    const parent = this.entries.get(parentId);
+    if (!parent) return;
+    const keep = new Set(nodes.map((n) => n.id));
+    const stale = [...parent.children, ...[...(parent.locatedPages?.values() ?? [])].flatMap((p) => p.map((n) => n.id))];
+    parent.locatedPages = undefined;
+    for (const id of stale) if (!keep.has(id)) this.dropSubtree(id);
+    for (const node of nodes) {
+      const existing = this.entries.get(node.id);
+      if (existing) existing.node = node;
+      else this.entries.set(node.id, TreeModel.entry(node, parentId, parent.level + 1));
+    }
+    parent.children = nodes.map((n) => n.id);
+    parent.complete = complete || !parent.node.is_dir || !parent.node.has_children;
+    parent.failed = false;
+  }
+
+  /** Forgets everything but the root, which gets `root` as its fresh view and no children. */
+  resetPages(root: NodeView): void {
+    const entry = this.entries.get(this.rootId);
+    if (!entry) return;
+    this.entries.clear();
+    this.entries.set(this.rootId, { ...TreeModel.entry(root, null, 1), expanded: entry.expanded });
+  }
+
+  /** Removes the entry and every loaded descendant (iterative: chains can be very deep). */
+  private dropSubtree(id: number): void {
+    const stack = [id];
+    while (stack.length > 0) {
+      const e = this.entries.get(stack.pop()!);
+      if (!e) continue;
+      stack.push(...e.children);
+      for (const page of e.locatedPages?.values() ?? []) stack.push(...page.map((n) => n.id));
+      this.entries.delete(e.node.id);
+    }
+  }
+
   /** Ids from the root down to `id`, or null if `id` is not loaded. */
   pathTo(id: number): number[] | null {
     const path: number[] = [];

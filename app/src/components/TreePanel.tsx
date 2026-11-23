@@ -2,6 +2,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { NodeView } from '../api';
 import { useTreeModel } from '../hooks/useTreeModel';
+import { isContextMenuKey } from '../contextMenu';
+import { useFileActions } from '../fileActions';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { MoreRow, TreeRow } from './TreeRow';
@@ -114,7 +116,21 @@ export function TreePanel({ root, scanId }: { root: NodeView; scanId: number }) 
     return focusId === null ? -1 : (rowIndex.get(focusId) ?? -1);
   };
 
+  const openMenu = useCallback(
+    (id: number, x: number, y: number) => void useFileActions.getState().openMenu(scanId, id, x, y),
+    [scanId],
+  );
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (isContextMenuKey(e)) {
+      if (selectedId === null || !rowIndex.has(selectedId)) return;
+      e.preventDefault();
+      const box = (
+        document.getElementById(`tree-row-${selectedId}`) ?? e.currentTarget
+      ).getBoundingClientRect();
+      openMenu(selectedId, box.left + 32, box.bottom);
+      return;
+    }
     const cur = cursorRow();
     const row = cur >= 0 ? rows[cur] : undefined;
     const curId = row?.kind === 'node' ? row.id : null;
@@ -195,6 +211,7 @@ export function TreePanel({ root, scanId }: { root: NodeView; scanId: number }) 
                 onSelect={select}
                 onToggle={toggle}
                 onActivate={activate}
+                onContextMenu={openMenu}
               />
             );
           })}

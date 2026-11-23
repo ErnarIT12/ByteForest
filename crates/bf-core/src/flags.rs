@@ -21,6 +21,8 @@ bitflags! {
         const SPARSE = 64;
         /// Node does not exist on disk (e.g. `$Orphaned`).
         const SYNTHETIC = 128;
+        /// Node was removed from the tree after the scan (moved to the trash).
+        const REMOVED = 256;
     }
 }
 

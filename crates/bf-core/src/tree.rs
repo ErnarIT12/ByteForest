@@ -34,7 +34,7 @@ pub struct DirAgg {
 ///
 /// All columns are indexed by `NodeId.0`. Accessors panic if given a `NodeId` that did not
 /// come from this tree.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tree {
     pub(crate) parent: Vec<u32>,
     pub(crate) name_off: Vec<u32>,

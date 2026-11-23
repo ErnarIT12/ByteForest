@@ -149,6 +149,18 @@ export const copyNodePath = (scanId: number, node: number) =>
 export const revealNodeInFileManager = (scanId: number, node: number) =>
   invoke<void>('reveal_node_in_file_manager', { scanId, node });
 
+/** What `moveNodeToTrash` removed from the tree. */
+export interface TrashResult {
+  bytes: number;
+  files: number;
+  dirs: number;
+  /** Parent of the removed node. */
+  parent: number;
+}
+/** Moves a node to the Recycle Bin / Trash; the path is resolved by the backend from the tree. */
+export const moveNodeToTrash = (scanId: number, node: number) =>
+  invoke<TrashResult>('move_node_to_trash', { scanId, node });
+
 /**
  * Rectangles of the subtree under `node`, breadth-first (parents first). `header` (pixels)
  * reserves a name strip at the top of non-root directories at least 3 strips wide and tall.

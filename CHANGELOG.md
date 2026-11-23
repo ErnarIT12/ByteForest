@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Add hover feedback to primary buttons in both Graphite and Silver, respecting the reduced-motion setting.
 - Remove the "⚡" icon from the Fast scan (admin) label.
 - Hide the "Always run as administrator" setting on macOS.
+- Add a right-click context menu (also Shift+F10 or the Menu key) to the folder tree and treemap, with Open folder, Show in Explorer/Finder, Copy Path and Move to Recycle Bin/Trash after confirmation. The tree, treemap and totals update instantly without a rescan.
 
 ## [0.2.0] - 2026-11-23
 

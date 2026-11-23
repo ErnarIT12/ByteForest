@@ -152,3 +152,44 @@ describe('scan target', () => {
     expect(useAppStore.getState().error).toBe('boom');
   });
 });
+
+describe('store applyRemoval', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('subtracts the totals, selects the parent and asks views to refresh', () => {
+    scanned();
+    const before = useAppStore.getState();
+    before.applyRemoval(5, { bytes: 40, files: 1, dirs: 0, parent: 3 });
+    const s = useAppStore.getState();
+    expect(s.root).toMatchObject({ size: 60, files: 0, dirs: 0 });
+    expect(s.stats).toMatchObject({ bytes: 60, files: 0 });
+    expect(s.selectedId).toBe(3);
+    expect(s.generation).toBe(before.generation + 1);
+    expect(s.invalidation).toEqual({ seq: 1, nodeId: 5, parentId: 3 });
+  });
+
+  it('never lets a total go below zero', () => {
+    scanned();
+    useAppStore.getState().applyRemoval(5, { bytes: 1e9, files: 9, dirs: 9, parent: 0 });
+    expect(useAppStore.getState().root).toMatchObject({ size: 0, files: 0, dirs: 0 });
+  });
+
+  it('moves the focus to the parent when the focused folder is removed', () => {
+    scanned();
+    useAppStore.getState().setFocus(3, [
+      { id: 0, name: 'C:' },
+      { id: 3, name: 'Users' },
+    ]);
+    useAppStore.getState().applyRemoval(3, { bytes: 10, files: 1, dirs: 1, parent: 0 });
+    const s = useAppStore.getState();
+    expect(s.focusId).toBe(0);
+    expect(s.focusPath.map((c) => c.id)).toEqual([0]);
+    expect(s.reveal?.path).toEqual([0]);
+  });
+
+  it('keeps the focus when something inside it is removed', () => {
+    scanned();
+    useAppStore.getState().applyRemoval(5, { bytes: 1, files: 1, dirs: 0, parent: 0 });
+    expect(useAppStore.getState().focusId).toBe(0);
+  });
+});

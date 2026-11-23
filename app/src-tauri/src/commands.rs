@@ -57,8 +57,9 @@ fn drive_letter(arg: &str) -> Option<char> {
 
 /// Converts a raw node number from the front end into a `NodeId` that exists in `tree`.
 pub fn node_id_checked(tree: &Tree, node: u32) -> Result<NodeId, String> {
-    if (node as usize) < tree.len() {
-        Ok(NodeId(node))
+    let id = NodeId(node);
+    if (node as usize) < tree.len() && !tree.is_removed(id) {
+        Ok(id)
     } else {
         Err("unknown node".to_string())
     }
@@ -556,6 +557,91 @@ pub fn reveal_node_in_file_manager(
     tauri_plugin_opener::reveal_item_in_dir(path).map_err(|err| err.to_string())
 }
 
+/// What `move_node_to_trash` removed from the tree.
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct TrashResult {
+    bytes: u64,
+    files: u64,
+    dirs: u64,
+    /// Parent of the removed node; the UI selects it afterwards.
+    parent: u32,
+}
+
+/// The path of a node that may be moved to the trash, derived only from the tree.
+///
+/// Refuses the scanned root, filesystem roots and entries without a usable native path.
+pub fn trash_target(tree: &Tree, node: u32) -> Result<PathBuf, String> {
+    let id = node_id_checked(tree, node)?;
+    if id == tree.root() {
+        return Err("The scanned root cannot be moved to the trash.".to_owned());
+    }
+    let path = native_path(tree, id)?;
+    if path.parent().is_none() || path.file_name().is_none() {
+        return Err("A drive or filesystem root cannot be moved to the trash.".to_owned());
+    }
+    Ok(path)
+}
+
+/// Moves a node to the Recycle Bin / Trash and removes it from the in-memory tree.
+#[tauri::command]
+pub async fn move_node_to_trash(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    node: u32,
+) -> Result<TrashResult, String> {
+    let path = {
+        let slot = state
+            .scan
+            .lock()
+            .map_err(|_| "internal error: state poisoned")?;
+        if slot.id != scan_id {
+            return Err("A scan is in progress or the results have changed.".to_owned());
+        }
+        let tree = current_tree(&state, Some(scan_id))?;
+        trash_target(&tree, node)?
+    };
+
+    let target = path.clone();
+    tauri::async_runtime::spawn_blocking(move || trash::delete(&target))
+        .await
+        .map_err(|err| err.to_string())?
+        .map_err(|err| format!("Could not move the item to the trash: {err}"))?;
+
+    match std::fs::symlink_metadata(&path) {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => return Err(format!("Unable to verify the item was removed: {err}")),
+        Ok(_) => return Err("The item is still on disk after moving it to the trash.".to_owned()),
+    }
+
+    let slot = state
+        .scan
+        .lock()
+        .map_err(|_| "internal error: state poisoned")?;
+    if slot.id != scan_id {
+        return Err("The item was moved to the trash, but a new scan has started.".to_owned());
+    }
+    let mut guard = state
+        .tree
+        .write()
+        .map_err(|_| "internal error: state poisoned")?;
+    let scan = guard.as_mut().ok_or("no scan yet")?;
+    if scan.id != scan_id {
+        return Err("The item was moved to the trash, but the scan results changed.".to_owned());
+    }
+    let id = node_id_checked(&scan.tree, node)?;
+    let parent = scan.tree.parent(id).map_or(0, |p| p.0);
+    // Copy-on-write: clones the tree only if a reader still holds the previous `Arc`.
+    let removed = Arc::make_mut(&mut scan.tree)
+        .remove_subtree(id)
+        .map_err(|err| err.to_string())?;
+    Ok(TrashResult {
+        bytes: removed.bytes,
+        files: removed.files,
+        dirs: removed.dirs,
+        parent,
+    })
+}
+
 /// Treemap rectangles (at most 20 000) of the subtree under `node`, in a `width` x `height` canvas.
 /// `header` (optional, pixels) reserves a name strip at the top of large non-root directories.
 #[tauri::command(async)]
@@ -596,6 +682,15 @@ mod tests {
             mtime: 0,
         });
         b.finish()
+    }
+
+    #[test]
+    fn trash_target_refuses_root_and_removed_nodes() {
+        let mut tree = tiny_tree();
+        assert!(trash_target(&tree, 0).is_err());
+        assert!(trash_target(&tree, 99).is_err());
+        tree.remove_subtree(NodeId(1)).unwrap();
+        assert!(trash_target(&tree, 1).is_err());
     }
 
     #[test]

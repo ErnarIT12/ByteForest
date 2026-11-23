@@ -78,7 +78,11 @@ impl Tree {
         for raw in 1..self.len() as u32 {
             let id = NodeId(raw);
             let size = self.size[id.idx()];
-            if self.flags(id).contains(NodeFlags::DIR) || size < filter.min_size {
+            if self
+                .flags(id)
+                .intersects(NodeFlags::DIR | NodeFlags::REMOVED)
+                || size < filter.min_size
+            {
                 continue;
             }
             let filename = self.name(id);
