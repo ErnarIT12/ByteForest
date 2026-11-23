@@ -39,6 +39,7 @@
   --folder: var(--accent-2);
   --folder-edge: var(--accent);
   --glow: none;
+  --btn-shadow-hover: 0 2px 8px rgba(20, 24, 32, 0.28), 0 1px 2px rgba(20, 24, 32, 0.2);
   --bar-shadow: none;
   --shadow: 0 8px 24px rgb(0 0 0 / 15%);
   --radius: 6px;
@@ -110,6 +111,7 @@
   --on-btn: #141518;
   --btn-grad: linear-gradient(160deg, #f3f4f6, #b8bec9);
   --btn-grad-hover: linear-gradient(160deg, #ffffff, #d4dae3);
+  --btn-shadow-hover: 0 0 0 1px rgba(255, 255, 255, 0.28), 0 4px 12px rgba(0, 0, 0, 0.45);
   --tm-bg: #181a1e;
   --tm-hover-line: #ffffff;
   --tm-sel-inner: #141518;

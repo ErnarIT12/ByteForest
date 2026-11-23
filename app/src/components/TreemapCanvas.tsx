@@ -2,11 +2,13 @@ import {
   useEffect,
   useRef,
   useState,
+  type KeyboardEvent,
   type MouseEvent,
   type RefObject,
   type WheelEvent,
 } from 'react';
 import { getTreemap } from '../api';
+import { formatBytes } from '../format';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
@@ -19,6 +21,7 @@ import {
   paintTreemap,
   type TreemapLayout,
 } from '../treemapPaint';
+import { largestChild, nearestSibling, type Direction } from '../treemapNav';
 import { TreemapTooltip } from './TreemapTooltip';
 
 interface Size {
@@ -194,6 +197,52 @@ export function TreemapCanvas() {
     }
   };
 
+  /** Selects rect `i` exactly as a single click would. */
+  const revealIndex = (i: number) => {
+    if (!layout || i <= 0) return;
+    const { focusPath } = useAppStore.getState();
+    if (focusPath[focusPath.length - 1]?.id !== layout.rects[0].id) return;
+    useAppStore.getState().revealNode(crumbsTo(layout, i, focusPath).map((c) => c.id));
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.ctrlKey || e.altKey || e.metaKey || e.target !== e.currentTarget) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      useAppStore.getState().goUp();
+      return;
+    }
+    if (!layout) return;
+    const arrows: Record<string, Direction> = {
+      ArrowLeft: 'left',
+      ArrowRight: 'right',
+      ArrowUp: 'up',
+      ArrowDown: 'down',
+    };
+    const dir = arrows[e.key];
+    if (dir) {
+      e.preventDefault();
+      // A selection outside this layout counts as no selection.
+      revealIndex(
+        selectedIndex > 0
+          ? nearestSibling(layout.rects, selectedIndex, dir)
+          : largestChild(layout.rects),
+      );
+    } else if (e.key === 'Enter' || e.code === 'NumpadEnter') {
+      e.preventDefault();
+      if (selectedIndex <= 0) {
+        revealIndex(largestChild(layout.rects));
+        return;
+      }
+      const r = layout.rects[selectedIndex];
+      const { focusPath } = useAppStore.getState();
+      if (r.is_dir && focusPath[focusPath.length - 1]?.id === layout.rects[0].id) {
+        useAppStore.getState().setFocus(r.id, crumbsTo(layout, selectedIndex, focusPath));
+      }
+    }
+  };
+
+  const selectedRect = layout && selectedIndex > 0 ? layout.rects[selectedIndex] : null;
   const cssW = layout ? layout.width / layout.dpr : 0;
   const cssH = layout ? layout.height / layout.dpr : 0;
   const hovered = layout && hover ? layout.rects[hover.i] : null;
@@ -202,9 +251,11 @@ export function TreemapCanvas() {
     <div
       ref={wrapRef}
       className="treemap"
-      role="img"
+      role="group"
+      aria-roledescription={strings.treemapRoleDescription}
       aria-label={strings.treemapLabel}
       tabIndex={0}
+      onKeyDown={onKeyDown}
       onMouseMove={onMouseMove}
       onMouseLeave={() => setHover(null)}
       onClick={onClick}
@@ -214,6 +265,14 @@ export function TreemapCanvas() {
     >
       <canvas ref={baseRef} className="treemap-layer" style={{ width: cssW, height: cssH }} />
       <canvas ref={overlayRef} className="treemap-layer" style={{ width: cssW, height: cssH }} />
+      <div className="sr-only" aria-live="polite">
+        {selectedRect &&
+          strings.treemapSelected(
+            selectedRect.name,
+            selectedRect.is_dir ? strings.folder : strings.file,
+            formatBytes(selectedRect.size),
+          )}
+      </div>
       {selectionBelowResolution && (
         <div className="treemap-note" title={searchFilename}>Selected: {searchFilename}</div>
       )}
