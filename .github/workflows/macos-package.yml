@@ -21,11 +21,38 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
-      - name: Build universal DMG
+      - name: Build universal app
         working-directory: app
         run: |
           npm ci
-          npm run tauri build -- --ci --target universal-apple-darwin --bundles dmg
+          npm run tauri build -- --ci --target universal-apple-darwin --bundles app
+      - name: Create DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          bundle="$PWD/target/universal-apple-darwin/release/bundle"
+          app="$bundle/macos/ByteForest.app"
+          version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")
+          work=$(mktemp -d "$RUNNER_TEMP/byteforest.XXXXXX")
+          mkdir -p "$work/stage" "$bundle/dmg"
+          ditto "$app" "$work/stage/ByteForest.app"
+          ln -s /Applications "$work/stage/Applications"
+
+          # Retry transient disk-image locks on shared macOS runners.
+          for attempt in 1 2 3 4 5; do
+            image="$work/attempt-$attempt.dmg"
+            if hdiutil create -srcfolder "$work/stage" -volname ByteForest -fs HFS+ \
+                -format UDZO "$image" >"$work/hdiutil.log" 2>&1; then
+              mv "$image" "$bundle/dmg/ByteForest_${version}_universal.dmg"
+              exit 0
+            fi
+            cat "$work/hdiutil.log"
+            if [[ "$attempt" == 5 ]] || ! grep -Fq "Resource busy" "$work/hdiutil.log"; then
+              exit 1
+            fi
+            sleep "$((5 * attempt))"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: byteforest-macos
