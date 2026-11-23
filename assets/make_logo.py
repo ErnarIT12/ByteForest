@@ -1,7 +1,7 @@
 """Cut the rounded logo tile out of the painted-checkerboard source image.
 
-Usage: python -I assets/make_logo.py SRC DST [UI_DST [UI_SIZE]]
-  e.g. python -I assets/make_logo.py assets/logo-source.jpg assets/logo.png app/src/assets/logo-128.png 128
+Usage: python -I assets/make_logo.py SRC DST
+  e.g. python -I assets/make_logo.py assets/logo-source.jpg assets/logo.png
 """
 import sys
 from collections import deque
@@ -41,7 +41,7 @@ def find_tile_bbox(img):
     return x0, y0, x1 + 1, y1 + 1
 
 
-def main(src, dst, ui_dst=None, ui_size=128):
+def main(src, dst):
     img = Image.open(src).convert("RGB")
     x0, y0, x1, y1 = find_tile_bbox(img)
     # The drop shadow below the tile also passes the colour test, so the
@@ -64,10 +64,10 @@ def main(src, dst, ui_dst=None, ui_size=128):
     out = tile.resize((OUT_SIZE, OUT_SIZE), Image.LANCZOS).convert("RGBA")
     out.putalpha(mask)
     out.save(dst)
-    if ui_dst:
-        out.resize((ui_size, ui_size), Image.LANCZOS).save(ui_dst, optimize=True)
 
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    main(args[0], args[1], args[2] if len(args) > 2 else None, int(args[3]) if len(args) > 3 else 128)
+    if len(args) != 2:
+        sys.exit(__doc__)
+    main(args[0], args[1])
