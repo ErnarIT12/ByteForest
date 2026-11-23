@@ -204,3 +204,48 @@ describe('search preset', () => {
     expect(useAppStore.getState().searchPreset).toEqual({ ...preset, seq: 2 });
   });
 });
+
+describe('snapshot comparison', () => {
+  const info = {
+    label: 'C:',
+    created_unix_ms: 1_700_000_000_000,
+    total_delta: 500,
+    added: { bytes: 600, count: 3 },
+    removed: { bytes: 100, count: 1 },
+  };
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('setBaseline stores the comparison and asks views to refetch', () => {
+    scanned();
+    const before = useAppStore.getState();
+    before.setBaseline(info);
+    const s = useAppStore.getState();
+    expect(s.baseline).toEqual(info);
+    expect(s.generation).toBe(before.generation + 1);
+    expect(s.baselineSeq).toBe(before.baselineSeq + 1);
+    s.setBaseline(null);
+    expect(useAppStore.getState().baseline).toBeNull();
+    expect(useAppStore.getState().generation).toBe(before.generation + 2);
+  });
+
+  it('a removal lowers the net change by the removed bytes', () => {
+    scanned();
+    useAppStore.getState().setBaseline(info);
+    useAppStore.getState().applyRemoval(5, { bytes: 40, files: 1, dirs: 0, parent: 0 });
+    expect(useAppStore.getState().baseline?.total_delta).toBe(460);
+  });
+
+  it('a new scan stops the comparison', () => {
+    scanned();
+    useAppStore.getState().setBaseline(info);
+    useAppStore.getState().beginScan('C');
+    expect(useAppStore.getState().baseline).toBeNull();
+  });
+
+  it('a new result never keeps the previous comparison', () => {
+    scanned();
+    useAppStore.getState().setBaseline(info);
+    useAppStore.getState().handleDone(done(1));
+    expect(useAppStore.getState().baseline).toBeNull();
+  });
+});

@@ -40,7 +40,14 @@ export function nextEnabledIndex(enabled: boolean[], current: number, key: MenuK
   return -1;
 }
 
-export type MenuAction = 'open' | 'reveal' | 'copy' | 'trash';
+export type MenuAction =
+  | 'open'
+  | 'reveal'
+  | 'copy'
+  | 'trash'
+  | 'snapshotSave'
+  | 'snapshotCompare'
+  | 'snapshotStop';
 
 export type MenuEntry =
   | { type: 'separator' }
@@ -78,6 +85,23 @@ export function buildMenuEntries(
       },
     );
   }
+  return entries;
+}
+
+/** The entries of the Snapshots menu; "Stop comparing" is only offered while comparing. */
+export function buildSnapshotEntries(opts: { comparing: boolean }): MenuEntry[] {
+  const item = (action: MenuAction, label: string): MenuEntry => ({
+    type: 'item',
+    action,
+    label,
+    disabled: false,
+    danger: false,
+  });
+  const entries = [
+    item('snapshotSave', strings.snapshotSave),
+    item('snapshotCompare', strings.snapshotCompare),
+  ];
+  if (opts.comparing) entries.push({ type: 'separator' }, item('snapshotStop', strings.snapshotStop));
   return entries;
 }
 

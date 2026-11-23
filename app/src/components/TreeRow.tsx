@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { deltaCell } from '../diffView';
 import { formatBytes, formatCount, formatFiletime, formatPercent } from '../format';
 import { strings } from '../strings';
 import type { NodeView } from '../api';
@@ -11,6 +12,8 @@ interface Props {
   expanded: boolean;
   isRoot: boolean;
   level: number;
+  /** Show the change column (comparing with a snapshot). */
+  showDelta: boolean;
   selected: boolean;
   focused: boolean;
   /** Offset in the virtual list, pixels. */
@@ -48,6 +51,7 @@ export const TreeRow = memo(function TreeRow({
   expanded,
   isRoot,
   level,
+  showDelta,
   selected,
   focused,
   top,
@@ -58,6 +62,7 @@ export const TreeRow = memo(function TreeRow({
 }: Props) {
   const expandable = node.is_dir && node.has_children;
   const percent = Math.min(100, Math.max(0, node.percent_of_parent));
+  const change = showDelta ? deltaCell(node.diff) : null;
 
   return (
     <div
@@ -99,6 +104,11 @@ export const TreeRow = memo(function TreeRow({
         </span>
       </div>
       <div className="cell num">{formatBytes(node.size)}</div>
+      {showDelta && (
+        <div className="cell num col-delta">
+          {change && <span className={`delta ${change.tone}`}>{change.text}</span>}
+        </div>
+      )}
       <div className="cell percent">
         {!isRoot && (
           <>

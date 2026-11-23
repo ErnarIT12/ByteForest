@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { NodeDetails } from './api';
 import {
   buildMenuEntries,
+  buildSnapshotEntries,
   clampMenuPosition,
   isContextMenuKey,
   nextEnabledIndex,
@@ -81,5 +82,22 @@ describe('isContextMenuKey', () => {
     expect(isContextMenuKey({ key: 'F10', shiftKey: true })).toBe(true);
     expect(isContextMenuKey({ key: 'F10', shiftKey: false })).toBe(false);
     expect(isContextMenuKey({ key: 'F10', shiftKey: true, ctrlKey: true })).toBe(false);
+  });
+});
+
+describe('buildSnapshotEntries', () => {
+  const actions = (comparing: boolean) =>
+    buildSnapshotEntries({ comparing }).flatMap((e) => (e.type === 'item' ? [e.action] : []));
+
+  it('offers save and compare', () => {
+    expect(actions(false)).toEqual(['snapshotSave', 'snapshotCompare']);
+  });
+
+  it('adds stop comparing only while comparing', () => {
+    expect(actions(true)).toEqual(['snapshotSave', 'snapshotCompare', 'snapshotStop']);
+  });
+
+  it('never disables an entry', () => {
+    expect(buildSnapshotEntries({ comparing: true }).every((e) => e.type !== 'item' || !e.disabled)).toBe(true);
   });
 });

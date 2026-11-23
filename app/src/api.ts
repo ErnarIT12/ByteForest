@@ -31,6 +31,26 @@ export interface VolumeSummary {
   free: number;
 }
 
+/** How a node differs from the snapshot being compared against (serde names of the Rust enum). */
+export type DiffStatus = 'added' | 'grown' | 'shrunk' | 'unchanged';
+
+/** Count and size of entries that were added or have disappeared. */
+export interface GoneInfo {
+  bytes: number;
+  count: number;
+}
+
+/** Comparison result of one node; only present while comparing with a snapshot. */
+export interface NodeDiff {
+  status: DiffStatus;
+  /** Size in the snapshot; null for new nodes. */
+  base: number | null;
+  /** Bytes gained (positive) or lost (negative) since the snapshot. */
+  delta: number;
+  /** Things inside a folder that are in the snapshot but gone now. */
+  removed: GoneInfo | null;
+}
+
 export interface NodeView {
   id: number;
   name: string;
@@ -43,6 +63,8 @@ export interface NodeView {
   /** Windows FILETIME (100-ns ticks since 1601-01-01). */
   mtime: number;
   percent_of_parent: number;
+  /** Set by the backend only while comparing with a snapshot, and only when something changed. */
+  diff?: NodeDiff | null;
 }
 
 /** File category (serde names of the Rust enum). */
@@ -235,6 +257,38 @@ export const restartElevated = (target?: string) =>
 export const takeStartupScan = () => invoke<string | null>('take_startup_scan');
 export const getSettings = () => invoke<Settings>('get_settings');
 export const setSettings = (settings: Settings) => invoke<void>('set_settings', { settings });
+
+/** Summary of a started comparison. */
+export interface BaselineInfo {
+  /** What was scanned when the snapshot was taken. */
+  label: string;
+  created_unix_ms: number;
+  /** Net change of the whole scan since the snapshot, bytes. */
+  total_delta: number;
+  added: GoneInfo;
+  removed: GoneInfo;
+}
+
+/** One row of the list of the biggest increases. */
+export interface ChangeEntry {
+  id: number;
+  name: string;
+  path: string;
+  status: DiffStatus;
+  base: number | null;
+  current: number;
+  delta: number;
+}
+
+/** Saves the scan through a save dialog; resolves to the file path, or null when cancelled. */
+export const saveSnapshot = (scanId: number) => invoke<string | null>('save_snapshot', { scanId });
+/** Picks a snapshot file and compares the scan with it; null when the dialog was cancelled. */
+export const compareWithSnapshot = (scanId: number) =>
+  invoke<BaselineInfo | null>('compare_with_snapshot', { scanId });
+export const clearBaseline = () => invoke<void>('clear_baseline');
+/** The nodes that grew or are new since the snapshot, largest first (`limit` is capped at 200). */
+export const topChanges = (scanId: number, limit: number) =>
+  invoke<ChangeEntry[]>('top_changes', { scanId, limit });
 
 export const onScanProgress = (cb: (p: ScanProgress) => void): Promise<UnlistenFn> =>
   listen<ScanProgress>('scan://progress', (e) => cb(e.payload));

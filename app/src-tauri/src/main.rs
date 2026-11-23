@@ -20,9 +20,9 @@ fn main() {
         return;
     }
 
-    let builder = tauri::Builder::default().plugin(tauri_plugin_clipboard_manager::init());
-    #[cfg(target_os = "macos")]
-    let builder = builder.plugin(tauri_plugin_dialog::init());
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init());
 
     let result = builder
         .manage(app_state)
@@ -47,6 +47,10 @@ fn main() {
             commands::get_settings,
             commands::set_settings,
             commands::pick_folder,
+            commands::save_snapshot,
+            commands::compare_with_snapshot,
+            commands::clear_baseline,
+            commands::top_changes,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

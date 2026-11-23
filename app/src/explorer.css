@@ -202,9 +202,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Comparing with a snapshot adds a change column after the size. */
+.tree-panel.comparing {
+  --tree-cols: minmax(120px, 1fr) 76px 84px 96px 60px 104px;
+}
+
 @container (max-width: 560px) {
   .tree-panel {
     --tree-cols: minmax(120px, 1fr) 76px 96px 60px;
+  }
+  .tree-panel.comparing {
+    --tree-cols: minmax(120px, 1fr) 76px 84px 96px 60px;
   }
   .col-modified {
     display: none;
@@ -213,6 +221,9 @@
 @container (max-width: 440px) {
   .tree-panel {
     --tree-cols: minmax(120px, 1fr) 76px 96px;
+  }
+  .tree-panel.comparing {
+    --tree-cols: minmax(120px, 1fr) 76px 84px 96px;
   }
   .col-files {
     display: none;
@@ -400,3 +411,41 @@ button.type-row:hover { background: var(--hover); }
   font-size: 12px;
 }
 .search-scope span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Snapshot comparison: change text and badge, banner */
+
+.delta {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+.delta.grown,
+.delta.added { color: var(--delta-grow); }
+.delta.shrunk { color: var(--delta-shrink); }
+.delta.added {
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.compare-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+.compare-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compare-banner .btn {
+  height: 26px;
+  min-width: 56px;
+  padding: 0 10px;
+}

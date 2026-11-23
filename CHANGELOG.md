@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Remove the "⚡" icon from the Fast scan (admin) label.
 - Hide the "Always run as administrator" setting on macOS.
 - Add a right-click context menu (also Shift+F10 or the Menu key) to the folder tree and treemap, with Open folder, Show in Explorer/Finder, Copy Path and Move to Recycle Bin/Trash after confirmation. The tree, treemap and totals update instantly without a rescan.
+- Save a scan as a compact snapshot file (Snapshots, Save snapshot…) and compare a later scan with it (Compare with snapshot…): the folder tree shows what grew, shrank or is new, a Changes view lists the biggest increases, and the file inspector reports what is gone. The CLI gets `byteforest scan <target> --save-snapshot <FILE>` and `--diff <FILE>`, with JSON output for `--diff`.
 
 ## [0.2.0] - 2026-11-23
 

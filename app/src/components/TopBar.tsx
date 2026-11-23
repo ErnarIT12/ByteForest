@@ -6,6 +6,7 @@ import { FastScanButton } from './FastScanButton';
 import { ScanButton } from './ScanButton';
 import { ScanProgressText } from './ScanProgressText';
 import { SettingsPopover } from './SettingsPopover';
+import { SnapshotsMenu } from './SnapshotsMenu';
 import { TreeGlyph } from './TreeGlyph';
 
 /** App bar: name, drive picker, Scan / Cancel and live progress. */
@@ -23,6 +24,7 @@ export function TopBar() {
         <DrivePicker disabled={scanning} />
         <ScanButton />
         <FastScanButton />
+        <SnapshotsMenu />
         {scanning && <ScanProgressText />}
       </div>}
       <div className="caption-space" data-tauri-drag-region />

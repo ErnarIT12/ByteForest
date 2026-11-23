@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import {
   SCAN_CANCELLED,
+  type BaselineInfo,
   type FileCategory,
   type LocationStep,
   type NodeView,
@@ -97,6 +98,10 @@ interface AppState {
   resultScanId: number | null;
   /** Bumped for every new result so views drop their caches. */
   generation: number;
+  /** Snapshot the result is being compared with, or null. */
+  baseline: BaselineInfo | null;
+  /** Bumped whenever `baseline` is set or cleared, so the folder tree reloads its pages. */
+  baselineSeq: number;
 
   focusId: number | null;
   focusPath: Crumb[];
@@ -140,6 +145,8 @@ interface AppActions {
   revealSearchResult(scanId: number, steps: LocationStep[]): void;
   /** Applies a successful move to the trash: totals, focus, selection and view refresh. */
   applyRemoval(id: number, result: TrashResult): void;
+  /** Starts (info) or stops (null) comparing; views refetch to pick up the changes. */
+  setBaseline(info: BaselineInfo | null): void;
   /** Asks the explorer to show the file search with the filters of `preset`. */
   openSearch(preset: Omit<SearchPreset, 'seq'>): void;
   dismissError(): void;
@@ -172,6 +179,8 @@ const initialState: AppState = {
   resultTarget: null,
   resultScanId: null,
   generation: 0,
+  baseline: null,
+  baselineSeq: 0,
   focusId: null,
   focusPath: [],
   selectedId: null,
@@ -211,6 +220,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       error: null,
       errorTitle: null,
       elevationBarDismissed: false,
+      // The back end drops the comparison when a scan starts.
+      baseline: null,
       gate: { ...s.gate, pending: true },
     })),
 
@@ -255,6 +266,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       resultTarget: s.scanTarget,
       resultScanId: d.scan_id,
       generation: s.generation + 1,
+      baseline: null,
+      baselineSeq: s.baselineSeq + 1,
       focusId: d.root.id,
       focusPath: [{ id: d.root.id, name: d.root.name }],
       selectedId: null,
@@ -355,6 +368,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     set({
       root,
       stats,
+      // The scan got smaller by what was removed, so the net change since the snapshot did too.
+      baseline: s.baseline && { ...s.baseline, total_delta: s.baseline.total_delta - result.bytes },
       generation: s.generation + 1,
       focusPath,
       focusId: focusPath[focusPath.length - 1]?.id ?? s.focusId,
@@ -365,6 +380,9 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       invalidation: { seq: (s.invalidation?.seq ?? 0) + 1, nodeId: id, parentId: result.parent },
     });
   },
+
+  setBaseline: (info) =>
+    set((s) => ({ baseline: info, baselineSeq: s.baselineSeq + 1, generation: s.generation + 1 })),
 
   openSearch: (preset) =>
     set((s) => ({ searchPreset: { ...preset, seq: (s.searchPreset?.seq ?? 0) + 1 } })),

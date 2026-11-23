@@ -4,16 +4,21 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
-use bf_core::{FileFilter, NodeFlags, NodeId, NodeView, Rect, SortKey, Tree, TreemapOptions};
+use bf_core::{
+    FileFilter, NodeFlags, NodeId, Rect, SnapshotDiff, SortKey, Tree, TreemapOptions, diff,
+    read_snapshot, write_snapshot,
+};
 use bf_scan::{CancelToken, ScanError, ScanRoot, VolumeSummary};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::dto::{ScanDone, ScanErrorEvent, ScanProgressEvent, TreemapRect};
+use crate::dto::{
+    BaselineInfo, ChangeDto, NodeViewDto, ScanDone, ScanErrorEvent, ScanProgressEvent, TreemapRect,
+};
 #[cfg(windows)]
 use crate::elevation::{self, ElevateError};
 use crate::settings::{self as store, Settings};
-use crate::state::{AppState, CompletedScan};
+use crate::state::{AppState, Baseline, CompletedScan};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 /// Largest page `get_children` returns.
@@ -106,8 +111,9 @@ pub fn treemap_rects(tree: &Tree, rects: Vec<Rect>) -> Vec<TreemapRect> {
         .collect()
 }
 
-/// Clones the current tree out of the state; the lock is released before returning.
-fn current_tree(state: &AppState, scan_id: Option<u64>) -> Result<Arc<Tree>, String> {
+/// Clones the current tree and its scan id out of the state; the lock is released before
+/// returning.
+fn current_scan(state: &AppState, scan_id: Option<u64>) -> Result<(u64, Arc<Tree>), String> {
     let guard = state
         .tree
         .read()
@@ -116,7 +122,41 @@ fn current_tree(state: &AppState, scan_id: Option<u64>) -> Result<Arc<Tree>, Str
     if scan_id.is_some_and(|id| id != scan.id) {
         return Err("scan results have changed".to_string());
     }
-    Ok(Arc::clone(&scan.tree))
+    Ok((scan.id, Arc::clone(&scan.tree)))
+}
+
+/// Clones the current tree out of the state; the lock is released before returning.
+fn current_tree(state: &AppState, scan_id: Option<u64>) -> Result<Arc<Tree>, String> {
+    current_scan(state, scan_id).map(|(_, tree)| tree)
+}
+
+/// The comparison for scan `scan_id`, if one is active. Takes only the `baseline` lock.
+fn baseline_diff(state: &AppState, scan_id: u64) -> Option<Arc<SnapshotDiff>> {
+    let guard = state
+        .baseline
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    guard
+        .as_ref()
+        .filter(|b| b.scan_id == scan_id)
+        .map(|b| Arc::clone(&b.diff))
+}
+
+/// Drops any comparison. Callers hold at most the `scan` and `tree` locks.
+fn drop_baseline(state: &AppState) {
+    *state
+        .baseline
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+}
+
+/// `C:` for a volume, the absolute path for a folder.
+fn scan_label(root: &ScanRoot) -> String {
+    match root {
+        #[cfg(windows)]
+        ScanRoot::Volume(letter) => format!("{letter}:"),
+        ScanRoot::Folder(path) => path.to_string_lossy().into_owned(),
+    }
 }
 
 /// Lists the mounted volumes.
@@ -237,6 +277,8 @@ pub fn start_scan(
             previous.cancel();
         }
         slot.id += 1;
+        // The comparison belongs to the previous scan's tree.
+        drop_baseline(&state);
         slot.id
     };
     tracing::info!("scan {scan_id} started: {root:?}");
@@ -254,9 +296,10 @@ fn run_scan(app: AppHandle, scan_id: u64, root: ScanRoot, token: CancelToken) {
             let _ = progress_app.emit("scan://progress", ScanProgressEvent { scan_id, progress });
         }
     };
+    let label = scan_label(&root);
     let outcome = catch_unwind(AssertUnwindSafe(|| {
         let result = bf_scan::scan_auto(&root, &progress, &token);
-        finish_scan(&app, scan_id, &token, result)
+        finish_scan(&app, scan_id, &token, label, result)
     }));
     if outcome.is_err() {
         tracing::error!("scan {scan_id} panicked");
@@ -271,6 +314,7 @@ fn finish_scan(
     app: &AppHandle,
     scan_id: u64,
     token: &CancelToken,
+    label: String,
     result: Result<(Tree, bf_scan::ScanStats), ScanError>,
 ) {
     match result {
@@ -284,9 +328,16 @@ fn finish_scan(
             );
             report(app, scan_id, |state| {
                 match state.tree.write() {
-                    Ok(mut slot) => *slot = Some(CompletedScan { id: scan_id, tree }),
+                    Ok(mut slot) => {
+                        *slot = Some(CompletedScan {
+                            id: scan_id,
+                            tree,
+                            target: label,
+                        });
+                    }
                     Err(_) => return Some(("internal error: state poisoned".to_string(), None)),
                 }
+                drop_baseline(state);
                 Some((
                     String::new(),
                     Some(ScanDone {
@@ -358,18 +409,24 @@ pub fn get_children(
     offset: u32,
     limit: u32,
     scan_id: Option<u64>,
-) -> Result<Vec<NodeView>, String> {
-    let tree = current_tree(&state, scan_id)?;
+) -> Result<Vec<NodeViewDto>, String> {
+    let (current_id, tree) = current_scan(&state, scan_id)?;
     let id = node_id_checked(&tree, node)?;
-    Ok(tree.children(id, sort, offset as usize, limit.min(MAX_CHILDREN) as usize))
+    let diff = baseline_diff(&state, current_id);
+    Ok(tree
+        .children(id, sort, offset as usize, limit.min(MAX_CHILDREN) as usize)
+        .into_iter()
+        .map(|view| NodeViewDto::new(view, diff.as_deref(), &tree))
+        .collect())
 }
 
 /// Details of one node.
 #[tauri::command]
-pub fn get_node(state: State<'_, AppState>, node: u32) -> Result<NodeView, String> {
-    let tree = current_tree(&state, None)?;
+pub fn get_node(state: State<'_, AppState>, node: u32) -> Result<NodeViewDto, String> {
+    let (scan_id, tree) = current_scan(&state, None)?;
     let id = node_id_checked(&tree, node)?;
-    Ok(tree.view(id))
+    let diff = baseline_diff(&state, scan_id);
+    Ok(NodeViewDto::new(tree.view(id), diff.as_deref(), &tree))
 }
 
 /// Full path of a node.
@@ -524,7 +581,7 @@ pub async fn locate_node(
 
 #[derive(Serialize)]
 pub struct NodeDetails {
-    node: NodeView,
+    node: NodeViewDto,
     path: String,
     has_native_path: bool,
 }
@@ -537,9 +594,10 @@ pub fn node_details(
 ) -> Result<NodeDetails, String> {
     let tree = current_tree(&state, Some(scan_id))?;
     let id = node_id_checked(&tree, node)?;
+    let diff = baseline_diff(&state, scan_id);
     let path = native_path(&tree, id);
     Ok(NodeDetails {
-        node: tree.view(id),
+        node: NodeViewDto::new(tree.view(id), diff.as_deref(), &tree),
         has_native_path: path.is_ok(),
         path: path.map_or_else(
             |_| display_path(&tree, id),
@@ -639,33 +697,84 @@ pub async fn move_node_to_trash(
         Ok(_) => return Err("The item is still on disk after moving it to the trash.".to_owned()),
     }
 
+    let (result, recompute) = {
+        let slot = state
+            .scan
+            .lock()
+            .map_err(|_| "internal error: state poisoned")?;
+        if slot.id != scan_id {
+            return Err("The item was moved to the trash, but a new scan has started.".to_owned());
+        }
+        let mut guard = state
+            .tree
+            .write()
+            .map_err(|_| "internal error: state poisoned")?;
+        let scan = guard.as_mut().ok_or("no scan yet")?;
+        if scan.id != scan_id {
+            return Err(
+                "The item was moved to the trash, but the scan results changed.".to_owned(),
+            );
+        }
+        let id = node_id_checked(&scan.tree, node)?;
+        let parent = scan.tree.parent(id).map_or(0, |p| p.0);
+        // Copy-on-write: clones the tree only if a reader still holds the previous `Arc`.
+        let removed = Arc::make_mut(&mut scan.tree)
+            .remove_subtree(id)
+            .map_err(|err| err.to_string())?;
+        // The comparison must reflect the removal; it is recomputed below, off the locks.
+        let recompute = state
+            .baseline
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .filter(|b| b.scan_id == scan_id)
+            .map(|b| (Arc::clone(&b.base), Arc::clone(&scan.tree)));
+        (
+            TrashResult {
+                bytes: removed.bytes,
+                files: removed.files,
+                dirs: removed.dirs,
+                parent,
+            },
+            recompute,
+        )
+    };
+    if let Some((base, current)) = recompute {
+        refresh_baseline(&state, scan_id, base, current).await;
+    }
+    Ok(result)
+}
+
+/// Recomputes the comparison for `current` and swaps it in, unless the scan or the baseline
+/// changed in the meantime. A failure leaves the old diff, whose per-node sizes still follow
+/// the live tree; only the summary and the "removed" counts lag until the next compare.
+async fn refresh_baseline(state: &AppState, scan_id: u64, base: Arc<Tree>, current: Arc<Tree>) {
+    let base_for_diff = Arc::clone(&base);
+    let fresh = tauri::async_runtime::spawn_blocking(move || {
+        diff(&base_for_diff, &current, case_insensitive_names())
+    })
+    .await;
+    let Ok(fresh) = fresh else {
+        tracing::warn!("recomputing the snapshot comparison failed");
+        return;
+    };
     let slot = state
         .scan
         .lock()
-        .map_err(|_| "internal error: state poisoned")?;
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if slot.id != scan_id {
-        return Err("The item was moved to the trash, but a new scan has started.".to_owned());
+        return;
     }
     let mut guard = state
-        .tree
+        .baseline
         .write()
-        .map_err(|_| "internal error: state poisoned")?;
-    let scan = guard.as_mut().ok_or("no scan yet")?;
-    if scan.id != scan_id {
-        return Err("The item was moved to the trash, but the scan results changed.".to_owned());
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(b) = guard
+        .as_mut()
+        .filter(|b| b.scan_id == scan_id && Arc::ptr_eq(&b.base, &base))
+    {
+        b.diff = Arc::new(fresh);
     }
-    let id = node_id_checked(&scan.tree, node)?;
-    let parent = scan.tree.parent(id).map_or(0, |p| p.0);
-    // Copy-on-write: clones the tree only if a reader still holds the previous `Arc`.
-    let removed = Arc::make_mut(&mut scan.tree)
-        .remove_subtree(id)
-        .map_err(|err| err.to_string())?;
-    Ok(TrashResult {
-        bytes: removed.bytes,
-        files: removed.files,
-        dirs: removed.dirs,
-        parent,
-    })
 }
 
 /// Treemap rectangles (at most 20 000) of the subtree under `node`, in a `width` x `height` canvas.
@@ -689,6 +798,277 @@ pub fn get_treemap(
         ..Default::default()
     };
     Ok(treemap_rects(&tree, tree.treemap(id, &opts)))
+}
+
+/// Largest snapshot file `compare_with_snapshot` opens.
+const MAX_SNAPSHOT_FILE: u64 = 4 * 1024 * 1024 * 1024;
+
+/// Most rows `top_changes` returns.
+const MAX_CHANGES: u32 = 200;
+
+/// Whether file names compare case-insensitively on the supported platforms' usual file
+/// systems (NTFS and APFS defaults).
+fn case_insensitive_names() -> bool {
+    cfg!(windows) || cfg!(target_os = "macos")
+}
+
+fn unix_ms_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+}
+
+/// `YYYYMMDD-HHMM` in UTC.
+fn utc_stamp(unix_ms: i64) -> String {
+    let secs = unix_ms.div_euclid(1000);
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    // Civil-from-days (proleptic Gregorian), after Howard Hinnant.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}{month:02}{day:02}-{:02}{:02}",
+        rem / 3600,
+        rem % 3600 / 60
+    )
+}
+
+/// `byteforest-<target>-<YYYYMMDD-HHMM>.bfsnap` with the target reduced to file-name-safe
+/// characters.
+pub fn default_snapshot_name(target: &str, unix_ms: i64) -> String {
+    let mut safe = String::new();
+    for ch in target.chars() {
+        let ch = if ch.is_alphanumeric() { ch } else { '-' };
+        if ch != '-' || !safe.ends_with('-') {
+            safe.push(ch);
+        }
+    }
+    let safe: String = safe.trim_matches('-').chars().take(40).collect();
+    let safe = safe.trim_end_matches('-');
+    let safe = if safe.is_empty() { "scan" } else { safe };
+    format!("byteforest-{safe}-{}.bfsnap", utc_stamp(unix_ms))
+}
+
+/// Writes the snapshot to `<path>.tmp` and renames it over `path`.
+fn write_snapshot_file(
+    tree: &Tree,
+    label: &str,
+    created_unix_ms: i64,
+    path: &Path,
+) -> Result<(), String> {
+    use std::io::Write;
+    let mut tmp_name = path.as_os_str().to_owned();
+    tmp_name.push(".tmp");
+    let tmp = PathBuf::from(tmp_name);
+    let write = || -> Result<(), String> {
+        let file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+        let mut w = std::io::BufWriter::new(file);
+        write_snapshot(tree, label, created_unix_ms, &mut w).map_err(|e| e.to_string())?;
+        w.flush().map_err(|e| e.to_string())?;
+        drop(w);
+        std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+    };
+    write().map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        format!("Could not save the snapshot: {e}")
+    })
+}
+
+/// What was loaded from a snapshot file and compared with the current tree.
+struct LoadedBaseline {
+    label: String,
+    created_unix_ms: i64,
+    base: Arc<Tree>,
+    diff: SnapshotDiff,
+}
+
+/// Reads a snapshot file (refusing files over [`MAX_SNAPSHOT_FILE`]) and compares it with
+/// `current`.
+fn load_baseline(path: &Path, current: &Tree) -> Result<LoadedBaseline, String> {
+    let meta = std::fs::metadata(path).map_err(|e| format!("Cannot open the snapshot: {e}"))?;
+    if meta.len() > MAX_SNAPSHOT_FILE {
+        return Err("This snapshot file is too large to open.".to_owned());
+    }
+    let file = std::fs::File::open(path).map_err(|e| format!("Cannot open the snapshot: {e}"))?;
+    let snap = read_snapshot(std::io::BufReader::new(file))
+        .map_err(|e| format!("Cannot read the snapshot: {e}"))?;
+    let diff = diff(&snap.tree, current, case_insensitive_names());
+    Ok(LoadedBaseline {
+        label: snap.label,
+        created_unix_ms: snap.created_unix_ms,
+        base: Arc::new(snap.tree),
+        diff,
+    })
+}
+
+/// Saves the scan as a snapshot file chosen in a save dialog. Returns the path written, or
+/// `None` when the dialog was cancelled.
+#[tauri::command]
+pub async fn save_snapshot(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    scan_id: u64,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tree, target) = {
+        let guard = state
+            .tree
+            .read()
+            .map_err(|_| "internal error: state poisoned")?;
+        let scan = guard
+            .as_ref()
+            .filter(|scan| scan.id == scan_id)
+            .ok_or("scan results have changed")?;
+        (Arc::clone(&scan.tree), scan.target.clone())
+    };
+    let created = unix_ms_now();
+    let name = default_snapshot_name(&target, created);
+    let dir = app
+        .path()
+        .app_local_data_dir()
+        .ok()
+        .map(|dir| dir.join("snapshots"));
+    if let Some(dir) = &dir {
+        let _ = std::fs::create_dir_all(dir);
+    }
+
+    let dialog_app = app.clone();
+    let chosen = tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = dialog_app
+            .dialog()
+            .file()
+            .add_filter("ByteForest snapshot", &["bfsnap"])
+            .set_file_name(name);
+        if let Some(dir) = dir.filter(|dir| dir.is_dir()) {
+            dialog = dialog.set_directory(dir);
+        }
+        dialog.blocking_save_file()
+    })
+    .await
+    .map_err(|err| err.to_string())?;
+    let Some(chosen) = chosen else {
+        return Ok(None);
+    };
+    let mut path = chosen.into_path().map_err(|err| err.to_string())?;
+    if path.extension().is_none() {
+        path.set_extension("bfsnap");
+    }
+
+    tauri::async_runtime::spawn_blocking(move || {
+        write_snapshot_file(&tree, &target, created, &path).map(|()| path)
+    })
+    .await
+    .map_err(|err| err.to_string())?
+    .map(|path| Some(path.to_string_lossy().into_owned()))
+}
+
+/// Opens a snapshot chosen in an open dialog and compares the scan with it. Returns `None`
+/// when the dialog was cancelled.
+#[tauri::command]
+pub async fn compare_with_snapshot(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    scan_id: u64,
+) -> Result<Option<BaselineInfo>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let tree = current_tree(&state, Some(scan_id))?;
+
+    let dialog_app = app.clone();
+    let chosen = tauri::async_runtime::spawn_blocking(move || {
+        dialog_app
+            .dialog()
+            .file()
+            .add_filter("ByteForest snapshot", &["bfsnap"])
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|err| err.to_string())?;
+    let Some(chosen) = chosen else {
+        return Ok(None);
+    };
+    let path = chosen.into_path().map_err(|err| err.to_string())?;
+
+    let compared = Arc::clone(&tree);
+    let loaded = tauri::async_runtime::spawn_blocking(move || load_baseline(&path, &compared))
+        .await
+        .map_err(|err| err.to_string())??;
+
+    let summary = loaded.diff.summary();
+    let info = BaselineInfo {
+        label: loaded.label.clone(),
+        created_unix_ms: loaded.created_unix_ms,
+        total_delta: summary.total_delta,
+        added: summary.added.into(),
+        removed: summary.removed.into(),
+    };
+    // Lock order: scan, tree, baseline. The diff is only valid for the exact tree it was
+    // computed from.
+    let slot = state
+        .scan
+        .lock()
+        .map_err(|_| "internal error: state poisoned")?;
+    let current = state
+        .tree
+        .read()
+        .map_err(|_| "internal error: state poisoned")?;
+    let unchanged = slot.id == scan_id
+        && current
+            .as_ref()
+            .is_some_and(|scan| scan.id == scan_id && Arc::ptr_eq(&scan.tree, &tree));
+    if !unchanged {
+        return Err("The scan results changed while the snapshot was loading.".to_owned());
+    }
+    *state
+        .baseline
+        .write()
+        .map_err(|_| "internal error: state poisoned")? = Some(Baseline {
+        scan_id,
+        base: loaded.base,
+        diff: Arc::new(loaded.diff),
+    });
+    Ok(Some(info))
+}
+
+/// Stops comparing with a snapshot.
+#[tauri::command]
+pub fn clear_baseline(state: State<'_, AppState>) {
+    drop_baseline(&state);
+}
+
+/// The nodes that grew or are new since the snapshot, largest increase first (`limit` is
+/// clamped to 1..=200).
+#[tauri::command]
+pub async fn top_changes(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    limit: u32,
+) -> Result<Vec<ChangeDto>, String> {
+    let tree = current_tree(&state, Some(scan_id))?;
+    let diff = baseline_diff(&state, scan_id).ok_or("Not comparing with a snapshot.")?;
+    let limit = limit.clamp(1, MAX_CHANGES) as usize;
+    tauri::async_runtime::spawn_blocking(move || {
+        diff.top_changes(&tree, limit)
+            .into_iter()
+            .map(|(id, entry)| ChangeDto {
+                id: id.0,
+                name: tree.name(id).to_owned(),
+                path: display_path(&tree, id),
+                status: entry.status.into(),
+                base: entry.base,
+                current: entry.current,
+                delta: entry.delta,
+            })
+            .collect()
+    })
+    .await
+    .map_err(|err| err.to_string())
 }
 
 #[cfg(test)]
@@ -821,7 +1201,11 @@ mod tests {
             .find(|&id| tree.flags(id).contains(NodeFlags::SYNTHETIC))
             .unwrap();
         let state = AppState::default();
-        *state.tree.write().unwrap() = Some(CompletedScan { id: 7, tree });
+        *state.tree.write().unwrap() = Some(CompletedScan {
+            id: 7,
+            tree,
+            target: String::new(),
+        });
         assert_eq!(existing_node_path(&state, 7, id.0), Ok(file.clone()));
         assert!(existing_node_path(&state, 6, id.0).is_err());
         assert!(existing_node_path(&state, 7, synthetic.0).is_err());
@@ -845,5 +1229,89 @@ mod tests {
         ] {
             assert!(validate_canvas(w, h).is_err(), "{w} x {h}");
         }
+    }
+
+    #[test]
+    fn snapshot_names_are_safe_and_stamped() {
+        assert_eq!(
+            default_snapshot_name("C:", 1_700_000_000_000),
+            "byteforest-C-20231114-2213.bfsnap"
+        );
+        assert_eq!(
+            default_snapshot_name(r"C:\Users\a b/..\x", 0),
+            "byteforest-C-Users-a-b-x-19700101-0000.bfsnap"
+        );
+        assert_eq!(
+            default_snapshot_name("///", 0),
+            "byteforest-scan-19700101-0000.bfsnap"
+        );
+        let long = default_snapshot_name(&"x".repeat(500), 0);
+        assert!(long.len() < 80, "{long}");
+    }
+
+    #[test]
+    fn snapshot_file_round_trips_and_leaves_no_temp_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.bfsnap");
+        let before = tiny_tree();
+        write_snapshot_file(&before, "C:", 5, &path).unwrap();
+        assert!(!dir.path().join("t.bfsnap.tmp").exists());
+
+        let mut b = TreeBuilder::new(5, "C:");
+        for (key, name, size) in [(6, "a.txt", 10), (7, "b.txt", 90)] {
+            b.push(EntryRecord {
+                key,
+                parent_key: 5,
+                name: name.into(),
+                flags: NodeFlags::empty(),
+                size,
+                alloc: size,
+                mtime: 0,
+            });
+        }
+        let now = b.finish();
+        let loaded = load_baseline(&path, &now).unwrap();
+        assert_eq!((loaded.label.as_str(), loaded.created_unix_ms), ("C:", 5));
+        let summary = loaded.diff.summary();
+        assert_eq!(summary.total_delta, 90);
+        assert_eq!(summary.added.count, 1);
+        let added = now
+            .children_ids(now.root())
+            .find(|&id| now.name(id) == "b.txt")
+            .unwrap();
+        let dto = crate::dto::diff_dto(&loaded.diff, &now, added).unwrap();
+        assert_eq!(dto.status, crate::dto::DiffKind::Added);
+        assert_eq!(dto.delta, 90);
+        let unchanged = now
+            .children_ids(now.root())
+            .find(|&id| now.name(id) == "a.txt")
+            .unwrap();
+        assert!(crate::dto::diff_dto(&loaded.diff, &now, unchanged).is_none());
+    }
+
+    #[test]
+    fn corrupt_snapshot_file_is_an_error_not_a_panic() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bad.bfsnap");
+        std::fs::write(&path, b"BFSNAP garbage").unwrap();
+        let err = load_baseline(&path, &tiny_tree()).err().unwrap();
+        assert!(err.starts_with("Cannot read the snapshot"), "{err}");
+        assert!(load_baseline(&dir.path().join("missing"), &tiny_tree()).is_err());
+    }
+
+    #[test]
+    fn baseline_is_only_visible_for_its_own_scan() {
+        let state = AppState::default();
+        let base = Arc::new(tiny_tree());
+        let diff = Arc::new(bf_core::diff(&base, &base, false));
+        *state.baseline.write().unwrap() = Some(Baseline {
+            scan_id: 3,
+            base,
+            diff,
+        });
+        assert!(baseline_diff(&state, 3).is_some());
+        assert!(baseline_diff(&state, 4).is_none());
+        drop_baseline(&state);
+        assert!(baseline_diff(&state, 3).is_none());
     }
 }

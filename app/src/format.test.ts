@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { filetimeToDate, formatBytes, formatCount, formatFiletime, formatScanShare, formatSeconds } from './format';
+import {
+  filetimeToDate,
+  formatBytes,
+  formatCount,
+  formatDelta,
+  formatFiletime,
+  formatScanShare,
+  formatSeconds,
+  formatUnixMs,
+} from './format';
 
 describe('formatBytes', () => {
   it('formats the brief values', () => {
@@ -66,5 +75,29 @@ describe('formatSeconds', () => {
     expect(formatSeconds(49)).toBe('<0.1 s');
     expect(formatSeconds(50)).toBe('0.1 s');
     expect(formatSeconds(-5)).toBe('<0.1 s');
+  });
+});
+
+describe('formatDelta', () => {
+  it('always shows the direction of a change', () => {
+    expect(formatDelta(1536)).toBe('+1.5 KB');
+    expect(formatDelta(5_153_960_755)).toBe('+4.8 GB');
+    expect(formatDelta(-125_829_120)).toBe('−120.0 MB');
+    expect(formatDelta(1)).toBe('+1 B');
+    expect(formatDelta(-1)).toBe('−1 B');
+  });
+
+  it('shows zero and unusable values without a sign', () => {
+    expect(formatDelta(0)).toBe('0 B');
+    expect(formatDelta(Number.NaN)).toBe('0 B');
+    expect(formatDelta(Number.POSITIVE_INFINITY)).toBe('0 B');
+  });
+});
+
+describe('formatUnixMs', () => {
+  it('formats a local date like file dates', () => {
+    expect(formatUnixMs(new Date(2026, 10, 15, 12).getTime())).toBe('Nov 15, 2026');
+    expect(formatUnixMs(Number.NaN)).toBe('');
+    expect(formatUnixMs(8.64e15 + 1)).toBe('');
   });
 });

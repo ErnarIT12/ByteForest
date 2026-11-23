@@ -331,9 +331,12 @@ name = "bf-core"
 version = "0.2.0"
 dependencies = [
  "bitflags 2.13.2",
+ "crc32fast",
+ "flate2",
  "insta",
  "serde",
  "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

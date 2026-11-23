@@ -18,6 +18,7 @@ export function TreePanel({ root, scanId }: { root: NodeView; scanId: number }) 
   const focusId = useAppStore((s) => s.focusId);
   const reveal = useAppStore((s) => s.reveal);
   const select = useAppStore((s) => s.select);
+  const comparing = useAppStore((s) => s.baseline !== null);
   const setFocus = useAppStore((s) => s.setFocus);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -170,10 +171,11 @@ export function TreePanel({ root, scanId }: { root: NodeView; scanId: number }) 
   };
 
   return (
-    <div className="tree-panel">
+    <div className={comparing ? 'tree-panel comparing' : 'tree-panel'}>
       <div className="tree-header" aria-hidden="true">
         <div className="cell name">{strings.colName}</div>
         <div className="cell num">{strings.colSize}</div>
+        {comparing && <div className="cell num col-delta">{strings.colChange}</div>}
         <div className="cell percent">{strings.colPercent}</div>
         <div className="cell num col-files">{strings.colFiles}</div>
         <div className="cell date col-modified">{strings.colModified}</div>
@@ -205,6 +207,7 @@ export function TreePanel({ root, scanId }: { root: NodeView; scanId: number }) 
                 expanded={entry.expanded}
                 isRoot={entry.parent === null}
                 level={r.level}
+                showDelta={comparing}
                 selected={r.id === selectedId}
                 focused={r.id === focusId}
                 top={it.start}

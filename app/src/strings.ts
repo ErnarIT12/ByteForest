@@ -154,6 +154,31 @@ export const strings = {
   breakdownRow: (name: string, size: string, share: string) => `${name}, ${size}, ${share}`,
   tooltipCategory: (name: string) => `Type: ${name}`,
 
+  // Snapshots and comparison
+  snapshots: 'Snapshots',
+  snapshotsMenuLabel: 'Snapshot actions',
+  snapshotSave: 'Save snapshot…',
+  snapshotCompare: 'Compare with snapshot…',
+  snapshotStop: 'Stop comparing',
+  snapshotSaved: (path: string) => `Snapshot saved to ${path}`,
+  snapshotSaveFailed: 'Could not save the snapshot',
+  snapshotCompareFailed: 'Could not compare with the snapshot',
+  comparingWith: (label: string, date: string, net: string) =>
+    `Comparing with ${label} · ${date} · net ${net}`,
+  comparingSummary: (added: string, removed: string) => `${added} new · ${removed} gone`,
+  stopComparing: 'Stop',
+  compareBannerLabel: 'Snapshot comparison',
+  colChange: 'Change',
+  diffNew: 'New',
+  changesMode: 'Changes',
+  changesLoading: 'Loading changes…',
+  changesNone: 'Nothing grew or is new since the snapshot',
+  changesSummary: (n: string) => `${n} biggest increases since the snapshot`,
+  changesFailed: 'Could not load the changes',
+  sinceSnapshot: 'Since snapshot',
+  goneSinceSnapshot: 'Gone since snapshot',
+  goneSummary: (count: string, size: string) => `${count} items · ${size}`,
+
   // Errors
   scanFailed: 'Scan failed',
   elevateFailed: 'Could not restart as administrator',

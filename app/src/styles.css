@@ -29,6 +29,8 @@
   --tm-sel-inner: #ffffff;
   --tm-hover-fill: rgb(255 255 255 / 12%);
   --danger: #a62839;
+  --delta-grow: #9a3412;
+  --delta-shrink: #17663a;
   --hover: color-mix(in srgb, var(--text) 7%, transparent);
   --pressed: color-mix(in srgb, var(--text) 12%, transparent);
   --accent-soft: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -117,6 +119,8 @@
   --tm-sel-inner: #141518;
   --tm-hover-fill: rgb(255 255 255 / 8%);
   --danger: #ff9ea9;
+  --delta-grow: #ffb27a;
+  --delta-shrink: #7fd6a0;
   --chrome-bg: linear-gradient(110deg, #353941, #22252a 48%, #18191c);
   --chrome-border: #454951;
   --chrome-text: #f3f4f6;
