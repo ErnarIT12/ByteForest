@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bf_core::{
-    DiffStatus, NodeView, Snapshot, SnapshotDiff, SortKey, Tree, diff, read_snapshot,
-    write_snapshot,
+    DiffStatus, Excluded, ExclusionSet, NodeView, ReportOptions, Snapshot, SnapshotDiff,
+    SnapshotLimits, SortKey, Tree, diff, read_snapshot_with_limits, write_csv, write_snapshot,
 };
 use bf_scan::{
     CancelToken, ScanProgress, ScanRoot, ScanStats, VolumeSummary, is_elevated, list_volumes,
@@ -30,12 +30,20 @@ pub fn run(command: Command) -> Result<(), String> {
             json,
             save_snapshot,
             diff,
+            exclude,
+            export,
+            export_depth,
+            export_rows,
         } => scan(&ScanArgs {
             target: &target,
             top: top.clamp(1, 1000),
             json,
             save_snapshot: save_snapshot.as_deref(),
             diff: diff.as_deref(),
+            exclude: &exclude,
+            export: export.as_deref(),
+            export_depth,
+            export_rows: usize::try_from(export_rows).unwrap_or(usize::MAX),
         }),
         Command::Bench { target, runs, json } => bench(&target, runs, json),
     }
@@ -114,6 +122,90 @@ struct ScanArgs<'a> {
     json: bool,
     save_snapshot: Option<&'a Path>,
     diff: Option<&'a Path>,
+    exclude: &'a [String],
+    export: Option<&'a Path>,
+    export_depth: u8,
+    export_rows: usize,
+}
+
+/// Report file formats chosen by the file extension.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ExportFormat {
+    Csv,
+    Json,
+}
+
+fn export_format(path: &Path) -> ExportFormat {
+    let is_json = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("json"));
+    if is_json {
+        ExportFormat::Json
+    } else {
+        ExportFormat::Csv
+    }
+}
+
+/// The scan root as a path string, for turning absolute exclusion paths into relative ones.
+fn root_path(root: &ScanRoot) -> String {
+    match root {
+        #[cfg(windows)]
+        ScanRoot::Volume(letter) => format!("{letter}:"),
+        ScanRoot::Folder(path) => path.to_string_lossy().into_owned(),
+    }
+}
+
+/// Cuts the excluded names and paths out of the tree and takes them out of the stats too.
+fn apply_exclusions(
+    tree: &mut Tree,
+    stats: &mut ScanStats,
+    root: &ScanRoot,
+    patterns: &[String],
+) -> Excluded {
+    let set = ExclusionSet::from_patterns(patterns, &root_path(root), case_insensitive_names());
+    let excluded = tree.apply_exclusions(&set, case_insensitive_names());
+    stats.files = stats.files.saturating_sub(excluded.files);
+    stats.dirs = stats.dirs.saturating_sub(excluded.dirs);
+    stats.bytes = stats.bytes.saturating_sub(excluded.bytes);
+    excluded
+}
+
+/// Writes the report to `<file>.tmp` and renames it over `path`.
+fn export_report_file(
+    tree: &Tree,
+    path: &Path,
+    format: ExportFormat,
+    opts: ReportOptions,
+) -> Result<bf_core::Report, String> {
+    let report = tree
+        .report(tree.root(), opts)
+        .ok_or_else(|| "nothing to export".to_string())?;
+    let mut tmp_name = path.as_os_str().to_owned();
+    tmp_name.push(".tmp");
+    let tmp = PathBuf::from(tmp_name);
+    let write = || -> Result<(), String> {
+        let file = File::create(&tmp).map_err(|e| e.to_string())?;
+        let mut w = BufWriter::new(file);
+        match format {
+            ExportFormat::Csv => write_csv(&report, ',', &mut w).map_err(|e| e.to_string())?,
+            ExportFormat::Json => {
+                serde_json::to_writer(&mut w, &report).map_err(|e| e.to_string())?;
+                w.write_all(
+                    b"
+",
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
+        w.flush().map_err(|e| e.to_string())?;
+        drop(w);
+        std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+    };
+    write().map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        format!("cannot write report {}: {e}", path.display())
+    })?;
+    Ok(report)
 }
 
 /// Whether file names compare case-insensitively on this platform's usual file systems.
@@ -124,7 +216,11 @@ fn case_insensitive_names() -> bool {
 fn load_snapshot(path: &Path) -> Result<Snapshot, String> {
     let file =
         File::open(path).map_err(|e| format!("cannot open snapshot {}: {e}", path.display()))?;
-    read_snapshot(BufReader::new(file))
+    let limits = file.metadata().map_or_else(
+        |_| SnapshotLimits::default(),
+        |m| SnapshotLimits::for_compressed_len(m.len()),
+    );
+    read_snapshot_with_limits(BufReader::new(file), limits)
         .map_err(|e| format!("cannot read snapshot {}: {e}", path.display()))
 }
 
@@ -224,7 +320,9 @@ fn scan(args: &ScanArgs) -> Result<(), String> {
     // Load the baseline first so a bad file fails before a long scan.
     let baseline = args.diff.map(load_snapshot).transpose()?;
     let show_progress = !args.json && std::io::stderr().is_terminal();
-    let (tree, stats) = scan_once(&root, show_progress)?;
+    let (mut tree, mut stats) = scan_once(&root, show_progress)?;
+    let excluded = (!args.exclude.is_empty())
+        .then(|| apply_exclusions(&mut tree, &mut stats, &root, args.exclude));
     let rows = top_children(&tree, args.top);
     let diffed = baseline
         .as_ref()
@@ -232,12 +330,18 @@ fn scan(args: &ScanArgs) -> Result<(), String> {
 
     if args.json {
         let mut value = json!({ "stats": stats, "top": rows });
+        if let Some(ex) = &excluded {
+            value["stats"]["excluded"] = json!({ "items": ex.items, "bytes": ex.bytes });
+        }
         if let Some((snap, d)) = &diffed {
             value["diff"] = diff_json(snap, d, &tree, args.top);
         }
         print_json(&value)?;
     } else {
         print!("{}", scan_header(&stats));
+        if let Some(ex) = excluded.filter(|ex| ex.items > 0) {
+            println!("excluded: {} items, {}", ex.items, human_size(ex.bytes));
+        }
         println!();
         print!("{}", top_table(&rows, stats.bytes));
         if let Some((snap, d)) = &diffed {
@@ -249,6 +353,26 @@ fn scan(args: &ScanArgs) -> Result<(), String> {
         save_snapshot_file(&tree, args.target, path)?;
         if !args.json {
             println!("snapshot saved to {}", path.display());
+        }
+    }
+    if let Some(path) = args.export {
+        let opts = ReportOptions {
+            max_depth: args.export_depth,
+            max_rows: args.export_rows,
+            path_separator: std::path::MAIN_SEPARATOR,
+        };
+        let report = export_report_file(&tree, path, export_format(path), opts)?;
+        if !args.json {
+            let note = if report.truncated {
+                " (truncated, raise --export-rows)"
+            } else {
+                ""
+            };
+            println!(
+                "report with {} rows saved to {}{note}",
+                report.rows.len(),
+                path.display()
+            );
         }
     }
     Ok(())

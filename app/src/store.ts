@@ -8,16 +8,26 @@ import { create } from 'zustand';
 import {
   SCAN_CANCELLED,
   type BaselineInfo,
+  type BatchTrashResult,
   type FileCategory,
   type LocationStep,
   type NodeView,
+  type OpenedSnapshot,
+  type ResultSource,
+  type ExcludedInfo,
   type ScanDone,
   type ScanErrorEvent,
   type ScanProgress,
   type ScanStats,
   type TrashResult,
+  type UserFolder,
   type VolumeSummary,
 } from './api';
+import { survivingSelection } from './discardModel';
+import { loadMapView, saveMapView, type MapView } from './mapView';
+import { addRecentScan, loadRecentScans, saveRecentScans, type RecentScan } from './recentScans';
+import { locationOf } from './scanTargets';
+import { orderUserFolders } from './sidebarModel';
 import { strings } from './strings';
 
 /** Asks the folder tree to re-read the pages of `parentId` and its ancestors after a removal. */
@@ -26,6 +36,8 @@ export interface TreeInvalidation {
   /** The removed node. */
   nodeId: number;
   parentId: number;
+  /** A batch removal: refresh every loaded folder, not only the chain of one parent. */
+  all?: boolean;
 }
 
 /** One entry of the focus path (root first). */
@@ -58,6 +70,8 @@ export interface RevealRequest {
   seq: number;
   positions?: (number | null)[];
   filename?: string;
+  /** Switch the explorer back to the folder tree (the request came from outside it). */
+  showTree?: boolean;
 }
 
 /** Pre-filled search (opened from a folder's file-type breakdown). */
@@ -73,7 +87,13 @@ export interface SearchPreset {
 interface AppState {
   drives: VolumeSummary[] | null;
   drivesError: string | null;
-  /** Drive letter picked in the top bar. */
+  /** Desktop, Downloads and Documents of the user, in display order. */
+  userFolders: UserFolder[];
+  /** Finished scans, newest first (persisted). */
+  recentScans: RecentScan[];
+  /** Disk map shown in the explorer (persisted). */
+  mapView: MapView;
+  /** Location picked in the sidebar: a drive letter ("C") or a folder path. */
   target: string | null;
   elevated: boolean | null;
   isMac: boolean;
@@ -91,16 +111,20 @@ interface AppState {
 
   /** Result being shown. */
   stats: ScanStats | null;
+  /** What the exclusion settings cut out of the shown result, if anything. */
+  excluded: ExcludedInfo | null;
   root: NodeView | null;
   rootId: number | null;
   /** Exact target of the shown result: "C:" or a folder path. */
   resultTarget: string | null;
   resultScanId: number | null;
+  /** Where the shown result came from; a snapshot is read-only. */
+  resultSource: ResultSource;
   /** Bumped for every new result so views drop their caches. */
   generation: number;
   /** Snapshot the result is being compared with, or null. */
   baseline: BaselineInfo | null;
-  /** Bumped whenever `baseline` is set or cleared, so the folder tree reloads its pages. */
+  /** Bumped whenever `baseline` is set or cleared, so the folder tree refetches its loaded pages in place. */
   baselineSeq: number;
 
   focusId: number | null;
@@ -124,6 +148,8 @@ interface AppActions {
   setDrives(drives: VolumeSummary[]): void;
   setDrivesError(message: string): void;
   setTarget(letter: string): void;
+  setUserFolders(folders: UserFolder[]): void;
+  setMapView(view: MapView): void;
   setElevated(elevated: boolean): void;
 
   /** `target` is exactly what is passed to `startScan` ("C:" or a folder path). */
@@ -135,6 +161,8 @@ interface AppActions {
   handleProgress(p: ScanProgress): void;
   handleDone(d: ScanDone): void;
   handleError(e: ScanErrorEvent): void;
+  /** Shows a snapshot opened from disk as the current (read-only) result. */
+  handleOpened(o: OpenedSnapshot): void;
 
   /** Zooms to directory `id`. `path` (root..id) is needed unless `id` is already on the path. */
   setFocus(id: number, path?: Crumb[]): void;
@@ -142,9 +170,15 @@ interface AppActions {
   goUp(): void;
   /** Selects `path`'s last node and asks the tree to expand the path to it. */
   revealNode(path: number[]): void;
-  revealSearchResult(scanId: number, steps: LocationStep[]): void;
+  revealSearchResult(scanId: number, steps: LocationStep[], opts?: { showTree?: boolean }): void;
   /** Applies a successful move to the trash: totals, focus, selection and view refresh. */
   applyRemoval(id: number, result: TrashResult): void;
+  /**
+   * Applies a batch move to the trash in one pass. `selectionChain` is the path root..selection
+   * from before the move; it finds the surviving ancestor when the selection was inside a
+   * removed folder.
+   */
+  applyBatchRemoval(result: BatchTrashResult, selectionChain?: number[] | null): void;
   /** Starts (info) or stops (null) comparing; views refetch to pick up the changes. */
   setBaseline(info: BaselineInfo | null): void;
   /** Asks the explorer to show the file search with the filters of `preset`. */
@@ -163,6 +197,9 @@ export type AppStore = AppState & AppActions;
 const initialState: AppState = {
   drives: null,
   drivesError: null,
+  userFolders: [],
+  recentScans: loadRecentScans(),
+  mapView: loadMapView(),
   target: null,
   elevated: null,
   isMac: typeof navigator !== 'undefined' && /Macintosh/i.test(navigator.userAgent),
@@ -174,10 +211,12 @@ const initialState: AppState = {
   lastFinished: 0,
   lastOutcome: null,
   stats: null,
+  excluded: null,
   root: null,
   rootId: null,
   resultTarget: null,
   resultScanId: null,
+  resultSource: { kind: 'live' },
   generation: 0,
   baseline: null,
   baselineSeq: 0,
@@ -198,6 +237,46 @@ function finishedGate(gate: ScanGate, id: number): ScanGate {
   return { ...gate, lastKnown: Math.max(gate.lastKnown, id) };
 }
 
+/**
+ * The state patch shared by single and batch removals: smaller totals, a focus that leaves
+ * removed folders, and a bumped generation so views drop their caches.
+ */
+function shrink(
+  s: AppState,
+  totals: { bytes: number; files: number; dirs: number },
+  removed: ReadonlySet<number>,
+): Partial<AppState> {
+  const minus = (value: number, by: number) => Math.max(0, value - by);
+  const root = s.root && {
+    ...s.root,
+    size: minus(s.root.size, totals.bytes),
+    files: minus(s.root.files, totals.files),
+    dirs: minus(s.root.dirs, totals.dirs),
+  };
+  const stats = s.stats && {
+    ...s.stats,
+    bytes: minus(s.stats.bytes, totals.bytes),
+    files: minus(s.stats.files, totals.files),
+    dirs: minus(s.stats.dirs, totals.dirs),
+  };
+  // A removed folder on (or above) the focus moves the focus to its parent.
+  const at = s.focusPath.findIndex((c, i) => i > 0 && removed.has(c.id));
+  const focusPath = at > 0 ? s.focusPath.slice(0, at) : s.focusPath;
+  const focusMoved = focusPath !== s.focusPath;
+  return {
+    root,
+    stats,
+    // The scan got smaller by what was removed, so the net change since the snapshot did too.
+    baseline: s.baseline && { ...s.baseline, total_delta: s.baseline.total_delta - totals.bytes },
+    generation: s.generation + 1,
+    focusPath,
+    focusId: focusPath[focusPath.length - 1]?.id ?? s.focusId,
+    reveal: focusMoved
+      ? { path: focusPath.map((c) => c.id), seq: (s.reveal?.seq ?? 0) + 1 }
+      : s.reveal,
+  };
+}
+
 export const useAppStore = create<AppStore>()((set, get) => ({
   ...initialState,
 
@@ -209,6 +288,11 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     })),
   setDrivesError: (message) => set({ drivesError: message, drives: [] }),
   setTarget: (letter) => set({ target: letter }),
+  setUserFolders: (folders) => set({ userFolders: orderUserFolders(folders) }),
+  setMapView: (view) => {
+    saveMapView(view);
+    set({ mapView: view });
+  },
   setElevated: (elevated) => set({ elevated }),
 
   beginScan: (target) =>
@@ -254,17 +338,29 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   handleDone: (d) => {
     const s = get();
     if (!acceptEvent(s.gate, d.scan_id)) return;
+    const recentScans = s.scanTarget
+      ? addRecentScan(s.recentScans, {
+          target: s.scanTarget,
+          label: d.root.name,
+          finishedAt: Date.now(),
+          bytes: d.root.size,
+        })
+      : s.recentScans;
+    if (recentScans !== s.recentScans) saveRecentScans(recentScans);
     set({
+      recentScans,
       scanning: false,
       progress: null,
       gate: finishedGate(s.gate, d.scan_id),
       lastFinished: d.scan_id,
       lastOutcome: 'done',
       stats: d.stats,
+      excluded: d.excluded && d.excluded.items > 0 ? d.excluded : null,
       root: d.root,
       rootId: d.root.id,
       resultTarget: s.scanTarget,
       resultScanId: d.scan_id,
+      resultSource: { kind: 'live' },
       generation: s.generation + 1,
       baseline: null,
       baselineSeq: s.baselineSeq + 1,
@@ -288,6 +384,46 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       lastOutcome: e.message === SCAN_CANCELLED ? 'cancelled' : 'failed',
       error: e.message === SCAN_CANCELLED ? null : e.message,
       errorTitle: null,
+    });
+  },
+
+  handleOpened: (o) => {
+    const s = get();
+    set({
+      scanning: false,
+      progress: null,
+      error: null,
+      errorTitle: null,
+      gate: { pending: false, current: o.scan_id, lastKnown: Math.max(s.gate.lastKnown, o.scan_id) },
+      lastFinished: o.scan_id,
+      lastOutcome: 'done',
+      stats: {
+        files: o.files,
+        dirs: o.dirs,
+        bytes: o.bytes,
+        elapsed_ms: 0,
+        method: 'Walk',
+        fallback_reason: null,
+        skipped_records: 0,
+        errors: 0,
+      },
+      excluded: null,
+      root: o.root,
+      rootId: o.root.id,
+      resultTarget: o.target,
+      resultScanId: o.scan_id,
+      resultSource: o.source,
+      // "Scan" in the top bar then rescans what the snapshot shows.
+      target: locationOf(o.target),
+      generation: s.generation + 1,
+      baseline: null,
+      baselineSeq: s.baselineSeq + 1,
+      focusId: o.root.id,
+      focusPath: [{ id: o.root.id, name: o.root.name }],
+      selectedId: null,
+      reveal: null,
+      invalidation: null,
+      searchPreset: null,
     });
   },
 
@@ -327,7 +463,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     }));
   },
 
-  revealSearchResult: (scanId, steps) => {
+  revealSearchResult: (scanId, steps, opts) => {
     const s = get();
     if (s.resultScanId !== scanId || steps.length < 2) return;
     const file = steps[steps.length - 1];
@@ -340,6 +476,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
         path: steps.map((step) => step.id),
         positions: steps.map((step) => step.position),
         filename: file.name,
+        showTree: opts?.showTree,
         seq: (s.reveal?.seq ?? 0) + 1,
       },
     });
@@ -348,36 +485,31 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   applyRemoval: (id, result) => {
     const s = get();
     if (!s.root) return;
-    const minus = (value: number, by: number) => Math.max(0, value - by);
-    const root = {
-      ...s.root,
-      size: minus(s.root.size, result.bytes),
-      files: minus(s.root.files, result.files),
-      dirs: minus(s.root.dirs, result.dirs),
-    };
-    const stats = s.stats && {
-      ...s.stats,
-      bytes: minus(s.stats.bytes, result.bytes),
-      files: minus(s.stats.files, result.files),
-      dirs: minus(s.stats.dirs, result.dirs),
-    };
-    // A removed folder on (or above) the focus moves the focus to its parent.
-    const at = s.focusPath.findIndex((c) => c.id === id);
-    const focusPath = at > 0 ? s.focusPath.slice(0, at) : s.focusPath;
-    const focusMoved = focusPath !== s.focusPath;
     set({
-      root,
-      stats,
-      // The scan got smaller by what was removed, so the net change since the snapshot did too.
-      baseline: s.baseline && { ...s.baseline, total_delta: s.baseline.total_delta - result.bytes },
-      generation: s.generation + 1,
-      focusPath,
-      focusId: focusPath[focusPath.length - 1]?.id ?? s.focusId,
+      ...shrink(s, result, new Set([id])),
       selectedId: result.parent,
-      reveal: focusMoved
-        ? { path: focusPath.map((c) => c.id), seq: (s.reveal?.seq ?? 0) + 1 }
-        : s.reveal,
       invalidation: { seq: (s.invalidation?.seq ?? 0) + 1, nodeId: id, parentId: result.parent },
+    });
+  },
+
+  applyBatchRemoval: (result, selectionChain = null) => {
+    const s = get();
+    if (!s.root || result.moved.length === 0) return;
+    const removed = new Set(result.moved.map((m) => m.id));
+    const direct = result.moved.find((m) => m.id === s.selectedId);
+    const selectedId = direct
+      ? direct.parent
+      : (survivingSelection(selectionChain, removed) ?? s.selectedId);
+    const first = result.moved[0];
+    set({
+      ...shrink(s, result, removed),
+      selectedId,
+      invalidation: {
+        seq: (s.invalidation?.seq ?? 0) + 1,
+        nodeId: first.id,
+        parentId: first.parent,
+        all: true,
+      },
     });
   },
 

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { NodeDetails } from './api';
 import {
   buildMenuEntries,
+  buildSnapshotRowEntries,
+  deleteKeyIntent,
   buildSnapshotEntries,
   clampMenuPosition,
   isContextMenuKey,
@@ -53,10 +55,10 @@ describe('buildMenuEntries', () => {
 
   it('offers open only for folders and trash last as a danger item', () => {
     expect(actions(buildMenuEntries(details(true), { isMac: false, isRoot: false }))).toEqual([
-      'open', 'reveal', 'copy', '-', 'trash',
+      'open', 'reveal', 'copy', '-', 'discardAdd', 'trash',
     ]);
     const file = buildMenuEntries(details(false), { isMac: false, isRoot: false });
-    expect(actions(file)).toEqual(['reveal', 'copy', '-', 'trash']);
+    expect(actions(file)).toEqual(['reveal', 'copy', '-', 'discardAdd', 'trash']);
     expect(file.at(-1)).toMatchObject({ danger: true, label: 'Move to Recycle Bin…' });
   });
   it('uses platform wording', () => {
@@ -64,7 +66,16 @@ describe('buildMenuEntries', () => {
     expect(mac.map((e) => (e.type === 'item' ? e.label : ''))).toContain('Show in Finder');
     expect(mac.at(-1)).toMatchObject({ label: 'Move to Trash…' });
   });
-  it('never offers to trash the root', () => {
+  it('toggles the Discard Pile entry for queued nodes', () => {
+    const entries = buildMenuEntries(details(false), { isMac: false, isRoot: false, queued: true });
+    expect(actions(entries)).toEqual(['reveal', 'copy', '-', 'discardRemove', 'trash']);
+    expect(entries.find((e) => e.type === 'item' && e.action === 'discardRemove')).toMatchObject({
+      label: 'Remove from Discard Pile',
+      disabled: false,
+      danger: false,
+    });
+  });
+  it('never offers to trash or queue the root', () => {
     expect(actions(buildMenuEntries(details(true), { isMac: false, isRoot: true }))).toEqual([
       'open', 'reveal', 'copy',
     ]);
@@ -72,7 +83,19 @@ describe('buildMenuEntries', () => {
   it('disables path based entries without a native path but keeps open', () => {
     const entries = buildMenuEntries(details(true, false), { isMac: false, isRoot: false });
     const disabled = entries.flatMap((e) => (e.type === 'item' && e.disabled ? [e.action] : []));
-    expect(disabled).toEqual(['reveal', 'copy', 'trash']);
+    expect(disabled).toEqual(['reveal', 'copy', 'discardAdd', 'trash']);
+  });
+});
+
+describe('deleteKeyIntent', () => {
+  it('queues on Delete and asks to trash on Shift+Delete', () => {
+    expect(deleteKeyIntent({ key: 'Delete', shiftKey: false })).toBe('queue');
+    expect(deleteKeyIntent({ key: 'Delete', shiftKey: true })).toBe('trash');
+  });
+  it('ignores other keys and modified Delete', () => {
+    expect(deleteKeyIntent({ key: 'Backspace', shiftKey: false })).toBeNull();
+    expect(deleteKeyIntent({ key: 'Delete', shiftKey: false, ctrlKey: true })).toBeNull();
+    expect(deleteKeyIntent({ key: 'Delete', shiftKey: false, metaKey: true })).toBeNull();
   });
 });
 
@@ -99,5 +122,43 @@ describe('buildSnapshotEntries', () => {
 
   it('never disables an entry', () => {
     expect(buildSnapshotEntries({ comparing: true }).every((e) => e.type !== 'item' || !e.disabled)).toBe(true);
+  });
+});
+
+describe('read-only snapshot view', () => {
+  it('disables queueing and trashing with the reason, but keeps copy and reveal', () => {
+    const entries = buildMenuEntries(details(false), { isMac: false, isRoot: false, readOnly: true });
+    const byAction = (action: string) =>
+      entries.find((e) => e.type === 'item' && e.action === action);
+    expect(byAction('discardAdd')).toMatchObject({
+      disabled: true,
+      title: 'This view is a snapshot; rescan to make changes.',
+    });
+    expect(byAction('trash')).toMatchObject({ disabled: true });
+    expect(byAction('copy')).toMatchObject({ disabled: false });
+    expect(byAction('reveal')).toMatchObject({ disabled: false });
+  });
+
+  it('leaves the entries enabled for a live result', () => {
+    const entries = buildMenuEntries(details(false), { isMac: false, isRoot: false });
+    expect(entries.every((e) => e.type === 'separator' || !e.disabled)).toBe(true);
+  });
+});
+
+describe('buildSnapshotRowEntries', () => {
+  it('offers open, compare and a danger delete', () => {
+    const entries = buildSnapshotRowEntries({ compareReason: null });
+    expect(entries.map((e) => (e.type === 'item' ? e.action : '-'))).toEqual([
+      'snapshotRowOpen', 'snapshotRowCompare', '-', 'snapshotRowDelete',
+    ]);
+    expect(entries.at(-1)).toMatchObject({ danger: true });
+    expect(entries[1]).toMatchObject({ disabled: false });
+  });
+
+  it('disables compare with the reason', () => {
+    expect(buildSnapshotRowEntries({ compareReason: 'Rescan to compare.' })[1]).toMatchObject({
+      disabled: true,
+      title: 'Rescan to compare.',
+    });
   });
 });

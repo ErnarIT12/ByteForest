@@ -231,3 +231,59 @@ fn top_changes_respects_limit() {
     assert_eq!(d.top_changes(&c, 2).len(), 2);
     assert!(d.top_changes(&c, 0).is_empty());
 }
+
+#[test]
+fn top_changes_hides_ancestors_explained_by_one_descendant() {
+    let b = build(&[("a/", 0), ("a/b/", 0), ("a/b/old", 10), ("z", 1)]);
+    let c = build(&[
+        ("a/", 0),
+        ("a/b/", 0),
+        ("a/b/old", 10),
+        ("a/b/big", 5000),
+        ("z", 1),
+    ]);
+    let d = diff(&b, &c, false);
+    let names: Vec<_> = d
+        .top_changes(&c, 10)
+        .iter()
+        .map(|(id, _)| c.name(*id).to_string())
+        .collect();
+    assert_eq!(names, ["big"]);
+}
+
+#[test]
+fn top_changes_keeps_ancestor_when_no_single_descendant_reaches_99_percent() {
+    let b = build(&[("a/", 0), ("a/f", 1)]);
+    // Folder grows by 1000; the larger file explains 98.9%.
+    let c = build(&[("a/", 0), ("a/f", 1), ("a/g", 989), ("a/h", 11)]);
+    let d = diff(&b, &c, false);
+    let names: Vec<_> = d
+        .top_changes(&c, 10)
+        .iter()
+        .map(|(id, _)| c.name(*id).to_string())
+        .collect();
+    assert_eq!(names, ["a", "g", "h"]);
+
+    // At exactly 99% the folder is hidden.
+    let c = build(&[("a/", 0), ("a/f", 1), ("a/g", 990), ("a/h", 10)]);
+    let d = diff(&b, &c, false);
+    let names: Vec<_> = d
+        .top_changes(&c, 10)
+        .iter()
+        .map(|(id, _)| c.name(*id).to_string())
+        .collect();
+    assert_eq!(names, ["g", "h"]);
+}
+
+#[test]
+fn top_changes_hides_ancestors_of_an_added_folder() {
+    let b = build(&[("a/", 0), ("a/f", 1)]);
+    let c = build(&[("a/", 0), ("a/f", 1), ("a/n/", 0), ("a/n/x", 700)]);
+    let d = diff(&b, &c, false);
+    let names: Vec<_> = d
+        .top_changes(&c, 10)
+        .iter()
+        .map(|(id, _)| c.name(*id).to_string())
+        .collect();
+    assert_eq!(names, ["n"]);
+}

@@ -12,6 +12,8 @@ import {
   type NodeDetails,
 } from './api';
 import type { MenuAction } from './contextMenu';
+import { useDiscardPile } from './discardPile';
+import { canChangeDisk } from './snapshotsModel';
 import { useAppStore } from './store';
 import { strings } from './strings';
 
@@ -108,13 +110,27 @@ export const useFileActions = create<FileActionsState>()((set, get) => {
         case 'copy':
           void perform(scanId, id, copyNodePath, strings.pathCopied);
           break;
+        case 'discardAdd':
+          if (useAppStore.getState().resultScanId === scanId) useDiscardPile.getState().add([id]);
+          break;
+        case 'discardRemove':
+          if (useAppStore.getState().resultScanId === scanId) useDiscardPile.getState().remove(id);
+          break;
         case 'trash':
+          if (!canChangeDisk(useAppStore.getState().resultSource)) {
+            set({ notice: strings.snapshotReadOnly });
+            break;
+          }
           set({ confirm: { scanId, details, busy: false } });
           break;
       }
     },
 
     requestTrash: async (scanId, id) => {
+      if (!canChangeDisk(useAppStore.getState().resultSource)) {
+        set({ notice: strings.snapshotReadOnly });
+        return;
+      }
       set({ notice: '' });
       try {
         const details = await nodeDetails(scanId, id);

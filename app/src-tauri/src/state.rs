@@ -13,6 +13,18 @@ pub struct ScanSlot {
     pub id: u64,
     /// Cancel token of that scan, if it has started.
     pub token: Option<CancelToken>,
+    /// A scan was started and has not reported its outcome yet.
+    pub running: bool,
+}
+
+/// Where the tree of a [`CompletedScan`] came from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Source {
+    /// Scanned from the disk just now; paths match the disk.
+    Live,
+    /// Loaded from a snapshot file; paths may no longer match the disk, so nothing in it may
+    /// be changed on disk through the app.
+    Snapshot { created_unix_ms: i64 },
 }
 
 pub struct CompletedScan {
@@ -20,6 +32,7 @@ pub struct CompletedScan {
     pub tree: Arc<Tree>,
     /// What was scanned (`C:` or a folder path); used to label snapshots.
     pub target: String,
+    pub source: Source,
 }
 
 /// A loaded snapshot the current scan is compared against.

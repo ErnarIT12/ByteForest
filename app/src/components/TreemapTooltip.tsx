@@ -1,14 +1,18 @@
 import { useEffect, useReducer } from 'react';
-import type { Rect } from '../api';
-import { formatBytes, formatPercent } from '../format';
+import { OTHER_ARC_ID, type Rect } from '../api';
+import { diffTone } from '../diffMarks';
+import { formatBytes, formatDelta, formatPercent } from '../format';
 import { cachedPath, loadPath } from '../pathCache';
 import { strings } from '../strings';
 
 /** Hover time before the full path is requested. */
 const PATH_DELAY_MS = 80;
 
+/** What the tooltip describes: a treemap rectangle or a sunburst arc. */
+export type TooltipSubject = Pick<Rect, 'id' | 'name' | 'size' | 'is_dir' | 'category' | 'diff'>;
+
 interface Props {
-  rect: Rect;
+  rect: TooltipSubject;
   generation: number;
   /** Size of the focused folder, for the share line. */
   viewSize: number;
@@ -23,11 +27,14 @@ interface Props {
 /** Positioned tooltip with the full path, size and share of the hovered rectangle. */
 export function TreemapTooltip({ rect, generation, viewSize, x, y, flipX, flipY }: Props) {
   const [, refresh] = useReducer((n: number) => n + 1, 0);
-  const path = cachedPath(generation, rect.id);
+  // The merged "other" arc of the sunburst is not a node: no path, no kind.
+  const merged = rect.id === OTHER_ARC_ID;
+  const path = merged ? undefined : cachedPath(generation, rect.id);
+  const tone = diffTone(rect.diff);
 
   // Fetch the path only once the pointer rests on a rectangle for a moment.
   useEffect(() => {
-    if (cachedPath(generation, rect.id) !== undefined) return;
+    if (merged || cachedPath(generation, rect.id) !== undefined) return;
     let alive = true;
     const timer = window.setTimeout(() => {
       loadPath(generation, rect.id).then(
@@ -39,7 +46,7 @@ export function TreemapTooltip({ rect, generation, viewSize, x, y, flipX, flipY 
       alive = false;
       window.clearTimeout(timer);
     };
-  }, [generation, rect.id]);
+  }, [generation, rect.id, merged]);
 
   const offset = 14;
   const style = {
@@ -68,6 +75,13 @@ export function TreemapTooltip({ rect, generation, viewSize, x, y, flipX, flipY 
           {formatPercent(share)} {strings.ofView}
         </span>
       </div>
+      {tone && rect.diff && (
+        <div className="tooltip-diff" data-tone={tone}>
+          {tone === 'added'
+            ? strings.tooltipNew(formatDelta(rect.diff.delta))
+            : strings.tooltipChanged(formatDelta(rect.diff.delta))}
+        </div>
+      )}
     </div>
   );
 }

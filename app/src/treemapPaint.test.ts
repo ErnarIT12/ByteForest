@@ -7,8 +7,10 @@ import {
   categoryColor,
   crumbsTo,
   headerFits,
+  hatchLines,
   hitTest,
   labelColors,
+  paintTreemapDiff,
   type Role,
   type Theme,
 } from './treemapPaint';
@@ -101,5 +103,105 @@ describe('category colour mode', () => {
         expect(contrastRatio(fill, main), `${theme} ${category}`).toBeGreaterThanOrEqual(4.5);
       }
     }
+  });
+});
+
+describe('hatchLines', () => {
+  it('covers the whole rectangle with evenly spaced diagonals', () => {
+    const lines = hatchLines(10, 20, 30, 12, 6);
+    expect(lines.length).toBe(Math.ceil((30 + 12) / 6) - 1);
+    expect(lines[0]).toEqual([16, 20, 10, 26]);
+    // Every line runs from the top edge line to the left edge line, one gap further each time.
+    lines.forEach(([x1, y1, x2, y2], i) => {
+      expect(x1 - 10).toBe(6 * (i + 1));
+      expect(y1).toBe(20);
+      expect(x2).toBe(10);
+      expect(y2 - 20).toBe(6 * (i + 1));
+    });
+  });
+
+  it('draws nothing for empty rectangles or a bad gap', () => {
+    expect(hatchLines(0, 0, 0, 10, 4)).toEqual([]);
+    expect(hatchLines(0, 0, 10, 10, 0)).toEqual([]);
+  });
+});
+
+describe('treemap change marks', () => {
+  const colors = { grow: '#9a3412', shrink: '#17663a', halo: '#ffffff' };
+  const stub = () => {
+    const calls: string[] = [];
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, prop: string) => {
+          if (prop === 'measureText') return (t: string) => ({ width: t.length * 6 });
+          return (...args: unknown[]) => calls.push(`${prop}:${args.join(',')}`);
+        },
+        set: (_t, prop: string, value: unknown) => {
+          calls.push(`${prop}=${String(value)}`);
+          return true;
+        },
+      },
+    ) as unknown as CanvasRenderingContext2D;
+    return { ctx, calls };
+  };
+  const changed = (status: 'added' | 'grown' | 'shrunk', delta: number) => ({
+    status,
+    base: status === 'added' ? null : 10,
+    delta,
+    removed: null,
+  });
+
+  it('draws nothing while comparing finds no change', () => {
+    const { ctx, calls } = stub();
+    paintTreemapDiff(ctx, buildLayout(rects, 1, 16, 100, 100), colors);
+    expect(calls).toEqual([]);
+  });
+
+  it('outlines a change on a halo and puts the delta pill on tall tiles', () => {
+    const marked = rects.map((r) =>
+      r.id === 12 ? { ...r, w: 80, diff: changed('grown', 2048) } : r,
+    );
+    const { ctx, calls } = stub();
+    paintTreemapDiff(ctx, buildLayout(marked, 1, 16, 100, 100), colors);
+    expect(calls.filter((c) => c.startsWith('strokeRect'))).toHaveLength(2);
+    expect(calls).toContain('strokeStyle=#ffffff');
+    expect(calls).toContain('strokeStyle=#9a3412');
+    expect(calls.some((c) => c.startsWith('fillText:+2.0 KB'))).toBe(true);
+  });
+
+  it('uses a dashed outline for shrunk tiles and a dotted one for new tiles', () => {
+    const run = (status: 'shrunk' | 'added') => {
+      const marked = rects.map((r) => (r.id === 12 ? { ...r, diff: changed(status, -5) } : r));
+      const { ctx, calls } = stub();
+      paintTreemapDiff(ctx, buildLayout(marked, 1, 16, 100, 100), colors);
+      return calls.filter((c) => c.startsWith('setLineDash') && c !== 'setLineDash:').pop();
+    };
+    expect(run('shrunk')).toBe('setLineDash:8,4');
+    expect(run('added')).toBe('setLineDash:0.01,3.5');
+  });
+
+  it('thins the outline of folders that only hold changes', () => {
+    const marked = rects.map((r) =>
+      r.id === 11 ? { ...r, diff: changed('grown', 9) } : r.id === 13 ? { ...r, diff: changed('grown', 9) } : r,
+    );
+    const { ctx, calls } = stub();
+    paintTreemapDiff(ctx, buildLayout(marked, 1, 16, 100, 100), colors);
+    // Folder 11 is the thin level-1 mark (1 px), file 13 the strong one (2 px plus 2 halo).
+    const widths = calls.filter((c) => c.startsWith('lineWidth=')).map((c) => c.slice(10));
+    expect(widths).toContain('1');
+    expect(widths).toContain('2');
+    expect(widths).toContain('4');
+  });
+
+  it('fills tiles too small for an outline with the mark colour', () => {
+    const marked = [
+      rects[0],
+      { ...rect(11, 10, 1, 1, 1, 4, 4, false), diff: changed('grown', 1) },
+    ];
+    const { ctx, calls } = stub();
+    paintTreemapDiff(ctx, buildLayout(marked, 1, 16, 100, 100), colors);
+    expect(calls).toContain('fillStyle=#9a3412');
+    expect(calls.filter((c) => c.startsWith('strokeRect'))).toHaveLength(0);
   });
 });

@@ -1,6 +1,7 @@
 //! ByteForest desktop shell: window, IPC commands and logging.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod autosnap;
 mod commands;
 mod dto;
 #[cfg(windows)]
@@ -39,18 +40,27 @@ fn main() {
             commands::node_details,
             commands::copy_node_path,
             commands::move_node_to_trash,
+            commands::move_nodes_to_trash,
+            commands::discard_summary,
             commands::reveal_node_in_file_manager,
             commands::get_treemap,
+            commands::get_sunburst,
             commands::is_elevated,
             commands::restart_elevated,
             commands::take_startup_scan,
             commands::get_settings,
             commands::set_settings,
             commands::pick_folder,
+            commands::user_folders,
             commands::save_snapshot,
+            commands::export_report,
             commands::compare_with_snapshot,
             commands::clear_baseline,
             commands::top_changes,
+            autosnap::list_auto_snapshots,
+            autosnap::open_snapshot,
+            autosnap::compare_with_auto_snapshot,
+            autosnap::delete_auto_snapshot,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

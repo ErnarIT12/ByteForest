@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Add automatic snapshots and instant reopen: every finished scan is saved in the background to the app's local data folder (`snapshots/auto`; the last 10 are kept by default, 0 to 50 in Settings, Off to disable) without delaying the result. Recent Scans in the sidebar lists the saved snapshots per location with their age and size; click one to open it instantly and read-only (a banner and a Snapshot badge say so, and moving to the Recycle Bin/Trash or the Discard Pile is disabled), compare it with the current scan, or delete it. Snapshots contain file and folder names and sizes and never leave your computer.
+- Add a working Discard Pile: queue files and folders from the folder tree, treemap or inspector (right-click, the Delete key, or the inspector button; Shift+Delete still moves one item right away), review the item count and total size in the sidebar, and move everything to the Recycle Bin/Trash in one confirmed step. Items that cannot be moved stay queued and are listed with the reason, and the tree, treemap and totals update once without losing expanded folders. Queued items are marked in the tree and on the treemap.
+- Redesign the workspace around a left sidebar with drives, Desktop, Downloads and Documents, recent scans and a Discard Pile dock (it collapses to an icon rail), add a Treemap | Sunburst switch to the top bar, use Lucide icons throughout, and replace panel borders with soft elevation in Graphite and Silver.
+- Add the Sunburst disk chart (Treemap | Sunburst switch in the top bar): rings of the focused folder with the same zoom, selection, tooltip, breadcrumbs, keyboard (arrows move between siblings, parent and largest child), context menu, Discard Pile markers and Folders / File types colors as the treemap; the centre shows the folder and goes up when clicked. Tiny items of a folder are merged into one "other" arc, and the chart shows up to six rings and 20,000 arcs.
+- Highlight changes on the map while comparing with a snapshot, in both the treemap and the sunburst: grown items get a solid outline, new items a dotted outline and a "New" label, shrunk items a dashed outline, with the size change (such as +4.8 GB) shown where it fits and a Grown / New / Shrunk key under the toolbar. The tooltip also reports the change.
 - Add one-click search presets (node_modules, target, .venv, .git, disk images, files over 1 GB) that find outermost build and cache folders or large files and show the total size reclaimable.
 - Show a file-type breakdown (categories and top extensions) for the selected folder, with click-through to a search limited to that folder, and add a Folders / File types color mode to the treemap with a legend.
 - Apply the silver ByteForest mark across the desktop app, add Graphite, Silver and System appearances, and keep the file inspector beside the map and browser.
@@ -19,6 +24,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Hide the "Always run as administrator" setting on macOS.
 - Add a right-click context menu (also Shift+F10 or the Menu key) to the folder tree and treemap, with Open folder, Show in Explorer/Finder, Copy Path and Move to Recycle Bin/Trash after confirmation. The tree, treemap and totals update instantly without a rescan.
 - Save a scan as a compact snapshot file (Snapshots, Save snapshot…) and compare a later scan with it (Compare with snapshot…): the folder tree shows what grew, shrank or is new, a Changes view lists the biggest increases, and the file inspector reports what is gone. The CLI gets `byteforest scan <target> --save-snapshot <FILE>` and `--diff <FILE>`, with JSON output for `--diff`.
+- Refuse oversized or highly compressed snapshot files before decoding them, so a crafted file cannot exhaust memory.
+- Keep expanded folders and the selection when starting or stopping a snapshot comparison.
+- Hide parent folders in the Changes list when a single file or folder inside accounts for their whole increase.
+- Show the size of folders themselves ("Folder metadata") in the file-type breakdown so the total matches the folder size.
+- Add scan exclusions in Settings (Excluded from scans): names and wildcards such as `node_modules` or `*.tmp` match in any folder, and an absolute path such as `C:\Windows\WinSxS` matches only that folder. Excluded items are left out of the tree, the treemap and all totals from the next scan on, and the status bar shows how much was excluded. The CLI gets a repeatable `byteforest scan --exclude <PATTERN>`.
+- Fix saving one setting wiping the others: the settings popover now always sends the complete settings.
+- Export a CSV or JSON report of any folder (Export report… in the file inspector): Excel-friendly UTF-8 CSV with formula-injection protection, or JSON. The CLI gets `byteforest scan --export <FILE>` with `--export-depth` and `--export-rows`.
+- Update all READMEs with the snapshot, file-type, search-preset, context-menu, exclusion and report features, and credit Radix as an inspiration.
 
 ## [0.2.0] - 2026-11-23
 

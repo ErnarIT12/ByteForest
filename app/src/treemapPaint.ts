@@ -5,6 +5,18 @@
 import type { FileCategory, Rect } from './api';
 import { contrastRatio } from './contrast';
 import { formatBytes } from './format';
+import {
+  MAX_MARKED,
+  applyMarkStyle,
+  computeMarkLevels,
+  diffLabels,
+  diffTone,
+  markStyle,
+  paintDeltaPill,
+  toneColor,
+  type DiffColors,
+  type DiffTone,
+} from './diffMarks';
 import type { ColorMode } from './hooks/useTreemapColorMode';
 import type { Crumb } from './store';
 
@@ -286,6 +298,30 @@ export interface HighlightColors {
   hoverFill: string;
   hoverLine: string;
   selectedInner: string;
+  /** Marker of items in the Discard Pile. */
+  queued: string;
+}
+
+/** Spacing of the hatch lines on queued rectangles, CSS pixels. */
+const HATCH_GAP_CSS_PX = 7;
+
+/**
+ * Diagonal (bottom-left to top-right) lines that hatch rectangle (`x`, `y`, `w`, `h`), `gap`
+ * apart. Endpoints may lie outside the rectangle; clip when drawing.
+ */
+export function hatchLines(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  gap: number,
+): [x1: number, y1: number, x2: number, y2: number][] {
+  if (w <= 0 || h <= 0 || gap <= 0) return [];
+  const lines: [number, number, number, number][] = [];
+  for (let d = gap; d < w + h; d += gap) {
+    lines.push([x + d, y, x, y + d]);
+  }
+  return lines;
 }
 
 /** Paints the hover and selection outlines on the overlay canvas. */
@@ -294,6 +330,7 @@ export function paintHighlights(
   layout: TreemapLayout,
   hover: number,
   selected: number,
+  queued: readonly number[],
   colors: HighlightColors,
 ): void {
   const { rects, dpr } = layout;
@@ -307,6 +344,36 @@ export function paintHighlights(
     ctx.strokeStyle = style;
     ctx.strokeRect(r.x + o, r.y + o, r.w - 2 * o, r.h - 2 * o);
   };
+  if (queued.length > 0) {
+    const gap = HATCH_GAP_CSS_PX * dpr;
+    const dash = Math.max(1, Math.round(1.5 * dpr));
+    ctx.save();
+    ctx.strokeStyle = colors.queued;
+    for (const i of queued) {
+      const r = rects[i];
+      if (r.w < 3 || r.h < 3) continue;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(r.x, r.y, r.w, r.h);
+      ctx.clip();
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = Math.max(1, Math.round(dpr));
+      ctx.beginPath();
+      for (const [x1, y1, x2, y2] of hatchLines(r.x, r.y, r.w, r.h, gap)) {
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      }
+      ctx.stroke();
+      ctx.restore();
+      // A dashed outline keeps small and busy rectangles recognisable.
+      ctx.setLineDash([4 * dpr, 3 * dpr]);
+      ctx.lineWidth = dash;
+      const o = dash / 2;
+      if (r.w > 2 * o && r.h > 2 * o) ctx.strokeRect(r.x + o, r.y + o, r.w - 2 * o, r.h - 2 * o);
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
   if (hover > 0 && hover !== selected) {
     const r = rects[hover];
     ctx.fillStyle = colors.hoverFill;
@@ -318,4 +385,67 @@ export function paintHighlights(
     outline(selected, w, colors.accent, 0);
     outline(selected, Math.max(1, Math.round(dpr)), colors.selectedInner, w);
   }
+}
+
+/** Pill labels need this much height (CSS pixels) so they do not cover the name and size lines. */
+const PILL_MIN_H = 50;
+
+/**
+ * Marks the rectangles that changed since the compared snapshot: an outline per kind of
+ * change (solid grown, dashed shrunk, dotted new) on a halo, plus a delta pill where it fits.
+ * Folders that only contain changes get a thin outline. Drawn over the finished base layer.
+ */
+export function paintTreemapDiff(
+  ctx: CanvasRenderingContext2D,
+  layout: TreemapLayout,
+  colors: DiffColors,
+): void {
+  const { rects, index, dpr } = layout;
+  const tones: (DiffTone | null)[] = rects.map((r, i) => (i === 0 ? null : diffTone(r.diff)));
+  if (!tones.some((t) => t !== null)) return;
+  const parents = Int32Array.from(rects, (r) => (r.parent === null ? -1 : (index.get(r.parent) ?? -1)));
+  const levels = computeMarkLevels(parents, tones);
+  const halo = Math.max(1, Math.round(dpr));
+  let drawn = 0;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  for (const level of [1, 2]) {
+    for (let i = 1; i < rects.length && drawn < MAX_MARKED; i += 1) {
+      const tone = tones[i];
+      if (!tone || levels[i] !== level) continue;
+      drawn += 1;
+      const r = rects[i];
+      const color = toneColor(tone, colors);
+      const style = markStyle(tone, dpr, level === 2);
+      const o = level === 2 ? style.width / 2 + halo : style.width / 2;
+      if (r.w <= 2 * o + 2 || r.h <= 2 * o + 2) {
+        // Too small for an outline: the whole tile takes the mark colour.
+        ctx.fillStyle = color;
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        continue;
+      }
+      if (level === 2) {
+        ctx.setLineDash([]);
+        ctx.lineWidth = style.width + 2 * halo;
+        ctx.strokeStyle = colors.halo;
+        ctx.strokeRect(r.x + o, r.y + o, r.w - 2 * o, r.h - 2 * o);
+      }
+      applyMarkStyle(ctx, style);
+      ctx.strokeStyle = color;
+      ctx.strokeRect(r.x + o, r.y + o, r.w - 2 * o, r.h - 2 * o);
+      if (level === 2 && r.h >= PILL_MIN_H * dpr) {
+        paintDeltaPill(
+          ctx,
+          diffLabels(r.diff),
+          color,
+          labelColors(color).main,
+          r.x + r.w - o - 2 * dpr,
+          r.y + r.h - o - 2 * dpr,
+          r.w - 2 * o - 4 * dpr,
+          dpr,
+        );
+      }
+    }
+  }
+  ctx.restore();
 }

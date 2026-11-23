@@ -1,7 +1,8 @@
 use std::io::Write;
 
 use bf_core::{
-    EntryRecord, NodeFlags, NodeId, SnapshotError, Tree, TreeBuilder, read_snapshot, write_snapshot,
+    EntryRecord, NodeFlags, NodeId, SnapshotError, SnapshotLimits, Tree, TreeBuilder,
+    read_snapshot, read_snapshot_header, read_snapshot_with_limits, write_snapshot,
 };
 use flate2::Compression;
 use flate2::write::DeflateEncoder;
@@ -325,7 +326,7 @@ fn oversized_declared_payload_is_rejected_before_decompressing() {
     let mut raw = Raw::new(&good_nodes());
     raw.payload_len = Some(u64::MAX);
     let err = read_snapshot(raw.bytes().as_slice()).unwrap_err();
-    assert!(matches!(err, SnapshotError::Corrupt(_)), "{err:?}");
+    assert!(matches!(err, SnapshotError::LimitExceeded(_)), "{err:?}");
 }
 
 #[test]
@@ -372,4 +373,193 @@ fn long_label_and_names_are_truncated_on_write_not_rejected() {
     let snap = read_snapshot(out.as_slice()).unwrap();
     assert!(snap.label.len() <= 4096 && !snap.label.is_empty());
     assert!(snap.tree.name(NodeId(1)).len() <= 32 * 1024);
+}
+
+/// A pseudo-random tree of `n` nodes with varied names, sizes and times (xorshift).
+fn generated_tree(n: u64) -> Tree {
+    let mut x = 0x9e37_79b9_7f4a_7c15u64;
+    let mut next = move || {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        x
+    };
+    let exts = ["txt", "dll", "png", "rs", "json", "mp4", "log", "bin"];
+    let mut b = TreeBuilder::new(0, "C:");
+    let mut dirs = vec![0u64];
+    for key in 1..n {
+        let r = next();
+        let parent = dirs[(r % dirs.len() as u64) as usize];
+        if r % 7 == 0 {
+            b.push(rec(
+                key,
+                parent,
+                &format!("folder_{:x}", next() % 100_000),
+                0,
+                true,
+            ));
+            dirs.push(key);
+        } else {
+            let name = format!(
+                "file{:x}.{}",
+                next() % 1_000_000,
+                exts[(r >> 8) as usize % 8]
+            );
+            let size = next() % 5_000_000;
+            let mut e = rec(key, parent, &name, size, false);
+            e.mtime = 1_600_000_000_000 + (next() % 100_000_000_000) as i64;
+            e.alloc = size.next_multiple_of(4096);
+            b.push(e);
+        }
+    }
+    b.finish()
+}
+
+/// A best-case-for-deflate tree: sequential names, identical sizes and times.
+fn repetitive_tree(n: u64) -> Tree {
+    let mut b = TreeBuilder::new(0, "C:");
+    b.push(rec(1, 0, "node_modules", 0, true));
+    for key in 2..n {
+        let mut e = rec(key, 1, &format!("module-{key}.js"), 1024, false);
+        e.mtime = 1_700_000_000_000;
+        e.alloc = 4096;
+        b.push(e);
+    }
+    b.finish()
+}
+
+fn payload_ratio(bytes: &[u8]) -> f64 {
+    // payload_len sits after magic(6) version(2) reserved(2) created(8) label_len(4)
+    // label node_count(4).
+    let label_len = u32::from_le_bytes(bytes[18..22].try_into().unwrap()) as usize;
+    let at = 22 + label_len + 4;
+    let payload_len = u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap());
+    payload_len as f64 / bytes.len() as f64
+}
+
+#[test]
+fn snapshot_compression_ratio_stays_far_below_the_guard() {
+    // Measured on generated 100k-node trees (see `--nocapture`): payload / file size is
+    // about 1.8x for random names and sizes and about 12x for a maximally repetitive tree.
+    let tree = generated_tree(100_000);
+    let bytes = encode(&tree);
+    let ratio = payload_ratio(&bytes);
+    println!("observed payload/file ratio: {ratio:.2}");
+    assert!(ratio > 1.0);
+    let rep = encode(&repetitive_tree(100_000));
+    let rep_ratio = payload_ratio(&rep);
+    println!("observed repetitive payload/file ratio: {rep_ratio:.2}");
+    assert!(rep_ratio * 4.0 <= bf_core::MAX_COMPRESSION_RATIO as f64);
+    let limits = SnapshotLimits::for_compressed_len(rep.len() as u64);
+    assert!(read_snapshot_with_limits(rep.as_slice(), limits).is_ok());
+    let limits = SnapshotLimits::for_compressed_len(bytes.len() as u64);
+    assert!(read_snapshot_with_limits(bytes.as_slice(), limits).is_ok());
+}
+
+#[test]
+fn for_compressed_len_scales_with_size_and_caps_at_defaults() {
+    let d = SnapshotLimits::default();
+    assert_eq!(d.max_nodes, 100_000_000);
+    assert_eq!(d.max_payload_len, 8 * 1024 * 1024 * 1024);
+    assert_eq!(
+        SnapshotLimits::for_compressed_len(1000).max_payload_len,
+        1000 * bf_core::MAX_COMPRESSION_RATIO
+    );
+    assert_eq!(SnapshotLimits::for_compressed_len(0).max_payload_len, 0);
+    assert_eq!(SnapshotLimits::for_compressed_len(u64::MAX), d);
+}
+
+#[test]
+fn node_count_over_limit_is_a_limit_error() {
+    let bytes = Raw::new(&good_nodes()).bytes();
+    let limits = SnapshotLimits {
+        max_nodes: 2,
+        ..SnapshotLimits::default()
+    };
+    assert_eq!(
+        read_snapshot_with_limits(bytes.as_slice(), limits).unwrap_err(),
+        SnapshotError::LimitExceeded("too many nodes")
+    );
+    let ok = SnapshotLimits {
+        max_nodes: 3,
+        ..SnapshotLimits::default()
+    };
+    assert!(read_snapshot_with_limits(bytes.as_slice(), ok).is_ok());
+}
+
+#[test]
+fn payload_len_over_limit_is_a_limit_error() {
+    let raw = Raw::new(&good_nodes());
+    let len = raw.payload.len() as u64;
+    let bytes = raw.bytes();
+    let limits = SnapshotLimits {
+        max_payload_len: len - 1,
+        ..SnapshotLimits::default()
+    };
+    assert_eq!(
+        read_snapshot_with_limits(bytes.as_slice(), limits).unwrap_err(),
+        SnapshotError::LimitExceeded("payload too large")
+    );
+}
+
+#[test]
+fn declared_huge_payload_is_refused_by_the_ratio_guard() {
+    let mut raw = Raw::new(&good_nodes());
+    raw.payload_len = Some(1 << 40);
+    let bytes = raw.bytes();
+    let limits = SnapshotLimits::for_compressed_len(bytes.len() as u64);
+    assert!(matches!(
+        read_snapshot_with_limits(bytes.as_slice(), limits).unwrap_err(),
+        SnapshotError::LimitExceeded(_)
+    ));
+}
+
+#[test]
+fn header_reports_label_time_and_counts_without_reading_the_payload() {
+    let bytes = encode(&sample());
+    // Cut the file right after the header: the payload is not needed.
+    let header_len = 6 + 2 + 2 + 8 + 4 + r"C:\data".len() + 4 + 8 + 4;
+    let header = read_snapshot_header(&bytes[..header_len]).unwrap();
+    assert_eq!(header.label, r"C:\data");
+    assert_eq!(header.created_unix_ms, 1_700_000_000_123);
+    assert_eq!(header.node_count, sample().len() as u32);
+    assert!(header.payload_len > 0);
+    let full = read_snapshot(bytes.as_slice()).unwrap();
+    assert_eq!(full.label, header.label);
+    assert_eq!(full.created_unix_ms, header.created_unix_ms);
+}
+
+#[test]
+fn header_with_bad_magic_or_version_is_reported() {
+    let mut b = Raw::new(&good_nodes()).bytes();
+    b[0] = b'X';
+    assert_eq!(
+        read_snapshot_header(b.as_slice()).unwrap_err(),
+        SnapshotError::BadMagic
+    );
+    let mut raw = Raw::new(&good_nodes());
+    raw.version = 2;
+    assert_eq!(
+        read_snapshot_header(raw.bytes().as_slice()).unwrap_err(),
+        SnapshotError::UnsupportedVersion(2)
+    );
+}
+
+#[test]
+fn header_truncated_at_every_offset_is_an_error() {
+    let bytes = Raw::new(&good_nodes()).bytes();
+    let header_len = 6 + 2 + 2 + 8 + 4 + 1 + 4 + 8 + 4;
+    for cut in 0..header_len {
+        let err = read_snapshot_header(&bytes[..cut]).unwrap_err();
+        assert_eq!(err, SnapshotError::Truncated, "cut at {cut}");
+    }
+    assert!(read_snapshot_header(&bytes[..header_len]).is_ok());
+}
+
+#[test]
+fn header_with_over_long_label_is_rejected() {
+    let mut raw = Raw::new(&good_nodes());
+    raw.label = vec![b'x'; 4097];
+    let err = read_snapshot_header(raw.bytes().as_slice()).unwrap_err();
+    assert!(matches!(err, SnapshotError::Corrupt(_)), "{err:?}");
 }

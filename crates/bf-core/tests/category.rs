@@ -230,3 +230,30 @@ fn treemap_rects_carry_category_for_files_only() {
         .unwrap();
     assert_eq!(mp4.category, Some(FileCategory::Video));
 }
+
+#[test]
+fn breakdown_counts_directory_own_sizes_as_folder_bytes() {
+    let none = NodeFlags::empty();
+    let mut b = TreeBuilder::new(1, "C:");
+    b.push(rec(2, 1, "docs", 4096, NodeFlags::DIR));
+    b.push(rec(3, 2, "a.txt", 100, none));
+    b.push(rec(4, 2, "sub", 512, NodeFlags::DIR));
+    b.push(rec(5, 4, "b.mp4", 1000, none));
+    let t = b.finish();
+    let docs = find(&t, "docs");
+    let sub = find(&t, "sub");
+    for id in [t.root(), docs, sub, find(&t, "a.txt")] {
+        let br = t.extension_breakdown(id, 10).unwrap();
+        assert_eq!(br.total_bytes, t.total(id).size);
+    }
+    let br = t.extension_breakdown(docs, 10).unwrap();
+    assert_eq!(br.folder_bytes, 4096 + 512);
+    assert_eq!(br.total_bytes, 4096 + 512 + 1100);
+    assert_eq!(t.extension_breakdown(sub, 10).unwrap().folder_bytes, 512);
+    assert_eq!(
+        t.extension_breakdown(find(&t, "a.txt"), 10)
+            .unwrap()
+            .folder_bytes,
+        0
+    );
+}

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { copyNodePath, nodeDetails, revealNodeInFileManager, type NodeDetails } from '../api';
+import { copyNodePath, exportReport, nodeDetails, revealNodeInFileManager, type NodeDetails } from '../api';
 import { deltaCell } from '../diffView';
 import { formatBytes, formatDelta, formatFiletime, formatInt, formatScanShare } from '../format';
+import { toggleQueued, useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
+import { canChangeDisk } from '../snapshotsModel';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { FileTypeBreakdown } from './FileTypeBreakdown';
@@ -14,6 +16,8 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
   const isMac = useAppStore((s) => s.isMac);
   const rootId = useAppStore((s) => s.rootId);
   const comparing = useAppStore((s) => s.baseline !== null);
+  const readOnly = useAppStore((s) => !canChangeDisk(s.resultSource));
+  const queued = useDiscardPile((s) => s.idSet.has(id));
 
   useEffect(() => {
     let alive = true;
@@ -32,6 +36,19 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
       setNotice(success);
     } catch (error) {
       setNotice(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const exportFolderReport = async () => {
+    setNotice('');
+    setBusy(true);
+    try {
+      const path = await exportReport(scanId, id);
+      if (path) setNotice(strings.reportExported(path));
+    } catch (error) {
+      setNotice(`${strings.reportExportFailed}: ${String(error)}`);
     } finally {
       setBusy(false);
     }
@@ -72,6 +89,12 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
           {details.node.is_dir && (
             <FileTypeBreakdown scanId={scanId} id={id} name={details.node.name} />
           )}
+          {details.node.is_dir && (
+            <div className="details-actions">
+              <button type="button" className="btn" disabled={busy}
+                onClick={() => void exportFolderReport()}>{strings.exportReport}</button>
+            </div>
+          )}
           {details.has_native_path ? (
             <div className="details-actions">
               <button type="button" className="btn" disabled={busy}
@@ -81,7 +104,15 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
                 {isMac ? strings.showInFinder : strings.showInExplorer}
               </button>
               {id !== rootId && (
-                <button type="button" className="btn danger" disabled={busy}
+                <button type="button" className="btn" aria-pressed={queued}
+                  disabled={readOnly && !queued} title={readOnly ? strings.snapshotReadOnly : undefined}
+                  onClick={() => toggleQueued(id)}>
+                  {queued ? strings.removeFromDiscardPile : strings.addToDiscardPile}
+                </button>
+              )}
+              {id !== rootId && (
+                <button type="button" className="btn danger" disabled={busy || readOnly}
+                  title={readOnly ? strings.snapshotReadOnly : undefined}
                   onClick={() => void useFileActions.getState().requestTrash(scanId, id)}>
                   {isMac ? strings.moveToTrash : strings.moveToRecycleBin}
                 </button>

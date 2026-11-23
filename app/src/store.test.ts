@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SCAN_CANCELLED, type NodeView, type ScanDone } from './api';
+import { SCAN_CANCELLED, type NodeView, type OpenedSnapshot, type ScanDone } from './api';
 import { acceptEvent, useAppStore } from './store';
 
 const node = (id: number, name: string): NodeView => ({
@@ -194,6 +194,65 @@ describe('store applyRemoval', () => {
   });
 });
 
+describe('store applyBatchRemoval', () => {
+  beforeEach(() => useAppStore.getState().reset());
+  const batch = (moved: { id: number; parent: number; bytes: number }[]) => ({
+    moved: moved.map((m) => ({ ...m, files: 1, dirs: 0 })),
+    failed: [],
+    bytes: moved.reduce((n, m) => n + m.bytes, 0),
+    files: moved.length,
+    dirs: 0,
+  });
+
+  it('applies every removal at once: totals, one generation bump, one invalidation', () => {
+    scanned();
+    const before = useAppStore.getState();
+    before.applyBatchRemoval(batch([
+      { id: 5, parent: 0, bytes: 30 },
+      { id: 6, parent: 3, bytes: 20 },
+    ]));
+    const s = useAppStore.getState();
+    expect(s.root).toMatchObject({ size: 50, files: 0 });
+    expect(s.stats).toMatchObject({ bytes: 50 });
+    expect(s.generation).toBe(before.generation + 1);
+    expect(s.invalidation).toMatchObject({ seq: 1, all: true });
+  });
+
+  it('selects the parent of a removed selection', () => {
+    scanned();
+    useAppStore.getState().select(6);
+    useAppStore.getState().applyBatchRemoval(batch([{ id: 6, parent: 3, bytes: 1 }]));
+    expect(useAppStore.getState().selectedId).toBe(3);
+  });
+
+  it('selects the surviving ancestor of a selection inside a removed folder', () => {
+    scanned();
+    useAppStore.getState().select(9);
+    useAppStore.getState().applyBatchRemoval(batch([{ id: 6, parent: 3, bytes: 1 }]), [0, 3, 6, 9]);
+    expect(useAppStore.getState().selectedId).toBe(3);
+  });
+
+  it('keeps an unaffected selection and moves the focus out of a removed folder', () => {
+    scanned();
+    useAppStore.getState().setFocus(3, [
+      { id: 0, name: 'C:' },
+      { id: 3, name: 'Users' },
+    ]);
+    useAppStore.getState().select(7);
+    useAppStore.getState().applyBatchRemoval(batch([{ id: 3, parent: 0, bytes: 1 }]), [0, 7]);
+    const s = useAppStore.getState();
+    expect(s.selectedId).toBe(7);
+    expect(s.focusId).toBe(0);
+  });
+
+  it('ignores an empty batch', () => {
+    scanned();
+    const before = useAppStore.getState().generation;
+    useAppStore.getState().applyBatchRemoval(batch([]));
+    expect(useAppStore.getState().generation).toBe(before);
+  });
+});
+
 describe('search preset', () => {
   beforeEach(() => useAppStore.getState().reset());
 
@@ -228,6 +287,20 @@ describe('snapshot comparison', () => {
     expect(useAppStore.getState().generation).toBe(before.generation + 2);
   });
 
+  it('toggling the comparison keeps the focus and selection', () => {
+    scanned();
+    const st = useAppStore.getState();
+    st.setFocus(5);
+    st.select(7);
+    const before = useAppStore.getState();
+    before.setBaseline(info);
+    let s = useAppStore.getState();
+    expect([s.focusId, s.selectedId]).toEqual([before.focusId, before.selectedId]);
+    s.setBaseline(null);
+    s = useAppStore.getState();
+    expect([s.focusId, s.selectedId]).toEqual([before.focusId, before.selectedId]);
+  });
+
   it('a removal lowers the net change by the removed bytes', () => {
     scanned();
     useAppStore.getState().setBaseline(info);
@@ -247,5 +320,99 @@ describe('snapshot comparison', () => {
     useAppStore.getState().setBaseline(info);
     useAppStore.getState().handleDone(done(1));
     expect(useAppStore.getState().baseline).toBeNull();
+  });
+});
+
+describe('excluded summary', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  const finish = (excluded?: ScanDone['excluded']) => {
+    const s = useAppStore.getState();
+    s.beginScan('C');
+    s.scanResolved(1);
+    useAppStore.getState().handleDone({ ...done(1), excluded });
+  };
+
+  it('is kept from the done event when something was excluded', () => {
+    finish({ items: 3, bytes: 4096 });
+    expect(useAppStore.getState().excluded).toEqual({ items: 3, bytes: 4096 });
+  });
+
+  it('is null when nothing was excluded', () => {
+    finish({ items: 0, bytes: 0 });
+    expect(useAppStore.getState().excluded).toBeNull();
+    useAppStore.getState().reset();
+    finish();
+    expect(useAppStore.getState().excluded).toBeNull();
+  });
+});
+
+describe('recent scans', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('records a finished scan once, newest first', () => {
+    const s = useAppStore.getState();
+    s.beginScan('C:');
+    s.scanResolved(1);
+    s.handleDone(done(1));
+    s.beginScan('D:');
+    s.scanResolved(2);
+    s.handleDone(done(2));
+    s.beginScan('C:');
+    s.scanResolved(3);
+    s.handleDone(done(3));
+    expect(useAppStore.getState().recentScans.map((r) => r.target)).toEqual(['C:', 'D:']);
+  });
+
+  it('ignores a scan that failed', () => {
+    const s = useAppStore.getState();
+    s.beginScan('C:');
+    s.scanResolved(1);
+    s.handleError({ scan_id: 1, message: 'boom' });
+    expect(useAppStore.getState().recentScans).toEqual([]);
+  });
+});
+
+describe('opened snapshots', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  const opened = (scanId: number): OpenedSnapshot => ({
+    scan_id: scanId,
+    target: 'C:',
+    files: 5,
+    dirs: 2,
+    bytes: 100,
+    root: node(0, 'C:'),
+    source: { kind: 'snapshot', created_unix_ms: 1234 },
+  });
+
+  it('shows the snapshot as a read-only result and leaves the recent scans alone', () => {
+    scanned();
+    const before = useAppStore.getState().recentScans;
+    useAppStore.getState().setBaseline({
+      label: 'C:', created_unix_ms: 1, total_delta: 5,
+      added: { bytes: 0, count: 0 }, removed: { bytes: 0, count: 0 },
+    });
+    useAppStore.getState().handleOpened(opened(7));
+    const s = useAppStore.getState();
+    expect(s.resultScanId).toBe(7);
+    expect(s.resultSource).toEqual({ kind: 'snapshot', created_unix_ms: 1234 });
+    expect(s.resultTarget).toBe('C:');
+    expect(s.target).toBe('C');
+    expect(s.baseline).toBeNull();
+    expect(s.scanning).toBe(false);
+    expect(s.stats?.files).toBe(5);
+    expect(s.focusPath).toEqual([{ id: 0, name: 'C:' }]);
+    expect(s.recentScans).toBe(before);
+    expect(acceptEvent(s.gate, 7)).toBe(true);
+  });
+
+  it('becomes live again after a scan finishes', () => {
+    useAppStore.getState().handleOpened(opened(7));
+    const s = useAppStore.getState();
+    s.beginScan('C:');
+    s.scanResolved(8);
+    useAppStore.getState().handleDone(done(8));
+    expect(useAppStore.getState().resultSource).toEqual({ kind: 'live' });
   });
 });

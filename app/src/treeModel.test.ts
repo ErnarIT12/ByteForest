@@ -143,3 +143,89 @@ describe('TreeModel.replaceChildren', () => {
     expect(m.get(1)!.node.size).toBe(7);
   });
 });
+
+describe('TreeModel.loadedFolders', () => {
+  it('lists folders with loaded children, parents first, with their loaded counts', () => {
+    const m = new TreeModel(node(0));
+    m.addPage(0, 0, [node(1), node(2), node(3, false)], 10);
+    m.addPage(1, 0, [node(4), node(5, false)], 10);
+    m.addPage(4, 0, [node(6, false)], 10);
+    expect(m.loadedFolders()).toEqual([
+      { id: 0, loaded: 3 },
+      { id: 1, loaded: 2 },
+      { id: 4, loaded: 1 },
+    ]);
+  });
+
+  it('is empty for a root without loaded children', () => {
+    expect(new TreeModel(node(0)).loadedFolders()).toEqual([]);
+  });
+});
+
+describe('TreeModel.refreshViews', () => {
+  const withDiff = (n: NodeView, delta: number): NodeView => ({
+    ...n,
+    diff: { status: 'grown', base: 1, delta, removed: null },
+  });
+
+  it('lists loaded page offsets, contiguous and located', () => {
+    const m = new TreeModel(node(0));
+    m.addPage(0, 0, [node(1), node(2)], 2);
+    m.addPage(0, 2, [node(3), node(4)], 2);
+    expect(m.loadedPageOffsets(0, 2)).toEqual([0, 2]);
+    m.addLocatedPage(0, 6, [node(9)]);
+    expect(m.loadedPageOffsets(0, 2)).toEqual([0, 2, 6]);
+    expect(m.loadedPageOffsets(99)).toEqual([]);
+  });
+
+  it('adds the new fields to loaded rows and keeps expansion and structure', async () => {
+    const m = new TreeModel(node(0));
+    m.get(0)!.expanded = true;
+    m.addPage(0, 0, [node(1), node(2)], 10);
+    m.addPage(1, 0, [node(3, false)], 10);
+    m.get(1)!.expanded = true;
+    const before = m.rows();
+    const asked: [number, number][] = [];
+    const ok = await m.refreshViews(async (parent, offset) => {
+      asked.push([parent, offset]);
+      return parent === 0 ? [withDiff(node(1), 5), withDiff(node(2), 7)] : [withDiff(node(3, false), 9)];
+    });
+    expect(ok).toBe(true);
+    expect(asked.sort()).toEqual([[0, 0], [1, 0]]);
+    expect(m.get(2)!.node.diff?.delta).toBe(7);
+    expect(m.get(3)!.node.diff?.delta).toBe(9);
+    expect(m.get(1)!.expanded).toBe(true);
+    expect(m.rows()).toEqual(before);
+  });
+
+  it('removes the fields again when the fresh views have none', async () => {
+    const m = new TreeModel(node(0));
+    m.addPage(0, 0, [withDiff(node(1), 5)], 10);
+    await m.refreshViews(async () => [node(1)]);
+    expect(m.get(1)!.node.diff).toBeUndefined();
+  });
+
+  it('reports a failed page and leaves the others refreshed', async () => {
+    const m = new TreeModel(node(0));
+    m.addPage(0, 0, [node(1)], 10);
+    m.addPage(1, 0, [node(2, false)], 10);
+    const ok = await m.refreshViews(async (parent) => {
+      if (parent === 1) throw new Error('gone');
+      return [withDiff(node(1), 3)];
+    });
+    expect(ok).toBe(false);
+    expect(m.get(1)!.node.diff?.delta).toBe(3);
+    expect(m.get(2)!.node.diff).toBeUndefined();
+  });
+
+  it('stops applying results once it is no longer alive', async () => {
+    const m = new TreeModel(node(0));
+    m.addPage(0, 0, [node(1)], 10);
+    let alive = true;
+    await m.refreshViews(async () => {
+      alive = false;
+      return [withDiff(node(1), 3)];
+    }, () => alive);
+    expect(m.get(1)!.node.diff).toBeUndefined();
+  });
+});

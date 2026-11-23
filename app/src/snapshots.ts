@@ -1,7 +1,17 @@
 /** Flows behind the Snapshots menu: IPC calls, the store and the feedback shown to the user. */
-import { clearBaseline, compareWithSnapshot, saveSnapshot } from './api';
+import {
+  clearBaseline,
+  compareWithAutoSnapshot,
+  compareWithSnapshot,
+  deleteAutoSnapshot,
+  openSnapshot,
+  saveSnapshot,
+} from './api';
+import { useAutoSnapshots } from './autoSnapshots';
 import type { MenuAction } from './contextMenu';
 import { useFileActions } from './fileActions';
+import { runScan } from './scanController';
+import { canOpenSnapshot } from './snapshotsModel';
 import { useAppStore } from './store';
 import { strings } from './strings';
 
@@ -38,10 +48,57 @@ export async function compareWithFile(): Promise<void> {
   }
 }
 
-/** Leaves the comparison view. The views switch back at once; the back end follows. */
+/** Opens a saved automatic snapshot as the shown (read-only) result. */
+export async function openAutoSnapshot(id: string): Promise<void> {
+  if (!canOpenSnapshot(useAppStore.getState())) return;
+  try {
+    const opened = await openSnapshot(id);
+    // A scan started meanwhile will replace the result anyway; do not fight it.
+    if (!useAppStore.getState().scanning) useAppStore.getState().handleOpened(opened);
+  } catch (error) {
+    fail(strings.snapshotOpenFailed, error);
+  }
+}
+
+/** Compares the shown live result with a saved automatic snapshot. */
+export async function compareWithAutoSnapshotId(id: string): Promise<void> {
+  const { resultScanId, scanning } = useAppStore.getState();
+  if (resultScanId === null || scanning) return;
+  try {
+    const info = await compareWithAutoSnapshot(resultScanId, id);
+    if (useAppStore.getState().resultScanId === resultScanId) {
+      useAppStore.getState().setBaseline(info);
+    }
+  } catch (error) {
+    fail(strings.snapshotCompareFailed, error);
+  }
+}
+
+/** Deletes a saved automatic snapshot; the list refreshes through the back end's event. */
+export async function removeAutoSnapshot(id: string): Promise<void> {
+  try {
+    await deleteAutoSnapshot(id);
+  } catch (error) {
+    fail(strings.snapshotDeleteFailed, error);
+  }
+  void useAutoSnapshots.getState().refresh();
+}
+
+/** Scans again the location a snapshot view shows. */
+export function rescanSnapshotTarget(): void {
+  const { resultTarget, scanning } = useAppStore.getState();
+  if (resultTarget !== null && !scanning) void runScan(resultTarget);
+}
+
+/**
+ * Leaves the comparison view. The back end drops the baseline first, so the views that
+ * refetch their rows afterwards no longer receive change data.
+ */
 export function stopComparing(): void {
-  useAppStore.getState().setBaseline(null);
-  clearBaseline().catch((error: unknown) => fail(strings.snapshotCompareFailed, error));
+  clearBaseline().then(
+    () => useAppStore.getState().setBaseline(null),
+    (error: unknown) => fail(strings.snapshotCompareFailed, error),
+  );
 }
 
 /** Runs a Snapshots menu entry. Actions of other menus are ignored. */

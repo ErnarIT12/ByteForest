@@ -44,21 +44,39 @@ export type MenuAction =
   | 'open'
   | 'reveal'
   | 'copy'
+  | 'discardAdd'
+  | 'discardRemove'
   | 'trash'
   | 'snapshotSave'
   | 'snapshotCompare'
-  | 'snapshotStop';
+  | 'snapshotStop'
+  | 'snapshotRowOpen'
+  | 'snapshotRowCompare'
+  | 'snapshotRowDelete';
 
 export type MenuEntry =
   | { type: 'separator' }
-  | { type: 'item'; action: MenuAction; label: string; disabled: boolean; danger: boolean };
+  | {
+      type: 'item';
+      action: MenuAction;
+      label: string;
+      disabled: boolean;
+      danger: boolean;
+      /** Tooltip; explains why an entry is disabled. */
+      title?: string;
+    };
 
-/** The entries for one node. The root cannot be trashed, so it gets no trash entry. */
+/**
+ * The entries for one node. The root cannot be trashed or queued, so it gets neither entry.
+ * `queued` turns "Add to Discard Pile" into "Remove from Discard Pile".
+ */
 export function buildMenuEntries(
   details: NodeDetails,
-  opts: { isMac: boolean; isRoot: boolean },
+  opts: { isMac: boolean; isRoot: boolean; queued?: boolean; readOnly?: boolean },
 ): MenuEntry[] {
   const pathBased = !details.has_native_path;
+  // A snapshot view never changes the disk.
+  const readOnly = opts.readOnly === true;
   const entries: MenuEntry[] = [];
   if (details.node.is_dir) {
     entries.push({ type: 'item', action: 'open', label: strings.openFolder, disabled: false, danger: false });
@@ -78,14 +96,43 @@ export function buildMenuEntries(
       { type: 'separator' },
       {
         type: 'item',
+        action: opts.queued ? 'discardRemove' : 'discardAdd',
+        label: opts.queued ? strings.removeFromDiscardPile : strings.addToDiscardPile,
+        disabled: opts.queued ? false : pathBased || readOnly,
+        danger: false,
+        title: readOnly && !opts.queued ? strings.snapshotReadOnly : undefined,
+      },
+      {
+        type: 'item',
         action: 'trash',
         label: `${opts.isMac ? strings.moveToTrash : strings.moveToRecycleBin}…`,
-        disabled: pathBased,
+        disabled: pathBased || readOnly,
         danger: true,
+        title: readOnly ? strings.snapshotReadOnly : undefined,
       },
     );
   }
   return entries;
+}
+
+/**
+ * The entries of the menu of one saved snapshot in the sidebar. `compareReason` is why
+ * "Compare with Current" is unavailable (null when it is available).
+ */
+export function buildSnapshotRowEntries(opts: { compareReason: string | null }): MenuEntry[] {
+  return [
+    { type: 'item', action: 'snapshotRowOpen', label: strings.snapshotOpen, disabled: false, danger: false },
+    {
+      type: 'item',
+      action: 'snapshotRowCompare',
+      label: strings.snapshotCompareCurrent,
+      disabled: opts.compareReason !== null,
+      danger: false,
+      title: opts.compareReason ?? undefined,
+    },
+    { type: 'separator' },
+    { type: 'item', action: 'snapshotRowDelete', label: strings.snapshotDelete, disabled: false, danger: true },
+  ];
 }
 
 /** The entries of the Snapshots menu; "Stop comparing" is only offered while comparing. */
@@ -103,6 +150,21 @@ export function buildSnapshotEntries(opts: { comparing: boolean }): MenuEntry[] 
   ];
   if (opts.comparing) entries.push({ type: 'separator' }, item('snapshotStop', strings.snapshotStop));
   return entries;
+}
+
+/**
+ * What a Delete key press on a focused item means: `queue` adds it to the Discard Pile (no
+ * deletion), Shift+Delete asks to move it to the Recycle Bin / Trash right away.
+ */
+export function deleteKeyIntent(e: {
+  key: string;
+  shiftKey: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+}): 'queue' | 'trash' | null {
+  if (e.key !== 'Delete' || e.ctrlKey || e.altKey || e.metaKey) return null;
+  return e.shiftKey ? 'trash' : 'queue';
 }
 
 /** Whether the key event asks for a context menu from the keyboard (Shift+F10 or Menu key). */

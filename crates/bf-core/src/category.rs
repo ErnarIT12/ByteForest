@@ -172,7 +172,10 @@ pub struct Breakdown {
     /// Largest extensions by bytes (ties by name).
     pub extensions: Vec<ExtTotal>,
     pub other_extensions: OtherExtensions,
-    /// Sum of file sizes in the subtree.
+    /// Sizes recorded on the directories themselves in the subtree (folder metadata), which
+    /// belong to no category.
+    pub folder_bytes: u64,
+    /// Sum of file sizes and `folder_bytes`; equals `total(id).size` of the node.
     pub total_bytes: u64,
     pub total_files: u64,
 }
@@ -188,8 +191,9 @@ impl Tree {
     /// Sizes of all files under `id` grouped by category and by extension.
     ///
     /// One explicit-stack walk over the subtree; per file there is no allocation (the extension
-    /// is lowercased into a stack buffer that serves as the map key). Only files are counted,
-    /// so `total_bytes` equals `total(id).size` when directories carry no size of their own.
+    /// is lowercased into a stack buffer that serves as the map key). Files fill the
+    /// categories and extensions; the own size of each directory (itself included) is
+    /// reported as `folder_bytes`, so `total_bytes` always equals `total(id).size`.
     /// `None` when `id` is out of range or removed.
     pub fn extension_breakdown(&self, id: NodeId, top_n: usize) -> Option<Breakdown> {
         if id.idx() >= self.len() || self.is_removed(id) {
@@ -197,10 +201,12 @@ impl Tree {
         }
         let mut cats = [(0u64, 0u64); 7];
         let mut exts: HashMap<ExtKey, Acc> = HashMap::new();
+        let mut folder_bytes = 0u64;
         let mut stack = vec![id.0];
         while let Some(n) = stack.pop() {
             let i = n as usize;
             if self.dir_index[i] != NONE {
+                folder_bytes = folder_bytes.saturating_add(self.size[i]);
                 let mut c = self.first_child[i];
                 while c != NONE {
                     stack.push(c);
@@ -261,9 +267,10 @@ impl Tree {
             })
             .collect();
         Some(Breakdown {
+            folder_bytes,
             total_bytes: categories
                 .iter()
-                .fold(0u64, |a, c| a.saturating_add(c.bytes)),
+                .fold(folder_bytes, |a, c| a.saturating_add(c.bytes)),
             total_files: categories.iter().map(|c| c.files).sum(),
             categories,
             extensions,

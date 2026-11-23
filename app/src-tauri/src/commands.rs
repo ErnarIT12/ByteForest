@@ -1,24 +1,27 @@
 //! IPC commands called by the front end, plus the pure helpers they rely on.
 
+use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use bf_core::{
-    FileFilter, NodeFlags, NodeId, Rect, SnapshotDiff, SortKey, Tree, TreemapOptions, diff,
-    read_snapshot, write_snapshot,
+    ExclusionSet, FileFilter, MAX_SUNBURST_DEPTH, NodeFlags, NodeId, OTHER_ARC_ID, Rect,
+    ReportOptions, SnapshotDiff, SnapshotLimits, SortKey, SunburstArc, SunburstOptions, Tree,
+    TreemapOptions, diff, read_snapshot_with_limits, write_csv, write_snapshot,
 };
-use bf_scan::{CancelToken, ScanError, ScanRoot, VolumeSummary};
+use bf_scan::{CancelToken, ScanError, ScanRoot, ScanStats, VolumeSummary};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::dto::{
-    BaselineInfo, ChangeDto, NodeViewDto, ScanDone, ScanErrorEvent, ScanProgressEvent, TreemapRect,
+    BaselineInfo, ChangeDto, ExcludedInfo, NodeViewDto, ScanDone, ScanErrorEvent,
+    ScanProgressEvent, SunburstArcDto, TreemapRect, diff_dto,
 };
 #[cfg(windows)]
 use crate::elevation::{self, ElevateError};
 use crate::settings::{self as store, Settings};
-use crate::state::{AppState, Baseline, CompletedScan};
+use crate::state::{AppState, Baseline, CompletedScan, Source};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 /// Largest page `get_children` returns.
@@ -88,8 +91,13 @@ pub fn validate_header(header: Option<f32>) -> Result<f32, String> {
     }
 }
 
-/// Adds the name, size and parent of each node to its layout rectangle.
-pub fn treemap_rects(tree: &Tree, rects: Vec<Rect>) -> Vec<TreemapRect> {
+/// Adds the name, size and parent of each node to its layout rectangle, plus its comparison
+/// result when `diff` is active.
+pub fn treemap_rects(
+    tree: &Tree,
+    rects: Vec<Rect>,
+    diff: Option<&SnapshotDiff>,
+) -> Vec<TreemapRect> {
     rects
         .into_iter()
         .map(|r| {
@@ -106,6 +114,67 @@ pub fn treemap_rects(tree: &Tree, rects: Vec<Rect>) -> Vec<TreemapRect> {
                 depth: r.depth,
                 is_dir: r.is_dir,
                 category: r.category,
+                diff: diff.and_then(|d| diff_dto(d, tree, id)),
+            }
+        })
+        .collect()
+}
+
+/// Names, sizes and comparison results for the arcs of a sunburst.
+pub fn sunburst_arcs(
+    tree: &Tree,
+    arcs: Vec<SunburstArc>,
+    diff: Option<&SnapshotDiff>,
+) -> Vec<SunburstArcDto> {
+    let sizes: HashMap<u32, u64> = if arcs.iter().any(|a| a.id == OTHER_ARC_ID) {
+        // The merged arc stands for children that were too narrow; its size is what is left
+        // of the parent after the listed siblings.
+        let mut listed: HashMap<u32, u64> = HashMap::new();
+        for a in arcs.iter().filter(|a| a.id != OTHER_ARC_ID) {
+            *listed.entry(a.parent).or_default() += tree.total(NodeId(a.id)).size;
+        }
+        arcs.iter()
+            .filter(|a| a.id == OTHER_ARC_ID)
+            .map(|a| {
+                let children: u64 = tree
+                    .children_ids(NodeId(a.parent))
+                    .map(|c| tree.total(c).size)
+                    .sum();
+                let rest = children.saturating_sub(listed.get(&a.parent).copied().unwrap_or(0));
+                (a.parent, rest)
+            })
+            .collect()
+    } else {
+        HashMap::new()
+    };
+    arcs.into_iter()
+        .map(|a| {
+            if a.id == OTHER_ARC_ID {
+                return SunburstArcDto {
+                    id: a.id,
+                    parent: a.parent,
+                    name: String::new(),
+                    size: sizes.get(&a.parent).copied().unwrap_or(0),
+                    depth: a.depth,
+                    start: a.start,
+                    end: a.end,
+                    is_dir: false,
+                    category: None,
+                    diff: None,
+                };
+            }
+            let id = NodeId(a.id);
+            SunburstArcDto {
+                id: a.id,
+                parent: a.parent,
+                name: tree.name(id).to_string(),
+                size: tree.total(id).size,
+                depth: a.depth,
+                start: a.start,
+                end: a.end,
+                is_dir: a.is_dir,
+                category: a.category,
+                diff: diff.and_then(|d| diff_dto(d, tree, id)),
             }
         })
         .collect()
@@ -113,7 +182,10 @@ pub fn treemap_rects(tree: &Tree, rects: Vec<Rect>) -> Vec<TreemapRect> {
 
 /// Clones the current tree and its scan id out of the state; the lock is released before
 /// returning.
-fn current_scan(state: &AppState, scan_id: Option<u64>) -> Result<(u64, Arc<Tree>), String> {
+pub(crate) fn current_scan(
+    state: &AppState,
+    scan_id: Option<u64>,
+) -> Result<(u64, Arc<Tree>), String> {
     let guard = state
         .tree
         .read()
@@ -126,7 +198,7 @@ fn current_scan(state: &AppState, scan_id: Option<u64>) -> Result<(u64, Arc<Tree
 }
 
 /// Clones the current tree out of the state; the lock is released before returning.
-fn current_tree(state: &AppState, scan_id: Option<u64>) -> Result<Arc<Tree>, String> {
+pub(crate) fn current_tree(state: &AppState, scan_id: Option<u64>) -> Result<Arc<Tree>, String> {
     current_scan(state, scan_id).map(|(_, tree)| tree)
 }
 
@@ -143,7 +215,7 @@ fn baseline_diff(state: &AppState, scan_id: u64) -> Option<Arc<SnapshotDiff>> {
 }
 
 /// Drops any comparison. Callers hold at most the `scan` and `tree` locks.
-fn drop_baseline(state: &AppState) {
+pub(crate) fn drop_baseline(state: &AppState) {
     *state
         .baseline
         .write()
@@ -208,6 +280,48 @@ pub fn pick_folder() -> Result<Option<String>, String> {
     Err("Folder picker is available on macOS.".to_owned())
 }
 
+/// A well-known folder of the current user, offered as a quick scan location.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct UserFolder {
+    /// `desktop`, `downloads` or `documents`.
+    pub kind: &'static str,
+    pub name: &'static str,
+    pub path: String,
+}
+
+/// Keeps the candidates that are existing folders with a Unicode path, once each, in the
+/// fixed order Desktop, Downloads, Documents (as listed in `candidates`).
+fn existing_user_folders(
+    candidates: Vec<(&'static str, &'static str, Option<PathBuf>)>,
+) -> Vec<UserFolder> {
+    let mut folders: Vec<UserFolder> = Vec::new();
+    for (kind, name, path) in candidates {
+        let Some(path) = path.filter(|path| path.is_dir()) else {
+            continue;
+        };
+        let Ok(path) = path.into_os_string().into_string() else {
+            continue;
+        };
+        if folders.iter().any(|known| known.path == path) {
+            continue;
+        }
+        folders.push(UserFolder { kind, name, path });
+    }
+    folders
+}
+
+/// Desktop, Downloads and Documents of the current user. The system resolves redirected known
+/// folders (for example a Documents folder moved to OneDrive); missing ones are left out.
+#[tauri::command]
+pub fn user_folders(app: AppHandle) -> Vec<UserFolder> {
+    let paths = app.path();
+    existing_user_folders(vec![
+        ("desktop", "Desktop", paths.desktop_dir().ok()),
+        ("downloads", "Downloads", paths.download_dir().ok()),
+        ("documents", "Documents", paths.document_dir().ok()),
+    ])
+}
+
 /// Whether the process runs with administrator rights.
 #[tauri::command]
 pub fn is_elevated() -> bool {
@@ -255,7 +369,7 @@ pub fn get_settings() -> Settings {
 /// Saves user settings.
 #[tauri::command]
 pub fn set_settings(settings: Settings) -> Result<(), String> {
-    store::save_default_path(&settings).map_err(|e| e.to_string())
+    store::save_default_path(&settings.sanitized()).map_err(|e| e.to_string())
 }
 
 /// Starts a scan in the background and returns its id. Progress and the outcome arrive as
@@ -277,6 +391,7 @@ pub fn start_scan(
             previous.cancel();
         }
         slot.id += 1;
+        slot.running = true;
         // The comparison belongs to the previous scan's tree.
         drop_baseline(&state);
         slot.id
@@ -309,6 +424,28 @@ fn run_scan(app: AppHandle, scan_id: u64, root: ScanRoot, token: CancelToken) {
     }
 }
 
+/// Cuts the user's exclusions out of a fresh tree and out of its stats. `label` is the scan
+/// root (`C:` or a folder path). `None` when nothing was removed.
+fn exclude_from_scan(
+    tree: &mut Tree,
+    stats: &mut ScanStats,
+    label: &str,
+    patterns: &[String],
+) -> Option<ExcludedInfo> {
+    if patterns.is_empty() {
+        return None;
+    }
+    let set = ExclusionSet::from_patterns(patterns, label, case_insensitive_names());
+    let cut = tree.apply_exclusions(&set, case_insensitive_names());
+    stats.files = stats.files.saturating_sub(cut.files);
+    stats.dirs = stats.dirs.saturating_sub(cut.dirs);
+    stats.bytes = stats.bytes.saturating_sub(cut.bytes);
+    (cut.items > 0).then_some(ExcludedInfo {
+        items: cut.items,
+        bytes: cut.bytes,
+    })
+}
+
 /// Stores the tree and emits the outcome, but only while `scan_id` is still the current scan.
 fn finish_scan(
     app: &AppHandle,
@@ -318,8 +455,13 @@ fn finish_scan(
     result: Result<(Tree, bf_scan::ScanStats), ScanError>,
 ) {
     match result {
-        Ok((tree, stats)) if !token.is_cancelled() => {
+        Ok((mut tree, mut stats)) if !token.is_cancelled() => {
+            let settings = store::load_default_path();
+            let excluded = exclude_from_scan(&mut tree, &mut stats, &label, &settings.exclusions);
             let tree = Arc::new(tree);
+            let for_autosave = Arc::clone(&tree);
+            let autosave_label = label.clone();
+            let mut stored = false;
             let root = tree.view(tree.root());
             tracing::info!(
                 "scan {scan_id} done: {} files, {} dirs",
@@ -333,7 +475,9 @@ fn finish_scan(
                             id: scan_id,
                             tree,
                             target: label,
+                            source: Source::Live,
                         });
+                        stored = true;
                     }
                     Err(_) => return Some(("internal error: state poisoned".to_string(), None)),
                 }
@@ -344,9 +488,19 @@ fn finish_scan(
                         scan_id,
                         stats,
                         root,
+                        excluded,
                     }),
                 ))
             });
+            // A superseded scan stores nothing and is not saved either.
+            if stored && settings.auto_snapshot_keep > 0 {
+                crate::autosnap::spawn_auto_save(
+                    app.clone(),
+                    for_autosave,
+                    autosave_label,
+                    usize::from(settings.auto_snapshot_keep),
+                );
+            }
         }
         Ok(_) | Err(ScanError::Cancelled) => {
             report(app, scan_id, |_| Some(("cancelled".to_string(), None)))
@@ -369,13 +523,15 @@ fn report(
 ) {
     let state = app.state::<AppState>();
     // A poisoned lock only means an earlier panic; the data is still usable.
-    let slot = state
+    let mut slot = state
         .scan
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     if slot.id != scan_id {
         return;
     }
+    // Done, failed or cancelled: this scan is no longer running.
+    slot.running = false;
     match build(&state) {
         Some((_, Some(done))) => {
             let _ = app.emit("scan://done", done);
@@ -651,6 +807,119 @@ pub struct TrashResult {
     parent: u32,
 }
 
+/// One node a batch moved to the trash and removed from the tree.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+pub struct MovedItem {
+    id: u32,
+    bytes: u64,
+    files: u64,
+    dirs: u64,
+    /// Parent of the removed node.
+    parent: u32,
+}
+
+/// One node a batch could not move.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+pub struct FailedItem {
+    id: u32,
+    name: String,
+    error: String,
+}
+
+/// Outcome of `move_nodes_to_trash`: totals cover the moved items only.
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct BatchTrashResult {
+    moved: Vec<MovedItem>,
+    failed: Vec<FailedItem>,
+    bytes: u64,
+    files: u64,
+    dirs: u64,
+}
+
+impl BatchTrashResult {
+    fn new(moved: Vec<MovedItem>, failed: Vec<FailedItem>) -> Self {
+        let sum = |field: fn(&MovedItem) -> u64| {
+            moved
+                .iter()
+                .fold(0u64, |acc, item| acc.saturating_add(field(item)))
+        };
+        Self {
+            bytes: sum(|m| m.bytes),
+            files: sum(|m| m.files),
+            dirs: sum(|m| m.dirs),
+            moved,
+            failed,
+        }
+    }
+}
+
+/// Most node ids a Discard Pile command accepts at once.
+const MAX_DISCARD_IDS: usize = 10_000;
+
+/// One row of the Discard Pile.
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct DiscardItem {
+    id: u32,
+    name: String,
+    path: String,
+    size: u64,
+    is_dir: bool,
+}
+
+/// The queued items that still exist, nested ones folded into their ancestor.
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct DiscardSummary {
+    items: Vec<DiscardItem>,
+    count: usize,
+    bytes: u64,
+}
+
+fn checked_batch(nodes: &[u32]) -> Result<(), String> {
+    if nodes.len() > MAX_DISCARD_IDS {
+        Err(format!("Too many items (at most {MAX_DISCARD_IDS})."))
+    } else {
+        Ok(())
+    }
+}
+
+/// Builds the summary of the outermost existing nodes among `nodes`.
+fn discard_summary_of(tree: &Tree, nodes: &[u32]) -> DiscardSummary {
+    let ids: Vec<NodeId> = nodes.iter().map(|&n| NodeId(n)).collect();
+    let items: Vec<DiscardItem> = tree
+        .outermost(&ids)
+        .into_iter()
+        .map(|id| DiscardItem {
+            id: id.0,
+            name: tree.name(id).to_owned(),
+            path: display_path(tree, id),
+            size: tree.total(id).size,
+            is_dir: tree.flags(id).contains(NodeFlags::DIR),
+        })
+        .collect();
+    let bytes = items
+        .iter()
+        .fold(0u64, |acc, item| acc.saturating_add(item.size));
+    DiscardSummary {
+        count: items.len(),
+        bytes,
+        items,
+    }
+}
+
+/// Describes the queued nodes for the Discard Pile (outermost, existing ones only).
+#[tauri::command]
+pub async fn discard_summary(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    nodes: Vec<u32>,
+) -> Result<DiscardSummary, String> {
+    checked_batch(&nodes)?;
+    let tree = current_tree(&state, Some(scan_id))?;
+    tauri::async_runtime::spawn_blocking(move || discard_summary_of(&tree, &nodes))
+        .await
+        .map_err(|err| err.to_string())
+}
+
 /// The path of a node that may be moved to the trash, derived only from the tree.
 ///
 /// Refuses the scanned root, filesystem roots and entries without a usable native path.
@@ -666,6 +935,134 @@ pub fn trash_target(tree: &Tree, node: u32) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+/// Runs `f` on the current tree while holding the scan lock, after checking that `scan_id`
+/// is still the current scan and that the result is live. A result loaded from a snapshot is
+/// refused: its paths may not match the disk, so nothing may be changed there through it.
+fn with_live_scan<T>(
+    state: &AppState,
+    scan_id: u64,
+    f: impl FnOnce(&Tree) -> Result<T, String>,
+) -> Result<T, String> {
+    let slot = state
+        .scan
+        .lock()
+        .map_err(|_| "internal error: state poisoned")?;
+    if slot.id != scan_id {
+        return Err("A scan is in progress or the results have changed.".to_owned());
+    }
+    if current_source(state)? != Source::Live {
+        return Err(SNAPSHOT_READ_ONLY.to_owned());
+    }
+    let tree = current_tree(state, Some(scan_id))?;
+    let result = f(&tree);
+    drop(slot);
+    result
+}
+
+/// The path of `node` for moving it to the trash; refused for snapshot results.
+pub(crate) fn trash_target_live(
+    state: &AppState,
+    scan_id: u64,
+    node: u32,
+) -> Result<PathBuf, String> {
+    with_live_scan(state, scan_id, |tree| trash_target(tree, node))
+}
+
+/// Message of the refusal to change the disk from a snapshot view.
+pub const SNAPSHOT_READ_ONLY: &str = "This view is a snapshot; rescan to make changes.";
+
+/// Where the current result came from.
+pub fn current_source(state: &AppState) -> Result<Source, String> {
+    let guard = state
+        .tree
+        .read()
+        .map_err(|_| "internal error: state poisoned")?;
+    Ok(guard.as_ref().ok_or("no scan yet")?.source)
+}
+
+/// Moves `path` to the Recycle Bin / Trash on a blocking thread, then checks it is gone.
+async fn trash_path(path: PathBuf) -> Result<(), String> {
+    let target = path.clone();
+    tauri::async_runtime::spawn_blocking(move || trash::delete(&target))
+        .await
+        .map_err(|err| err.to_string())?
+        .map_err(|err| format!("Could not move the item to the trash: {err}"))?;
+    match std::fs::symlink_metadata(&path) {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(format!("Unable to verify the item was removed: {err}")),
+        Ok(_) => Err("The item is still on disk after moving it to the trash.".to_owned()),
+    }
+}
+
+/// Removes every node of `ids` that still exists from `tree`; ids that are already gone or
+/// refuse removal are skipped.
+fn remove_all(tree: &mut Tree, ids: &[u32]) -> Vec<MovedItem> {
+    let mut moved = Vec::with_capacity(ids.len());
+    for &node in ids {
+        let Ok(id) = node_id_checked(tree, node) else {
+            continue;
+        };
+        let parent = tree.parent(id).map_or(0, |p| p.0);
+        match tree.remove_subtree(id) {
+            Ok(removed) => moved.push(MovedItem {
+                id: node,
+                bytes: removed.bytes,
+                files: removed.files,
+                dirs: removed.dirs,
+                parent,
+            }),
+            Err(err) => tracing::warn!("could not remove node {node} from the tree: {err}"),
+        }
+    }
+    moved
+}
+
+/// What the baseline needs after a removal: the snapshot tree and the changed live tree.
+type BaselineRecompute = Option<(Arc<Tree>, Arc<Tree>)>;
+
+/// Removes `ids` (already moved to the trash) from the shared tree under the scan, tree and
+/// baseline locks, taken once for the whole batch.
+fn apply_removals(
+    state: &AppState,
+    scan_id: u64,
+    ids: &[u32],
+) -> Result<(Vec<MovedItem>, BaselineRecompute), String> {
+    let slot = state
+        .scan
+        .lock()
+        .map_err(|_| "internal error: state poisoned")?;
+    if slot.id != scan_id {
+        return Err("The item was moved to the trash, but a new scan has started.".to_owned());
+    }
+    let mut guard = state
+        .tree
+        .write()
+        .map_err(|_| "internal error: state poisoned")?;
+    let scan = guard.as_mut().ok_or("no scan yet")?;
+    if scan.id != scan_id {
+        return Err("The item was moved to the trash, but the scan results changed.".to_owned());
+    }
+    if scan.source != Source::Live {
+        return Err(SNAPSHOT_READ_ONLY.to_owned());
+    }
+    // Copy-on-write: clones the tree only if a reader still holds the previous `Arc`.
+    let moved = remove_all(Arc::make_mut(&mut scan.tree), ids);
+    // The comparison must reflect the removal; it is recomputed off the locks.
+    let recompute = if moved.is_empty() {
+        None
+    } else {
+        state
+            .baseline
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .filter(|b| b.scan_id == scan_id)
+            .map(|b| (Arc::clone(&b.base), Arc::clone(&scan.tree)))
+    };
+    drop(slot);
+    Ok((moved, recompute))
+}
+
 /// Moves a node to the Recycle Bin / Trash and removes it from the in-memory tree.
 #[tauri::command]
 pub async fn move_node_to_trash(
@@ -673,76 +1070,79 @@ pub async fn move_node_to_trash(
     scan_id: u64,
     node: u32,
 ) -> Result<TrashResult, String> {
-    let path = {
-        let slot = state
-            .scan
-            .lock()
-            .map_err(|_| "internal error: state poisoned")?;
-        if slot.id != scan_id {
-            return Err("A scan is in progress or the results have changed.".to_owned());
+    let path = trash_target_live(&state, scan_id, node)?;
+    trash_path(path).await?;
+
+    let (moved, recompute) = apply_removals(&state, scan_id, &[node])?;
+    let item = moved.into_iter().next().ok_or("unknown node")?;
+    if let Some((base, current)) = recompute {
+        refresh_baseline(&state, scan_id, base, current).await;
+    }
+    Ok(TrashResult {
+        bytes: item.bytes,
+        files: item.files,
+        dirs: item.dirs,
+        parent: item.parent,
+    })
+}
+
+/// A node of a batch with the path it resolved to (or why it has none).
+struct PlannedItem {
+    id: u32,
+    name: String,
+    path: Result<PathBuf, String>,
+}
+
+/// The outermost existing nodes of `nodes`, each with its path derived only from the tree.
+fn plan_batch(tree: &Tree, nodes: &[u32]) -> Vec<PlannedItem> {
+    let ids: Vec<NodeId> = nodes.iter().map(|&n| NodeId(n)).collect();
+    tree.outermost(&ids)
+        .into_iter()
+        .map(|id| PlannedItem {
+            id: id.0,
+            name: tree.name(id).to_owned(),
+            path: trash_target(tree, id.0),
+        })
+        .collect()
+}
+
+/// Moves several nodes to the Recycle Bin / Trash, one at a time so a failure does not stop
+/// the others, then removes the ones that moved from the in-memory tree in a single step.
+#[tauri::command]
+pub async fn move_nodes_to_trash(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    nodes: Vec<u32>,
+) -> Result<BatchTrashResult, String> {
+    checked_batch(&nodes)?;
+    let plan = with_live_scan(&state, scan_id, |tree| Ok(plan_batch(tree, &nodes)))?;
+
+    let mut moved_ids = Vec::new();
+    let mut failed = Vec::new();
+    for item in plan {
+        let outcome = match item.path {
+            Ok(path) => trash_path(path).await,
+            Err(error) => Err(error),
+        };
+        match outcome {
+            Ok(()) => moved_ids.push(item.id),
+            Err(error) => failed.push(FailedItem {
+                id: item.id,
+                name: item.name,
+                error,
+            }),
         }
-        let tree = current_tree(&state, Some(scan_id))?;
-        trash_target(&tree, node)?
-    };
-
-    let target = path.clone();
-    tauri::async_runtime::spawn_blocking(move || trash::delete(&target))
-        .await
-        .map_err(|err| err.to_string())?
-        .map_err(|err| format!("Could not move the item to the trash: {err}"))?;
-
-    match std::fs::symlink_metadata(&path) {
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-        Err(err) => return Err(format!("Unable to verify the item was removed: {err}")),
-        Ok(_) => return Err("The item is still on disk after moving it to the trash.".to_owned()),
     }
 
-    let (result, recompute) = {
-        let slot = state
-            .scan
-            .lock()
-            .map_err(|_| "internal error: state poisoned")?;
-        if slot.id != scan_id {
-            return Err("The item was moved to the trash, but a new scan has started.".to_owned());
-        }
-        let mut guard = state
-            .tree
-            .write()
-            .map_err(|_| "internal error: state poisoned")?;
-        let scan = guard.as_mut().ok_or("no scan yet")?;
-        if scan.id != scan_id {
-            return Err(
-                "The item was moved to the trash, but the scan results changed.".to_owned(),
-            );
-        }
-        let id = node_id_checked(&scan.tree, node)?;
-        let parent = scan.tree.parent(id).map_or(0, |p| p.0);
-        // Copy-on-write: clones the tree only if a reader still holds the previous `Arc`.
-        let removed = Arc::make_mut(&mut scan.tree)
-            .remove_subtree(id)
-            .map_err(|err| err.to_string())?;
-        // The comparison must reflect the removal; it is recomputed below, off the locks.
-        let recompute = state
-            .baseline
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .as_ref()
-            .filter(|b| b.scan_id == scan_id)
-            .map(|b| (Arc::clone(&b.base), Arc::clone(&scan.tree)));
-        (
-            TrashResult {
-                bytes: removed.bytes,
-                files: removed.files,
-                dirs: removed.dirs,
-                parent,
-            },
-            recompute,
-        )
+    let (moved, recompute) = if moved_ids.is_empty() {
+        (Vec::new(), None)
+    } else {
+        apply_removals(&state, scan_id, &moved_ids)?
     };
     if let Some((base, current)) = recompute {
         refresh_baseline(&state, scan_id, base, current).await;
     }
-    Ok(result)
+    Ok(BatchTrashResult::new(moved, failed))
 }
 
 /// Recomputes the comparison for `current` and swaps it in, unless the scan or the baseline
@@ -789,37 +1189,65 @@ pub fn get_treemap(
 ) -> Result<Vec<TreemapRect>, String> {
     validate_canvas(width, height)?;
     let dir_header = validate_header(header)?;
-    let tree = current_tree(&state, None)?;
+    let (scan_id, tree) = current_scan(&state, None)?;
     let id = node_id_checked(&tree, node)?;
+    let diff = baseline_diff(&state, scan_id);
     let opts = TreemapOptions {
         width,
         height,
         dir_header,
         ..Default::default()
     };
-    Ok(treemap_rects(&tree, tree.treemap(id, &opts)))
+    Ok(treemap_rects(
+        &tree,
+        tree.treemap(id, &opts),
+        diff.as_deref(),
+    ))
+}
+
+/// Sunburst arcs (at most 20 000) of the subtree under `node`, `max_depth` (1..=12, default 6)
+/// rings deep. The merged "other" arc has `id = 4294967295` and an empty name.
+#[tauri::command(async)]
+pub fn get_sunburst(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    node: u32,
+    max_depth: Option<u8>,
+) -> Result<Vec<SunburstArcDto>, String> {
+    let (current_id, tree) = current_scan(&state, Some(scan_id))?;
+    let id = node_id_checked(&tree, node)?;
+    let diff = baseline_diff(&state, current_id);
+    let mut opts = SunburstOptions::default();
+    if let Some(depth) = max_depth {
+        opts.max_depth = depth.clamp(1, MAX_SUNBURST_DEPTH);
+    }
+    Ok(sunburst_arcs(
+        &tree,
+        tree.sunburst(id, &opts),
+        diff.as_deref(),
+    ))
 }
 
 /// Largest snapshot file `compare_with_snapshot` opens.
-const MAX_SNAPSHOT_FILE: u64 = 4 * 1024 * 1024 * 1024;
+pub(crate) const MAX_SNAPSHOT_FILE: u64 = 4 * 1024 * 1024 * 1024;
 
 /// Most rows `top_changes` returns.
 const MAX_CHANGES: u32 = 200;
 
 /// Whether file names compare case-insensitively on the supported platforms' usual file
 /// systems (NTFS and APFS defaults).
-fn case_insensitive_names() -> bool {
+pub(crate) fn case_insensitive_names() -> bool {
     cfg!(windows) || cfg!(target_os = "macos")
 }
 
-fn unix_ms_now() -> i64 {
+pub(crate) fn unix_ms_now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
 }
 
 /// `YYYYMMDD-HHMM` in UTC.
-fn utc_stamp(unix_ms: i64) -> String {
+pub(crate) fn utc_stamp(unix_ms: i64) -> String {
     let secs = unix_ms.div_euclid(1000);
     let days = secs.div_euclid(86_400);
     let rem = secs.rem_euclid(86_400);
@@ -843,8 +1271,28 @@ fn utc_stamp(unix_ms: i64) -> String {
 /// `byteforest-<target>-<YYYYMMDD-HHMM>.bfsnap` with the target reduced to file-name-safe
 /// characters.
 pub fn default_snapshot_name(target: &str, unix_ms: i64) -> String {
+    format!(
+        "byteforest-{}-{}.bfsnap",
+        file_name_part(target),
+        utc_stamp(unix_ms)
+    )
+}
+
+/// `byteforest-<name>-<YYYYMMDD-HHMM>.csv` with the name reduced to file-name-safe
+/// characters.
+pub fn default_report_name(name: &str, unix_ms: i64) -> String {
+    format!(
+        "byteforest-{}-{}.csv",
+        file_name_part(name),
+        utc_stamp(unix_ms)
+    )
+}
+
+/// Letters and digits of `text` with every other run replaced by one `-`, at most 40
+/// characters; `scan` when nothing is left.
+pub(crate) fn file_name_part(text: &str) -> String {
     let mut safe = String::new();
-    for ch in target.chars() {
+    for ch in text.chars() {
         let ch = if ch.is_alphanumeric() { ch } else { '-' };
         if ch != '-' || !safe.ends_with('-') {
             safe.push(ch);
@@ -852,12 +1300,34 @@ pub fn default_snapshot_name(target: &str, unix_ms: i64) -> String {
     }
     let safe: String = safe.trim_matches('-').chars().take(40).collect();
     let safe = safe.trim_end_matches('-');
-    let safe = if safe.is_empty() { "scan" } else { safe };
-    format!("byteforest-{safe}-{}.bfsnap", utc_stamp(unix_ms))
+    if safe.is_empty() {
+        "scan".to_string()
+    } else {
+        safe.to_string()
+    }
+}
+
+/// Like [`file_name_part`] but ASCII letters and digits only, so the result is a valid
+/// automatic-snapshot id part.
+pub(crate) fn file_name_part_ascii(text: &str) -> String {
+    let mut safe = String::new();
+    for ch in text.chars() {
+        let ch = if ch.is_ascii_alphanumeric() { ch } else { '-' };
+        if ch != '-' || !safe.ends_with('-') {
+            safe.push(ch);
+        }
+    }
+    let safe: String = safe.trim_matches('-').chars().take(40).collect();
+    let safe = safe.trim_end_matches('-');
+    if safe.is_empty() {
+        "scan".to_string()
+    } else {
+        safe.to_string()
+    }
 }
 
 /// Writes the snapshot to `<path>.tmp` and renames it over `path`.
-fn write_snapshot_file(
+pub(crate) fn write_snapshot_file(
     tree: &Tree,
     label: &str,
     created_unix_ms: i64,
@@ -882,23 +1352,30 @@ fn write_snapshot_file(
 }
 
 /// What was loaded from a snapshot file and compared with the current tree.
-struct LoadedBaseline {
-    label: String,
-    created_unix_ms: i64,
-    base: Arc<Tree>,
-    diff: SnapshotDiff,
+pub(crate) struct LoadedBaseline {
+    pub label: String,
+    pub created_unix_ms: i64,
+    pub base: Arc<Tree>,
+    pub diff: SnapshotDiff,
 }
 
-/// Reads a snapshot file (refusing files over [`MAX_SNAPSHOT_FILE`]) and compares it with
-/// `current`.
-fn load_baseline(path: &Path, current: &Tree) -> Result<LoadedBaseline, String> {
+/// Reads and fully validates a snapshot file, refusing files over [`MAX_SNAPSHOT_FILE`].
+pub(crate) fn read_snapshot_file(path: &Path) -> Result<bf_core::Snapshot, String> {
     let meta = std::fs::metadata(path).map_err(|e| format!("Cannot open the snapshot: {e}"))?;
     if meta.len() > MAX_SNAPSHOT_FILE {
         return Err("This snapshot file is too large to open.".to_owned());
     }
     let file = std::fs::File::open(path).map_err(|e| format!("Cannot open the snapshot: {e}"))?;
-    let snap = read_snapshot(std::io::BufReader::new(file))
-        .map_err(|e| format!("Cannot read the snapshot: {e}"))?;
+    read_snapshot_with_limits(
+        std::io::BufReader::new(file),
+        SnapshotLimits::for_compressed_len(meta.len()),
+    )
+    .map_err(|e| format!("Cannot read the snapshot: {e}"))
+}
+
+/// Reads a snapshot file and compares it with `current`.
+pub(crate) fn load_baseline(path: &Path, current: &Tree) -> Result<LoadedBaseline, String> {
+    let snap = read_snapshot_file(path)?;
     let diff = diff(&snap.tree, current, case_insensitive_names());
     Ok(LoadedBaseline {
         label: snap.label,
@@ -969,6 +1446,96 @@ pub async fn save_snapshot(
     .map(|path| Some(path.to_string_lossy().into_owned()))
 }
 
+/// Folder levels an exported report covers.
+const REPORT_DEPTH: u8 = 3;
+
+/// Most rows an exported report holds.
+const REPORT_ROWS: usize = 100_000;
+
+/// Writes the report of `id` to `<path>.tmp` and renames it over `path`. A `.json` extension
+/// gives JSON, anything else CSV.
+fn write_report_file(tree: &Tree, id: NodeId, path: &Path) -> Result<(), String> {
+    use std::io::Write;
+    let opts = ReportOptions {
+        max_depth: REPORT_DEPTH,
+        max_rows: REPORT_ROWS,
+        path_separator: std::path::MAIN_SEPARATOR,
+    };
+    let report = tree
+        .report(id, opts)
+        .ok_or_else(|| "Could not export the report: unknown node".to_string())?;
+    let json = path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("json"));
+    let mut tmp_name = path.as_os_str().to_owned();
+    tmp_name.push(".tmp");
+    let tmp = PathBuf::from(tmp_name);
+    let write = || -> Result<(), String> {
+        let file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+        let mut w = std::io::BufWriter::new(file);
+        if json {
+            serde_json::to_writer(&mut w, &report).map_err(|e| e.to_string())?;
+        } else {
+            write_csv(&report, ',', &mut w).map_err(|e| e.to_string())?;
+        }
+        w.flush().map_err(|e| e.to_string())?;
+        drop(w);
+        std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+    };
+    write().map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        format!("Could not export the report: {e}")
+    })
+}
+
+/// Exports a CSV or JSON report of a folder (and its biggest contents) to a file chosen in a
+/// save dialog. Returns the path written, or `None` when the dialog was cancelled.
+#[tauri::command]
+pub async fn export_report(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    scan_id: u64,
+    node: u32,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let tree = current_tree(&state, Some(scan_id))?;
+    let id = node_id_checked(&tree, node)?;
+    let name = default_report_name(tree.name(id), unix_ms_now());
+    let dir = app
+        .path()
+        .document_dir()
+        .or_else(|_| app.path().download_dir())
+        .ok();
+
+    let dialog_app = app.clone();
+    let chosen = tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = dialog_app
+            .dialog()
+            .file()
+            .add_filter("CSV (spreadsheet)", &["csv"])
+            .add_filter("JSON", &["json"])
+            .set_file_name(name);
+        if let Some(dir) = dir.filter(|dir| dir.is_dir()) {
+            dialog = dialog.set_directory(dir);
+        }
+        dialog.blocking_save_file()
+    })
+    .await
+    .map_err(|err| err.to_string())?;
+    let Some(chosen) = chosen else {
+        return Ok(None);
+    };
+    let mut path = chosen.into_path().map_err(|err| err.to_string())?;
+    if path.extension().is_none() {
+        path.set_extension("csv");
+    }
+
+    tauri::async_runtime::spawn_blocking(move || write_report_file(&tree, id, &path).map(|()| path))
+        .await
+        .map_err(|err| err.to_string())?
+        .map(|path| Some(path.to_string_lossy().into_owned()))
+}
+
 /// Opens a snapshot chosen in an open dialog and compares the scan with it. Returns `None`
 /// when the dialog was cancelled.
 #[tauri::command]
@@ -1000,6 +1567,16 @@ pub async fn compare_with_snapshot(
         .await
         .map_err(|err| err.to_string())??;
 
+    install_baseline(&state, scan_id, &tree, loaded).map(Some)
+}
+
+/// Makes `loaded` the baseline of scan `scan_id`, provided `tree` is still that scan's tree.
+pub(crate) fn install_baseline(
+    state: &AppState,
+    scan_id: u64,
+    tree: &Arc<Tree>,
+    loaded: LoadedBaseline,
+) -> Result<BaselineInfo, String> {
     let summary = loaded.diff.summary();
     let info = BaselineInfo {
         label: loaded.label.clone(),
@@ -1021,7 +1598,7 @@ pub async fn compare_with_snapshot(
     let unchanged = slot.id == scan_id
         && current
             .as_ref()
-            .is_some_and(|scan| scan.id == scan_id && Arc::ptr_eq(&scan.tree, &tree));
+            .is_some_and(|scan| scan.id == scan_id && Arc::ptr_eq(&scan.tree, tree));
     if !unchanged {
         return Err("The scan results changed while the snapshot was loading.".to_owned());
     }
@@ -1033,7 +1610,7 @@ pub async fn compare_with_snapshot(
         base: loaded.base,
         diff: Arc::new(loaded.diff),
     });
-    Ok(Some(info))
+    Ok(info)
 }
 
 /// Stops comparing with a snapshot.
@@ -1091,12 +1668,119 @@ mod tests {
     }
 
     #[test]
+    fn user_folders_keep_order_and_skip_missing_or_duplicate_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let desktop = dir.path().join("Desktop");
+        let documents = dir.path().join("Documents");
+        let file = dir.path().join("Downloads");
+        std::fs::create_dir(&desktop).unwrap();
+        std::fs::create_dir(&documents).unwrap();
+        std::fs::write(&file, b"not a folder").unwrap();
+
+        let found = existing_user_folders(vec![
+            ("desktop", "Desktop", Some(desktop.clone())),
+            ("downloads", "Downloads", Some(file)),
+            ("documents", "Documents", Some(documents.clone())),
+            ("extra", "Extra", Some(documents)),
+            ("missing", "Missing", Some(dir.path().join("nope"))),
+            ("none", "None", None),
+        ]);
+        let kinds: Vec<_> = found.iter().map(|folder| folder.kind).collect();
+        assert_eq!(kinds, ["desktop", "documents"]);
+        assert_eq!(found[0].path, desktop.to_string_lossy());
+    }
+
+    #[test]
     fn trash_target_refuses_root_and_removed_nodes() {
         let mut tree = tiny_tree();
         assert!(trash_target(&tree, 0).is_err());
         assert!(trash_target(&tree, 99).is_err());
         tree.remove_subtree(NodeId(1)).unwrap();
         assert!(trash_target(&tree, 1).is_err());
+    }
+
+    /// root -> dir -> { f1, sub -> f2 }, plus a root-level file.
+    /// Ids: 1 dir, 2 f1, 3 sub, 4 f2, 5 top.bin.
+    fn nested_tree() -> Tree {
+        let rec = |key, parent_key, name: &str, size, dir: bool| EntryRecord {
+            key,
+            parent_key,
+            name: name.into(),
+            flags: if dir {
+                NodeFlags::DIR
+            } else {
+                NodeFlags::empty()
+            },
+            size,
+            alloc: size,
+            mtime: 0,
+        };
+        let mut b = TreeBuilder::new(1, "C:");
+        b.push(rec(2, 1, "dir", 0, true));
+        b.push(rec(3, 2, "f1", 10, false));
+        b.push(rec(4, 2, "sub", 0, true));
+        b.push(rec(5, 4, "f2", 20, false));
+        b.push(rec(6, 1, "top.bin", 100, false));
+        b.finish()
+    }
+
+    #[test]
+    fn discard_summary_folds_nested_items_and_drops_stale_ids() {
+        let mut tree = nested_tree();
+        tree.remove_subtree(NodeId(5)).unwrap();
+        let summary = discard_summary_of(&tree, &[4, 3, 1, 5, 0, 999, 1]);
+        assert_eq!(summary.count, 1);
+        assert_eq!(summary.items[0].id, 1);
+        assert_eq!(summary.items[0].name, "dir");
+        assert!(summary.items[0].is_dir);
+        assert_eq!(summary.bytes, 30);
+        assert_eq!(summary.items[0].size, 30);
+    }
+
+    #[test]
+    fn batch_results_add_up_only_the_moved_items() {
+        let item = |id, bytes, files, dirs| MovedItem {
+            id,
+            bytes,
+            files,
+            dirs,
+            parent: 0,
+        };
+        let failed = vec![FailedItem {
+            id: 9,
+            name: "x".into(),
+            error: "locked".into(),
+        }];
+        let result = BatchTrashResult::new(vec![item(1, 30, 2, 2), item(5, 100, 1, 0)], failed);
+        assert_eq!((result.bytes, result.files, result.dirs), (130, 3, 2));
+        assert_eq!(result.failed.len(), 1);
+    }
+
+    #[test]
+    fn removing_a_batch_skips_ids_that_are_already_gone() {
+        let mut tree = nested_tree();
+        let moved = remove_all(&mut tree, &[3, 5, 3, 999]);
+        let ids: Vec<u32> = moved.iter().map(|m| m.id).collect();
+        assert_eq!(ids, [3, 5]);
+        assert_eq!(moved[0].parent, 1);
+        assert_eq!((moved[0].bytes, moved[0].files, moved[0].dirs), (20, 1, 1));
+        assert_eq!(tree.total(tree.root()).size, 10);
+        assert!(remove_all(&mut tree, &[3, 5]).is_empty());
+    }
+
+    #[test]
+    fn batch_plan_refuses_the_root_and_keeps_only_outermost_nodes() {
+        let tree = nested_tree();
+        let plan = plan_batch(&tree, &[0, 4, 3, 1, 5]);
+        let ids: Vec<u32> = plan.iter().map(|p| p.id).collect();
+        assert_eq!(ids, [1, 5]);
+        assert_eq!(plan[0].name, "dir");
+    }
+
+    #[test]
+    fn batches_over_the_limit_are_refused() {
+        assert!(checked_batch(&vec![1; MAX_DISCARD_IDS]).is_ok());
+        assert!(checked_batch(&vec![1; MAX_DISCARD_IDS + 1]).is_err());
     }
 
     #[test]
@@ -1163,7 +1847,7 @@ mod tests {
             height: 100.0,
             ..Default::default()
         };
-        let rects = treemap_rects(&tree, tree.treemap(tree.root(), &opts));
+        let rects = treemap_rects(&tree, tree.treemap(tree.root(), &opts), None);
         assert_eq!(rects.len(), 2);
         assert_eq!((rects[0].parent, rects[0].size), (None, 10));
         assert_eq!(rects[1].parent, Some(0));
@@ -1172,6 +1856,59 @@ mod tests {
         assert!(!rects[1].is_dir);
         assert_eq!(rects[0].category, None);
         assert_eq!(rects[1].category, Some(bf_core::FileCategory::Other));
+    }
+
+    #[test]
+    fn treemap_rects_carry_the_comparison_result_only_when_given() {
+        let tree = tiny_tree();
+        let opts = TreemapOptions {
+            width: 100.0,
+            height: 100.0,
+            ..Default::default()
+        };
+        let empty = TreeBuilder::new(5, "C:").finish();
+        let d = bf_core::diff(&empty, &tree, false);
+        let rects = treemap_rects(&tree, tree.treemap(tree.root(), &opts), Some(&d));
+        assert_eq!(
+            rects[1].diff.as_ref().map(|x| x.status),
+            Some(crate::dto::DiffKind::Added)
+        );
+        let plain = treemap_rects(&tree, tree.treemap(tree.root(), &opts), None);
+        assert!(plain.iter().all(|r| r.diff.is_none()));
+    }
+
+    #[test]
+    fn sunburst_arcs_carry_names_sizes_and_the_other_arc_remainder() {
+        let mut b = TreeBuilder::new(5, "C:");
+        for (key, name, size) in [(6, "big.bin", 100_000u64), (7, "t1", 3), (8, "t2", 4)] {
+            b.push(EntryRecord {
+                key,
+                parent_key: 5,
+                name: name.into(),
+                flags: NodeFlags::empty(),
+                size,
+                alloc: size,
+                mtime: 0,
+            });
+        }
+        let tree = b.finish();
+        let opts = SunburstOptions {
+            min_angle: 0.0,
+            ..Default::default()
+        };
+        let arcs = sunburst_arcs(&tree, tree.sunburst(tree.root(), &opts), None);
+        assert_eq!(arcs.len(), 3);
+        assert_eq!((arcs[0].name.as_str(), arcs[0].size), ("big.bin", 100_000));
+        assert!(arcs.iter().all(|a| a.diff.is_none() && a.depth == 1));
+
+        let opts = SunburstOptions {
+            min_angle: 0.0003,
+            ..Default::default()
+        };
+        let merged = sunburst_arcs(&tree, tree.sunburst(tree.root(), &opts), None);
+        let other = merged.iter().find(|a| a.id == OTHER_ARC_ID).unwrap();
+        assert_eq!((other.name.as_str(), other.size, other.parent), ("", 7, 0));
+        assert_eq!(other.category, None);
     }
 
     #[test]
@@ -1205,6 +1942,7 @@ mod tests {
             id: 7,
             tree,
             target: String::new(),
+            source: Source::Live,
         });
         assert_eq!(existing_node_path(&state, 7, id.0), Ok(file.clone()));
         assert!(existing_node_path(&state, 6, id.0).is_err());
@@ -1247,6 +1985,62 @@ mod tests {
         );
         let long = default_snapshot_name(&"x".repeat(500), 0);
         assert!(long.len() < 80, "{long}");
+    }
+
+    #[test]
+    fn report_names_are_safe_and_stamped() {
+        assert_eq!(
+            default_report_name("my docs", 1_700_000_000_000),
+            "byteforest-my-docs-20231114-2213.csv"
+        );
+        assert_eq!(
+            default_report_name("..", 0),
+            "byteforest-scan-19700101-0000.csv"
+        );
+    }
+
+    #[test]
+    fn exclusions_are_cut_from_tree_and_stats() {
+        let mut tree = tiny_tree();
+        let mut stats = ScanStats {
+            files: 1,
+            dirs: 0,
+            bytes: 10,
+            elapsed_ms: 0,
+            method: bf_scan::ScanMethod::Walk,
+            fallback_reason: None,
+            skipped_records: 0,
+            errors: 0,
+        };
+        let none = exclude_from_scan(&mut tree, &mut stats, "C:", &[]);
+        assert!(none.is_none());
+        let cut = exclude_from_scan(&mut tree, &mut stats, "C:", &["*.TXT".to_string()]);
+        assert_eq!(
+            cut,
+            Some(ExcludedInfo {
+                items: 1,
+                bytes: 10
+            })
+        );
+        assert_eq!((stats.files, stats.bytes), (0, 0));
+        assert_eq!(tree.total(tree.root()).size, 0);
+    }
+
+    #[test]
+    fn report_file_is_written_as_csv_or_json_without_temp_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let tree = tiny_tree();
+        let csv = dir.path().join("r.csv");
+        write_report_file(&tree, tree.root(), &csv).unwrap();
+        let text = std::fs::read_to_string(&csv).unwrap();
+        assert!(text.starts_with('\u{FEFF}'));
+        assert!(text.contains("a.txt"));
+        let json = dir.path().join("r.JSON");
+        write_report_file(&tree, tree.root(), &json).unwrap();
+        let v: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&json).unwrap()).unwrap();
+        assert_eq!(v["rows"][1]["name"], "a.txt");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
     }
 
     #[test]

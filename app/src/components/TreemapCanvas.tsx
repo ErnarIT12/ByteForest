@@ -1,16 +1,19 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
   type MouseEvent,
-  type RefObject,
   type WheelEvent,
 } from 'react';
 import { getTreemap } from '../api';
 import { formatBytes } from '../format';
-import { isContextMenuKey } from '../contextMenu';
+import { deleteKeyIntent, isContextMenuKey } from '../contextMenu';
+import { guardWritable } from '../readOnly';
+import { useDiscardPile } from '../discardPile';
 import { useFileActions } from '../fileActions';
+import { useDebouncedSize } from '../hooks/useDebouncedSize';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { useTreemapColorMode } from '../hooks/useTreemapColorMode';
 import { useAppStore } from '../store';
@@ -22,60 +25,14 @@ import {
   hitTest,
   paintHighlights,
   paintTreemap,
+  paintTreemapDiff,
   type TreemapLayout,
 } from '../treemapPaint';
 import { largestChild, nearestSibling, type Direction } from '../treemapNav';
 import { TreemapTooltip } from './TreemapTooltip';
 
-interface Size {
-  w: number;
-  h: number;
-  dpr: number;
-}
-
 /** Wheel steps closer together than this count as one "go up". */
 const WHEEL_GAP_MS = 350;
-const RESIZE_DEBOUNCE_MS = 100;
-
-/** Measures the element's CSS size; the first size is immediate, later ones debounced. */
-function useDebouncedSize(ref: RefObject<HTMLDivElement | null>): Size | null {
-  const [size, setSize] = useState<Size | null>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let timer: number | undefined;
-    let first = true;
-    const measure = () => {
-      const next = {
-        w: Math.floor(el.clientWidth),
-        h: Math.floor(el.clientHeight),
-        dpr: window.devicePixelRatio || 1,
-      };
-      // Keep the same object when nothing changed so no refetch is triggered.
-      const apply = () =>
-        setSize((prev) =>
-          prev && prev.w === next.w && prev.h === next.h && prev.dpr === next.dpr ? prev : next,
-        );
-      window.clearTimeout(timer);
-      if (first) {
-        first = false;
-        apply();
-      } else {
-        timer = window.setTimeout(apply, RESIZE_DEBOUNCE_MS);
-      }
-    };
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    // Moving to a monitor with another scale changes devicePixelRatio and fires resize.
-    window.addEventListener('resize', measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', measure);
-      window.clearTimeout(timer);
-    };
-  }, [ref]);
-  return size;
-}
 
 /** The squarified treemap of the focused folder, drawn on two stacked canvases. */
 export function TreemapCanvas() {
@@ -85,6 +42,7 @@ export function TreemapCanvas() {
     s.reveal?.path.at(-1) === s.selectedId ? s.reveal?.filename : undefined,
   );
   const generation = useAppStore((s) => s.generation);
+  const queuedIds = useDiscardPile((s) => s.idSet);
   const theme = useColorScheme();
   const colorMode = useTreemapColorMode();
 
@@ -136,12 +94,27 @@ export function TreemapCanvas() {
     canvas.height = layout.height;
     const background = getComputedStyle(canvas).getPropertyValue('--tm-bg').trim() || '#808080';
     paintTreemap(ctx, layout, theme, background, colorMode);
+    const css = getComputedStyle(canvas);
+    paintTreemapDiff(ctx, layout, {
+      grow: css.getPropertyValue('--delta-grow').trim() || '#9a3412',
+      shrink: css.getPropertyValue('--delta-shrink').trim() || '#17663a',
+      halo: css.getPropertyValue('--tm-sel-inner').trim() || '#000000',
+    });
   }, [layout, theme, colorMode]);
 
   // Overlay: hover and selection outlines.
   const hoverIndex = hover?.i ?? -1;
   const selectedIndex = layout && selectedId !== null ? (layout.index.get(selectedId) ?? -1) : -1;
   const selectionBelowResolution = layout?.rects[0]?.id === focusId && searchFilename && selectedIndex < 0;
+  const queuedIndexes = useMemo(() => {
+    if (!layout) return [];
+    const found: number[] = [];
+    for (const id of queuedIds) {
+      const i = layout.index.get(id);
+      if (i !== undefined && i > 0) found.push(i);
+    }
+    return found;
+  }, [layout, queuedIds]);
   useEffect(() => {
     const canvas = overlayRef.current;
     const ctx = canvas?.getContext('2d');
@@ -154,13 +127,14 @@ export function TreemapCanvas() {
     if (canvas.height !== layout.height) canvas.height = layout.height;
     const css = getComputedStyle(canvas);
     const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
-    paintHighlights(ctx, layout, hoverIndex, selectedIndex, {
+    paintHighlights(ctx, layout, hoverIndex, selectedIndex, queuedIndexes, {
       accent: token('--accent', '#5edb7f'),
       hoverFill: token('--tm-hover-fill', 'rgba(255,255,255,0.08)'),
       hoverLine: token('--tm-hover-line', 'rgba(206,251,246,0.85)'),
       selectedInner: token('--tm-sel-inner', '#000000'),
+      queued: token('--tm-discard', '#7a1626'),
     });
-  }, [layout, hoverIndex, selectedIndex, theme]);
+  }, [layout, hoverIndex, selectedIndex, queuedIndexes, theme]);
 
   const indexAt = (e: MouseEvent<HTMLElement>): number => {
     if (!layout) return -1;
@@ -234,6 +208,18 @@ export function TreemapCanvas() {
         box.left + (r.x + r.w / 2) / layout.dpr,
         box.top + (r.y + r.h / 2) / layout.dpr,
       );
+      return;
+    }
+    const intent = deleteKeyIntent(e);
+    if (intent && e.target === e.currentTarget) {
+      // Delete only queues; Shift+Delete asks before moving to the Recycle Bin / Trash.
+      const { resultScanId } = useAppStore.getState();
+      if (!layout || selectedIndex <= 0 || resultScanId === null) return;
+      e.preventDefault();
+      const id = layout.rects[selectedIndex].id;
+      if (!guardWritable()) return;
+      if (intent === 'queue') useDiscardPile.getState().add([id]);
+      else void useFileActions.getState().requestTrash(resultScanId, id);
       return;
     }
     if (e.ctrlKey || e.altKey || e.metaKey || e.target !== e.currentTarget) return;

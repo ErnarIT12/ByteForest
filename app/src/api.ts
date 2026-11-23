@@ -18,6 +18,13 @@ export type SortKey = 'SizeDesc' | 'NameAsc' | 'ModifiedDesc';
 export type ScanMethod = 'Mft' | 'Walk';
 export type Phase = 'Reading' | 'Parsing' | 'Walking' | 'Building';
 
+/** A well-known folder of the current user (Desktop, Downloads, Documents). */
+export interface UserFolder {
+  kind: string;
+  name: string;
+  path: string;
+}
+
 export interface VolumeSummary {
   /** Upper-case drive letter, e.g. "C". */
   letter?: string;
@@ -94,6 +101,28 @@ export interface Rect {
   is_dir: boolean;
   /** Category of a file; null for folders. */
   category: FileCategory | null;
+  /** Set only while comparing with a snapshot, and only when something changed. */
+  diff?: NodeDiff | null;
+}
+
+/** Id of the merged "other" arc of a sunburst (`u32::MAX`). */
+export const OTHER_ARC_ID = 4294967295;
+
+/** One sunburst ring segment; angles are radians clockwise from 12 o'clock. */
+export interface SunburstArc {
+  /** Node id, or `OTHER_ARC_ID` for the merged arc of small items (empty `name`). */
+  id: number;
+  /** Node id of the parent arc (the requested node for the first ring). */
+  parent: number;
+  name: string;
+  size: number;
+  /** 1 is the ring around the centre disc. */
+  depth: number;
+  start: number;
+  end: number;
+  is_dir: boolean;
+  category: FileCategory | null;
+  diff?: NodeDiff | null;
 }
 
 export interface ScanProgress {
@@ -116,10 +145,18 @@ export interface ScanStats {
   errors: number;
 }
 
+/** What the scan exclusions cut out of a scan. */
+export interface ExcludedInfo {
+  items: number;
+  bytes: number;
+}
+
 export interface ScanDone {
   scan_id: number;
   stats: ScanStats;
   root: NodeView;
+  /** Present only when the exclusions removed something. */
+  excluded?: ExcludedInfo | null;
 }
 
 export interface ScanErrorEvent {
@@ -135,6 +172,7 @@ export const MAX_CHILDREN = 1000;
 
 export const listDrives = () => invoke<VolumeSummary[]>('list_drives');
 export const pickFolder = () => invoke<string | null>('pick_folder');
+export const listUserFolders = () => invoke<UserFolder[]>('user_folders');
 /** Resolves to the scan id. `target` is a drive ("C:", "c:\\", "C") or an existing folder path. */
 export const startScan = (target: string) => invoke<number>('start_scan', { target });
 export const cancelScan = () => invoke<void>('cancel_scan');
@@ -195,6 +233,8 @@ export interface Breakdown {
   categories: CategoryTotal[];
   extensions: ExtTotal[];
   other_extensions: { bytes: number; files: number };
+  /** Sizes recorded on the folders themselves; part of `total_bytes`, in no category. */
+  folder_bytes: number;
   total_bytes: number;
   total_files: number;
 }
@@ -237,17 +277,77 @@ export interface TrashResult {
 export const moveNodeToTrash = (scanId: number, node: number) =>
   invoke<TrashResult>('move_node_to_trash', { scanId, node });
 
+/** A node a batch moved to the Recycle Bin / Trash. */
+export interface MovedItem {
+  id: number;
+  bytes: number;
+  files: number;
+  dirs: number;
+  /** Parent of the removed node. */
+  parent: number;
+}
+
+/** A node a batch could not move, with the reason. */
+export interface FailedItem {
+  id: number;
+  name: string;
+  error: string;
+}
+
+/** What `moveNodesToTrash` did; the totals cover the moved items only. */
+export interface BatchTrashResult {
+  moved: MovedItem[];
+  failed: FailedItem[];
+  bytes: number;
+  files: number;
+  dirs: number;
+}
+
+/** One entry of the Discard Pile as the backend sees it. */
+export interface DiscardItem {
+  id: number;
+  name: string;
+  path: string;
+  /** Total size for folders. */
+  size: number;
+  is_dir: boolean;
+}
+
+/** The queued nodes that still exist; nested ones are folded into their ancestor. */
+export interface DiscardSummary {
+  items: DiscardItem[];
+  count: number;
+  bytes: number;
+}
+
+/** Most node ids the Discard Pile commands accept at once. */
+export const MAX_DISCARD_IDS = 10_000;
+
+/** Describes the queued nodes: outermost, still existing ones only. */
+export const discardSummary = (scanId: number, nodes: number[]) =>
+  invoke<DiscardSummary>('discard_summary', { scanId, nodes });
+/** Moves the outermost of `nodes` to the Recycle Bin / Trash one by one; failures are reported per item. */
+export const moveNodesToTrash = (scanId: number, nodes: number[]) =>
+  invoke<BatchTrashResult>('move_nodes_to_trash', { scanId, nodes });
+
 /**
  * Rectangles of the subtree under `node`, breadth-first (parents first). `header` (pixels)
  * reserves a name strip at the top of non-root directories at least 3 strips wide and tall.
  */
 export const getTreemap = (node: number, width: number, height: number, header = 0) =>
   invoke<Rect[]>('get_treemap', { node, width, height, header });
+/** Arcs of the subtree under `node`, ring by ring (inner rings first); `maxDepth` is 1..=12. */
+export const getSunburst = (scanId: number, node: number, maxDepth?: number) =>
+  invoke<SunburstArc[]>('get_sunburst', { scanId, node, maxDepth });
 export const isElevated = () => invoke<boolean>('is_elevated');
 
 /** User settings stored in `%APPDATA%\ByteForest\settings.json`. */
 export interface Settings {
   always_elevated: boolean;
+  /** Names, wildcards and absolute paths left out of every scan. */
+  exclusions: string[];
+  /** Automatic snapshots to keep (0 = off, at most 50). */
+  auto_snapshot_keep: number;
 }
 
 /** Restarts the app as administrator (exits on success). Rejects with "declined" if UAC is refused. */
@@ -257,6 +357,10 @@ export const restartElevated = (target?: string) =>
 export const takeStartupScan = () => invoke<string | null>('take_startup_scan');
 export const getSettings = () => invoke<Settings>('get_settings');
 export const setSettings = (settings: Settings) => invoke<void>('set_settings', { settings });
+
+/** Saves a CSV or JSON report of a folder through a save dialog; the path, or null if cancelled. */
+export const exportReport = (scanId: number, node: number) =>
+  invoke<string | null>('export_report', { scanId, node });
 
 /** Summary of a started comparison. */
 export interface BaselineInfo {
@@ -289,6 +393,44 @@ export const clearBaseline = () => invoke<void>('clear_baseline');
 /** The nodes that grew or are new since the snapshot, largest first (`limit` is capped at 200). */
 export const topChanges = (scanId: number, limit: number) =>
   invoke<ChangeEntry[]>('top_changes', { scanId, limit });
+
+/** An automatic snapshot saved after a scan (stored in the app data folder). */
+export interface AutoSnapshot {
+  /** File name; the handle the other snapshot commands take. */
+  id: string;
+  /** What was scanned: "C:" or a folder path. */
+  label: string;
+  created_unix_ms: number;
+  node_count: number;
+  bytes_on_disk: number;
+}
+
+/** Where the shown result came from; a snapshot result is read-only. */
+export type ResultSource = { kind: 'live' } | { kind: 'snapshot'; created_unix_ms: number };
+
+/** What `openSnapshot` returns: the new current result, like `scan://done`. */
+export interface OpenedSnapshot {
+  scan_id: number;
+  /** What was scanned when the snapshot was taken. */
+  target: string;
+  files: number;
+  dirs: number;
+  bytes: number;
+  root: NodeView;
+  source: { kind: 'snapshot'; created_unix_ms: number };
+}
+
+/** Saved automatic snapshots, newest first. */
+export const listAutoSnapshots = () => invoke<AutoSnapshot[]>('list_auto_snapshots');
+/** Makes the snapshot the current (read-only) result. Rejects while a scan is running. */
+export const openSnapshot = (id: string) => invoke<OpenedSnapshot>('open_snapshot', { id });
+/** Compares the live result with a saved snapshot. */
+export const compareWithAutoSnapshot = (scanId: number, id: string) =>
+  invoke<BaselineInfo>('compare_with_auto_snapshot', { scanId, id });
+export const deleteAutoSnapshot = (id: string) => invoke<void>('delete_auto_snapshot', { id });
+/** Fires after automatic snapshots were added, pruned or deleted. */
+export const onSnapshotsChanged = (cb: () => void): Promise<UnlistenFn> =>
+  listen('snapshots-changed', () => cb());
 
 export const onScanProgress = (cb: (p: ScanProgress) => void): Promise<UnlistenFn> =>
   listen<ScanProgress>('scan://progress', (e) => cb(e.payload));

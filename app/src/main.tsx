@@ -6,6 +6,7 @@ import './styles.css';
 import './controls.css';
 import './explorer.css';
 import './treemap.css';
+import './sidebar.css';
 
 initializeAppearance();
 createRoot(document.getElementById('root')!).render(

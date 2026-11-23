@@ -26,6 +26,7 @@
   --btn-grad-hover: linear-gradient(160deg, #424b59, #272b33);
   --tm-bg: #d8dce2;
   --tm-hover-line: #101722;
+  --tm-discard: #4a0d18;
   --tm-sel-inner: #ffffff;
   --tm-hover-fill: rgb(255 255 255 / 12%);
   --danger: #a62839;
@@ -43,7 +44,11 @@
   --glow: none;
   --btn-shadow-hover: 0 2px 8px rgba(20, 24, 32, 0.28), 0 1px 2px rgba(20, 24, 32, 0.2);
   --bar-shadow: none;
-  --shadow: 0 8px 24px rgb(0 0 0 / 15%);
+  /* Elevation: panels sit on the page with a soft shadow instead of an outline. */
+  --elev-0: none;
+  --elev-1: 0 1px 2px rgb(16 24 40 / 7%), 0 1px 3px rgb(16 24 40 / 9%);
+  --elev-2: 0 6px 20px rgb(16 24 40 / 16%), 0 1px 3px rgb(16 24 40 / 10%);
+  --shadow: var(--elev-2);
   --radius: 6px;
   --radius-lg: 10px;
   --chrome-bg: linear-gradient(110deg, #f8f9fb, #edf0f3 48%, #e8eaee);
@@ -116,11 +121,17 @@
   --btn-shadow-hover: 0 0 0 1px rgba(255, 255, 255, 0.28), 0 4px 12px rgba(0, 0, 0, 0.45);
   --tm-bg: #181a1e;
   --tm-hover-line: #ffffff;
+  --tm-discard: #ffe9bd;
   --tm-sel-inner: #141518;
   --tm-hover-fill: rgb(255 255 255 / 8%);
   --danger: #ff9ea9;
   --delta-grow: #ffb27a;
   --delta-shrink: #7fd6a0;
+  /* A faint light edge keeps raised panels apart on dark surfaces, where shadows barely show. */
+  --elev-0: none;
+  --elev-1: 0 1px 2px rgb(0 0 0 / 45%), 0 0 0 1px rgb(255 255 255 / 4%);
+  --elev-2: 0 8px 24px rgb(0 0 0 / 55%), 0 0 0 1px rgb(255 255 255 / 8%);
+  --shadow: var(--elev-2);
   --chrome-bg: linear-gradient(110deg, #353941, #22252a 48%, #18191c);
   --chrome-border: #454951;
   --chrome-text: #f3f4f6;
@@ -226,23 +237,26 @@ select {
   display: grid;
   /* top bar, optional elevation bar, content, status bar: each child names its row below. */
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  /* minmax(0, ...) keeps wide content from stretching the window's single column. */
-  grid-template-columns: minmax(0, 1fr);
+  /* sidebar | main; minmax(0, ...) keeps wide content from stretching the window. */
+  grid-template-columns: auto minmax(0, 1fr);
   height: 100%;
 }
 
 .app > .topbar {
-  grid-row: 1;
+  grid-area: 1 / 1 / 2 / -1;
 }
 .app > .elevation-bar {
-  grid-row: 2;
+  grid-area: 2 / 1 / 3 / -1;
+}
+.app > .sidebar {
+  grid-area: 3 / 1;
 }
 .app > .explorer,
 .app > .empty {
-  grid-row: 3;
+  grid-area: 3 / 2;
 }
 .app > .statusbar {
-  grid-row: 4;
+  grid-area: 4 / 1 / 5 / -1;
 }
 
 .topbar {
@@ -251,8 +265,10 @@ select {
   gap: 14px;
   height: 48px;
   padding: 0 0 0 18px;
+  position: relative;
+  z-index: 2;
   background: var(--chrome-bg);
-  border-bottom: 1px solid var(--chrome-border);
+  box-shadow: var(--elev-1);
 }
 .mac-caption { padding-inline: 84px 16px; }
 .caption-space { flex: 1; min-width: 16px; align-self: stretch; }
@@ -269,13 +285,25 @@ select {
 }
 .caption-buttons button:hover { background: var(--chrome-hover); }
 .caption-buttons .caption-close:hover { background: var(--close-hover); color: var(--on-close-hover); }
-.caption-buttons svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.25; }
 .caption-buttons :focus-visible { outline-offset: -4px; }
 .topbar .settings > .icon-btn { color: var(--chrome-text); }
 .topbar .settings > .icon-btn:hover { background: var(--chrome-hover); }
 .topbar .progress-text, .topbar .progress-phase { color: var(--chrome-text); }
-.topbar .drive-select { max-width: 210px; min-width: 136px; }
+.topbar-target {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--chrome-text);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .topbar .btn:not(.primary) { background: var(--control-solid); }
+@media (max-width: 1100px) {
+  .topbar-target { max-width: 110px; }
+}
+@media (max-width: 1000px) {
+  .topbar-target { display: none; }
+}
 @media (max-width: 1080px) {
   .topbar { gap: 8px; }
   .topbar .progress-text { white-space: normal; line-height: 1.1; }
@@ -333,7 +361,7 @@ select {
   gap: 20px;
   height: 30px;
   padding: 0 16px;
-  border-top: 1px solid var(--border);
+  background: var(--surface);
   color: var(--text-2);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -368,20 +396,14 @@ select {
   gap: 5px;
   height: 20px;
   padding: 0 8px;
-  border: 1px solid var(--border-strong);
   border-radius: 10px;
+  background: var(--control-solid);
   color: var(--text-2);
 }
 .badge.admin {
-  border-color: transparent;
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
-}
-.badge svg {
-  width: 12px;
-  height: 12px;
-  fill: currentColor;
 }
 
 /* Empty / first-scan state */
@@ -395,25 +417,42 @@ select {
   overflow: auto;
 }
 .empty-card {
-  width: min(100%, 58rem);
-}
-.empty-card:has(.location-intro) {
-  display: grid;
-  grid-template-columns: minmax(240px, .9fr) minmax(300px, 1.1fr);
-  gap: 48px;
-  align-items: center;
-}
-.location-intro { max-width: 340px; }
-.location-intro .brand-logo, .empty-card > .brand-logo { margin-bottom: 24px; }
-.location-choices .empty-actions { justify-content: flex-end; }
-.location-choices h2 { margin: 0 0 16px; font: 600 19px/1.3 var(--font); }
-.location-choices {
-  border: 1px solid var(--border);
+  width: min(100%, 30rem);
+  padding: 32px;
   border-radius: 14px;
   background: var(--surface);
-  padding: 24px;
+  box-shadow: var(--elev-1);
+  text-align: center;
 }
-.volume-summary { display: flex; gap: 14px; align-items: center; padding-block: 20px; border-bottom: 1px solid var(--border); }
+.empty-card .brand-logo { margin: 0 auto 20px; }
+.empty-card h1 {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+  font: 600 30px/1.15 var(--font-display);
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.empty-card p {
+  margin: 0 0 20px;
+  color: var(--text-2);
+}
+.empty-card .progress-text { margin-left: 0; }
+.empty-target {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.empty-target-label { color: var(--text-2); font-size: 12px; }
+.empty-target strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.volume-summary { display: flex; gap: 14px; align-items: center; justify-content: center; padding-block: 12px 4px; font-variant-numeric: tabular-nums; }
 .volume-ring {
   width: 64px;
   aspect-ratio: 1;
@@ -427,75 +466,20 @@ select {
   justify-content: center;
   height: 100%;
   border-radius: 50%;
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text-2);
 }
 .volume-ring strong { color: var(--text); font-size: 14px; line-height: 1.2; }
-.volume-figures { display: flex; gap: 24px; }
+.volume-figures { display: flex; gap: 24px; text-align: left; }
 .volume-figures div { display: flex; flex-direction: column; }
 .volume-figures span { font-size: 12px; color: var(--text-2); }
-@media (max-width: 760px) {
-  .empty-card:has(.location-intro) { grid-template-columns: 1fr; gap: 24px; }
-  .location-choices { padding: 0; border: 0; }
-}
-.location-intro h1 {
-  text-wrap: balance;
-}
-.empty-card h1 {
-  margin: 0 0 8px;
-  overflow-wrap: anywhere;
-  font: 600 36px/1.12 var(--font-display);
-  letter-spacing: -0.025em;
-}
-.empty-card p {
-  margin: 0 0 24px;
-  color: var(--text-2);
-}
 .empty-actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
   margin-top: 20px;
 }
-.locations {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
+.status-excluded {
+  color: var(--text-3);
 }
-.location-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-.location-row:hover { border-color: var(--border-strong); }
-.location-row:has(:checked) {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-}
-.location-row input { accent-color: var(--accent); }
-.location-info {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--text-2);
-}
-.location-info strong { color: var(--text); font-size: 15px; }
-.location-meter {
-  flex: 0 1 96px;
-  height: 5px;
-  margin-left: auto;
-  background: var(--bar-track);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.location-meter span { display: block; height: 100%; background: var(--bar-fill); }
-.choose-folder { justify-self: start; margin-top: 10px; }

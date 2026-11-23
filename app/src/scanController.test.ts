@@ -4,6 +4,7 @@ vi.mock('./api', () => ({
   restartElevated: vi.fn(),
   takeStartupScan: vi.fn(),
   listDrives: vi.fn(),
+  listUserFolders: vi.fn(),
   isElevated: vi.fn(),
   startScan: vi.fn(),
   cancelScan: vi.fn(),
@@ -30,6 +31,7 @@ beforeEach(() => {
   vi.mocked(api.takeStartupScan).mockReset();
   vi.mocked(api.listDrives).mockReset().mockResolvedValue([drive]);
   vi.mocked(api.isElevated).mockReset().mockResolvedValue(true);
+  vi.mocked(api.listUserFolders).mockReset().mockResolvedValue([]);
   for (const f of [api.onScanProgress, api.onScanDone, api.onScanError]) {
     vi.mocked(f as (cb: unknown) => Promise<() => void>)
       .mockReset()

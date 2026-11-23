@@ -6,12 +6,14 @@ import { useAppStore } from '../store';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ChangesList } from './ChangesList';
 import { CompareBanner } from './CompareBanner';
+import { SnapshotBanner } from './SnapshotBanner';
 import { FileSearch } from './FileSearch';
 import { NodeDetailsPanel } from './NodeDetailsPanel';
 import { strings } from '../strings';
 import { Splitter } from './Splitter';
 import { TreemapCanvas } from './TreemapCanvas';
-import { TreemapLegend } from './TreemapLegend';
+import { DiffLegend, TreemapLegend } from './TreemapLegend';
+import { SunburstCanvas } from './SunburstCanvas';
 import { TreePanel } from './TreePanel';
 
 /** The Explorer screen: disk map and file browser. */
@@ -32,7 +34,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   const selected = useAppStore((s) => s.selectedId);
   const generation = useAppStore((s) => s.generation);
   const comparing = useAppStore((s) => s.baseline !== null);
-  const baselineSeq = useAppStore((s) => s.baselineSeq);
+  const mapView = useAppStore((s) => s.mapView);
   // The Changes view only exists while comparing.
   const changes = changesMode && comparing;
   const colorMode = useTreemapColorMode();
@@ -46,6 +48,20 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       setOpening(false);
       setError(null);
       setSearch(true);
+      setChangesMode(false);
+      setMapOnly(false);
+    }
+  }
+
+  // A reveal that comes from outside the tree (the Discard Pile) brings the tree back.
+  const revealSeq = useAppStore((s) => (s.reveal?.showTree ? s.reveal.seq : 0));
+  const [seenReveal, setSeenReveal] = useState(revealSeq);
+  if (revealSeq !== seenReveal) {
+    setSeenReveal(revealSeq);
+    if (revealSeq > 0) {
+      setOpening(false);
+      setError(null);
+      setSearch(false);
       setChangesMode(false);
       setMapOnly(false);
     }
@@ -96,7 +112,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       className={mapOnly ? "explorer map-expanded" : "explorer"}
       // Flexible tracks share the width split : (1 - split) whatever the content; the
       // minimums keep both panes usable in a narrow window.
-      style={{ gridTemplateColumns: mapOnly ? 'minmax(0, 1fr)' : `minmax(440px, ${split}fr) 8px minmax(235px, ${1 - split}fr)` }}
+      style={{ gridTemplateColumns: mapOnly ? 'minmax(0, 1fr)' : `minmax(400px, ${split}fr) 8px minmax(235px, ${1 - split}fr)` }}
     >
       <header className="scan-heading">
         <h1 title={root.name}>{root.name}</h1>
@@ -122,10 +138,12 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
           </button>
         </div>
         {colorMode === 'category' && <TreemapLegend />}
-        <TreemapCanvas />
+        {comparing && <DiffLegend />}
+        {mapView === 'sunburst' ? <SunburstCanvas /> : <TreemapCanvas />}
       </section>
       {!mapOnly && <Splitter value={split} min={0.45} max={0.82} onChange={onSplitChange} />}
       <section id="result-browser" hidden={mapOnly} className="explorer-sidebar" aria-label="Scan results">
+        <SnapshotBanner />
         <CompareBanner />
         <div className="explorer-modes" role="group" aria-label="Result view">
           <button type="button" ref={treeButton} aria-pressed={!search && !changes} onClick={() => showSearch(false)}>Tree</button>
@@ -135,7 +153,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
           )}
         </div>
         <div className="explorer-view" hidden={search || changes}>
-          <TreePanel key={baselineSeq} root={root} scanId={scanId} />
+          <TreePanel root={root} scanId={scanId} />
         </div>
         {changes && (
           <div className="explorer-view">

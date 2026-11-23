@@ -65,6 +65,15 @@ export function FileTypeBreakdown({ scanId, id, name }: { scanId: number; id: nu
                 </li>
               );
             })}
+            {breakdown.folder_bytes > 0 && (
+              <li>
+                <div className="type-row static">
+                  <span className="type-name">{strings.folderMetadata}</span>
+                  <span className="type-size">{formatBytes(breakdown.folder_bytes)}</span>
+                  <span className="type-share">{formatPercent(share(breakdown.folder_bytes))}</span>
+                </div>
+              </li>
+            )}
           </ul>
           {breakdown.extensions.length > 0 && (
             <>

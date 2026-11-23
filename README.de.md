@@ -42,7 +42,17 @@ Ohne Administratorrechte weicht ByteForest auf einen normalen Verzeichnisdurchla
 - **Schaltfläche „Fast scan (admin)“**: startet ByteForest mit Administratorrechten neu und setzt den Scan automatisch fort.
 - Einstellung **„Always run as administrator“**, damit jeder Start schnell ist.
 - Designs **Graphite (dunkel) und Silver (hell)** oder Anpassung an das System, mit WCAG-AA-Kontrast.
-- **Kommandozeilenwerkzeug** für Laufwerke, Scans und Benchmarks.
+- **Kontextmenü** (Rechtsklick) im Ordnerbaum und in der Treemap: öffnen, im Explorer/Finder anzeigen, Pfad kopieren oder nach Bestätigung in den Papierkorb verschieben. Baum, Treemap und Summen aktualisieren sich sofort, ohne neuen Scan.
+- **Discard Pile (Ablagestapel)**: Dateien und Ordner aus Baum, Treemap oder Inspektor vormerken (Entf-Taste oder Rechtsklick), die laufende Summe in der Seitenleiste prüfen und alles in einem bestätigten Schritt in den Papierkorb verschieben. Bis zur Bestätigung wird nichts gelöscht; Elemente, die sich nicht verschieben lassen, bleiben vorgemerkt.
+- **Aufschlüsselung nach Dateityp** für den gewählten Ordner (Kategorien und häufigste Erweiterungen) und der Treemap-Farbmodus **Folders / File types**.
+- **Sunburst-Diagramm** (Umschalter Treemap | Sunburst in der oberen Leiste) mit demselben Zoom, derselben Auswahl, Tastatur- und Kontextmenü-Bedienung, dazu **Hervorhebungen beim Vergleich mit einem Snapshot**: gewachsene, neue und geschrumpfte Elemente werden in Treemap und Sunburst umrandet (durchgezogen, gepunktet bzw. gestrichelt, mit der Größenänderung als Beschriftung).
+- **Suchvorlagen mit einem Klick** für typische Platzfresser (`node_modules`, `target`, `.venv`, `.git`, Datenträgerabbilder, Dateien über 1 GB) mit der Gesamtgröße, die sich freigeben lässt.
+- **Seitenleiste** mit Laufwerken, Desktop, Downloads und Dokumenten sowie zuletzt gescannten Orten, die sich mit einem Klick erneut scannen lassen.
+- **Snapshots und Vergleich**: Speichern Sie einen Scan in einer kleinen Datei und vergleichen Sie einen späteren Scan damit, um zu sehen, was gewachsen, geschrumpft oder neu ist.
+- **Automatische Snapshots und sofortiges Wiederöffnen**: Jeder abgeschlossene Scan wird im Hintergrund gespeichert (standardmäßig die letzten 10). So öffnen Sie ihn in der Seitenleiste sofort und schreibgeschützt, ohne neu zu scannen, oder vergleichen ihn mit dem aktuellen Scan.
+- **Scan-Ausschlüsse**: In den Einstellungen lassen sich Namen, Muster (`node_modules`, `*.tmp`) oder vollständige Pfade ausschließen. Ausgeschlossenes zählt in keiner Summe mit.
+- **CSV- und JSON-Berichte** zu jedem Ordner für Tabellenkalkulationen und Skripte (**Export report…**).
+- **Kommandozeilenwerkzeug** für Laufwerke, Scans, Snapshots, Ausschlüsse, Berichte und Benchmarks.
 
 ![Treemap-Tooltip mit Dateiname, vollständigem Pfad, Größe und Anteil an der Ansicht](docs/screenshots/treemap-tooltip.png)
 
@@ -64,6 +74,8 @@ Voraussetzungen: Windows 10/11 x64 und WebView2 (unter Windows 11 vorinstalliert
 
 **App.** Wählen Sie ein Laufwerk und klicken Sie auf **Scan**, oder auf **Fast scan (admin)**, um mit erhöhten Rechten neu zu starten und sofort zu scannen. Wählen Sie Ordner im Baum oder Rechtecke in der Treemap (beides bleibt synchron). Ein Doppelklick auf einen Ordner in der Treemap zoomt hinein; zurück geht es über die Brotkrumen, den Aufwärtspfeil oder das Mausrad.
 
+**Ausschlüsse.** Fügen Sie in den Einstellungen (**Excluded from scans**) Namen oder Muster (`node_modules`, `*.tmp`, `$RECYCLE.BIN`) hinzu, die in jedem Ordner greifen. Ein vollständiger Pfad (`C:\Windows\WinSxS`) schließt nur diesen Ordner aus. Die Regeln gelten ab dem nächsten Scan; Pfade außerhalb des gescannten Ortes werden ignoriert. Die Statusleiste zeigt, wie viel ausgelassen wurde.
+
 **CLI.**
 
 ```text
@@ -71,6 +83,10 @@ byteforest drives                    # verfügbare Laufwerke auflisten
 byteforest scan C: --top 20          # scannen und die 20 größten Elemente ausgeben
 byteforest scan C: --top 20 --json   # dasselbe als JSON
 byteforest bench C: --runs 3         # den Scan dreimal messen
+byteforest scan C: --save-snapshot before.bfsnap                         # Snapshot des Scans speichern
+byteforest scan C: --diff before.bfsnap                                  # zeigen, was sich seit dem Snapshot geändert hat
+byteforest scan C: --exclude node_modules --exclude "C:\Windows\WinSxS"  # Namen und Pfade auslassen
+byteforest scan D:\Projects --export report.csv --export-depth 3         # CSV-Bericht schreiben (auch .json)
 ```
 
 Starten Sie die CLI in einem Terminal mit Administratorrechten, um den MFT-Scanner zu nutzen.
@@ -110,14 +126,14 @@ Der gescannte Baum bleibt in Rust. Die Oberfläche fragt nur Ausschnitte ab: die
 
 ## Datenschutz
 
-ByteForest arbeitet vollständig offline. Es gibt keine Telemetrie und der Code macht keine Netzwerkaufrufe; das App-Fenster darf nur mit dem lokalen Rust-Backend kommunizieren (die Content Security Policy erlaubt nichts anderes). Einstellungen liegen in `%APPDATA%\ByteForest\settings.json`, Logs in `%LOCALAPPDATA%\ByteForest\logs`, beides auf Ihrem Rechner.
+ByteForest arbeitet vollständig offline. Es gibt keine Telemetrie und der Code macht keine Netzwerkaufrufe; das App-Fenster darf nur mit dem lokalen Rust-Backend kommunizieren (die Content Security Policy erlaubt nichts anderes). Einstellungen liegen in `%APPDATA%\ByteForest\settings.json`, Logs in `%LOCALAPPDATA%\ByteForest\logs`, beides auf Ihrem Rechner. Automatische Snapshots (Namen und Größen gescannter Elemente) liegen nur auf Ihrem Rechner unter `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` unter macOS) und lassen sich in den Einstellungen abschalten oder begrenzen.
 
 ## Roadmap
 
 - Speicherverbrauch von höchstens 120 Byte pro Eintrag (heute etwa 400).
-- Suche und Sortierung.
-- Detailbereich.
-- In den Papierkorb verschieben.
+- Sunburst-Ansicht neben der Treemap.
+- Discard Pile: Elemente sammeln und gemeinsam entfernen.
+- Inkrementelle Neu-Scans über das NTFS-USN-Journal.
 - Lokalisierte Oberfläche.
 
 ## Mitwirken
@@ -139,4 +155,4 @@ Sofern Sie nicht ausdrücklich etwas anderes erklären, wird jeder Beitrag, der 
 
 ## Danksagung
 
-Inspiriert von Festplattenanalysatoren wie WinDirStat und WizTree.
+Inspiriert von Festplattenanalysatoren wie WinDirStat, WizTree und [Radix](https://github.com/colinvkim/Radix).

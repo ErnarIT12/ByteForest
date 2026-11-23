@@ -102,6 +102,7 @@ export function ContextMenu({ x, y, label, entries, onSelect, onClose }: Props) 
             role="menuitem"
             tabIndex={-1}
             aria-disabled={entry.disabled || undefined}
+            title={entry.title}
             className={`context-menu-item${entry.danger ? ' danger' : ''}`}
             onClick={() => !entry.disabled && onSelect(entry.action)}
             onMouseEnter={(e) => !entry.disabled && e.currentTarget.focus()}

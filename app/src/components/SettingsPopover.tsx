@@ -1,20 +1,30 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { getSettings, setSettings } from '../api';
+import { getSettings, setSettings as saveSettings, type Settings } from '../api';
 import { getAppearance, setAppearance, type Appearance } from '../hooks/useColorScheme';
+import {
+  AUTO_SNAPSHOT_CHOICES,
+  addExclusion,
+  mergeSettings,
+  normalizeSettings,
+  removeExclusion,
+} from '../settingsModel';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
+import { Icon, Settings as SettingsGlyph, X } from './Icon';
 
 /** Gear button with a small popover holding the app settings. */
 export function SettingsPopover() {
   const [open, setOpen] = useState(false);
-  const [always, setAlwaysState] = useState(false);
-  // Mirrors `always` synchronously so a change reads the value current when it is made.
-  const alwaysRef = useRef(false);
-  const setAlways = (value: boolean) => {
-    alwaysRef.current = value;
-    setAlwaysState(value);
+  // The settings as last loaded or saved; null until loaded. `set_settings` replaces the whole
+  // file, so every save sends this whole object with the change merged in.
+  const [settings, setSettingsState] = useState<Settings | null>(null);
+  const settingsRef = useRef<Settings | null>(null);
+  const setCurrent = (value: Settings | null) => {
+    settingsRef.current = value;
+    setSettingsState(value);
   };
-  const [loaded, setLoaded] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [draftError, setDraftError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
@@ -24,13 +34,12 @@ export function SettingsPopover() {
 
   // Load the stored value each time the popover opens.
   useEffect(() => {
-    if (!open || isMac) return;
+    if (!open) return;
     let cancelled = false;
     getSettings().then(
       (s) => {
         if (cancelled) return;
-        setAlways(s.always_elevated);
-        setLoaded(true);
+        setCurrent(normalizeSettings(s));
         setError(null);
       },
       () => {
@@ -39,9 +48,11 @@ export function SettingsPopover() {
     );
     return () => {
       cancelled = true;
-      setLoaded(false);
+      setCurrent(null);
+      setDraft('');
+      setDraftError(null);
     };
-  }, [open, isMac]);
+  }, [open]);
 
   // Put keyboard focus on the appearance control when the panel opens.
   useEffect(() => {
@@ -67,15 +78,33 @@ export function SettingsPopover() {
     };
   }, [open]);
 
-  const change = (value: boolean) => {
-    const previous = alwaysRef.current;
-    setAlways(value);
+  /** Saves the settings with `patch` applied; the other fields are sent unchanged. */
+  const change = (patch: Partial<Settings>) => {
+    const previous = settingsRef.current;
+    if (!previous) return;
+    const next = mergeSettings(previous, patch);
+    setCurrent(next);
     setError(null);
-    setSettings({ always_elevated: value }).catch((e) => {
-      // A newer toggle has taken over; do not undo it.
-      if (alwaysRef.current === value) setAlways(previous);
+    saveSettings(next).catch((e) => {
+      // A newer change has taken over; do not undo it.
+      if (settingsRef.current === next) setCurrent(previous);
       setError(strings.settingsSaveFailed(String(e)));
     });
+  };
+
+  const exclusions = settings?.exclusions ?? [];
+
+  const addDraft = () => {
+    if (!settings) return;
+    const result = addExclusion(settings.exclusions, draft);
+    if (!result.ok) {
+      if (result.reason === 'tooLong') setDraftError(strings.exclusionTooLong);
+      else if (result.reason === 'tooMany') setDraftError(strings.exclusionTooMany);
+      return;
+    }
+    setDraftError(null);
+    setDraft('');
+    if (result.list.length !== settings.exclusions.length) change({ exclusions: result.list });
   };
 
   return (
@@ -90,10 +119,7 @@ export function SettingsPopover() {
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((o) => !o)}
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor">
-          <circle cx="8" cy="8" r="2.2" />
-          <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" />
-        </svg>
+        <Icon icon={SettingsGlyph} />
       </button>
       {open && (
         <div className="popover" id={panelId} role="dialog" aria-label={strings.settings}>
@@ -109,13 +135,84 @@ export function SettingsPopover() {
           {!isMac && <><label className="setting-row">
             <input
               type="checkbox"
-              checked={always}
-              disabled={!loaded}
-              onChange={(e) => change(e.target.checked)}
+              checked={settings?.always_elevated ?? false}
+              disabled={!settings}
+              onChange={(e) => change({ always_elevated: e.target.checked })}
             />
             <span>{strings.alwaysElevated}</span>
           </label>
           <p className="muted">{strings.alwaysElevatedHelp}</p></>}
+          <label className="appearance-setting">{strings.autoSnapshotsLabel}
+            <select
+              value={settings?.auto_snapshot_keep ?? ''}
+              disabled={!settings}
+              aria-describedby={`${panelId}-auto-help`}
+              onChange={(e) => change({ auto_snapshot_keep: Number(e.target.value) })}
+            >
+              {settings && !(AUTO_SNAPSHOT_CHOICES as readonly number[]).includes(settings.auto_snapshot_keep) && (
+                <option value={settings.auto_snapshot_keep}>{settings.auto_snapshot_keep}</option>
+              )}
+              {AUTO_SNAPSHOT_CHOICES.map((n) => (
+                <option key={n} value={n}>{n === 0 ? strings.autoSnapshotsOff : n}</option>
+              ))}
+            </select>
+          </label>
+          <p className="muted" id={`${panelId}-auto-help`}>{strings.autoSnapshotsHelp}</p>
+          <section className="exclusions" aria-labelledby={`${panelId}-excl`}>
+            <h3 id={`${panelId}-excl`}>{strings.exclusionsTitle}</h3>
+            {settings && exclusions.length === 0 && <p className="muted">{strings.exclusionsEmpty}</p>}
+            {exclusions.length > 0 && (
+              <ul className="exclusion-list">
+                {exclusions.map((pattern) => (
+                  <li key={pattern}>
+                    <code title={pattern}>{pattern}</code>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label={strings.exclusionRemove(pattern)}
+                      title={strings.exclusionRemove(pattern)}
+                      onClick={() => change({ exclusions: removeExclusion(exclusions, pattern) })}
+                    >
+                      <Icon icon={X} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <form
+              className="exclusion-add"
+              onSubmit={(e) => {
+                e.preventDefault();
+                addDraft();
+              }}
+            >
+              <input
+                type="text"
+                value={draft}
+                disabled={!settings}
+                maxLength={400}
+                placeholder={strings.exclusionPlaceholder}
+                aria-label={strings.exclusionInputLabel}
+                aria-describedby={`${panelId}-excl-help`}
+                spellCheck={false}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  setDraftError(null);
+                }}
+              />
+              <button type="submit" className="btn" disabled={!settings || draft.trim() === ''}>
+                {strings.exclusionAdd}
+              </button>
+            </form>
+            {draftError && (
+              <p className="setting-error" role="alert">
+                {draftError}
+              </p>
+            )}
+            <p className="muted" id={`${panelId}-excl-help`}>
+              {strings.exclusionsHelp} {strings.exclusionsNextScan}
+            </p>
+          </section>
           {error && (
             <p className="setting-error" role="alert">
               {error}

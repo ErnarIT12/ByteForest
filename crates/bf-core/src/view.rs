@@ -289,7 +289,7 @@ impl Tree {
             .ok()
     }
 
-    fn child_order(&self, dir: NodeId, sort: SortKey) -> &[u32] {
+    pub(crate) fn child_order(&self, dir: NodeId, sort: SortKey) -> &[u32] {
         let slot = self.dir_index[dir.idx()];
         self.sorted[slot as usize][sort.slot()].get_or_init(|| self.sort_children(dir, sort))
     }
