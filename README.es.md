@@ -42,7 +42,13 @@ Sin permisos de administrador, ByteForest recurre a un recorrido normal de direc
 - **Botón «Fast scan (admin)»**: reinicia ByteForest con permisos de administrador y retoma el análisis automáticamente.
 - Opción **«Always run as administrator»**, para que cada inicio sea rápido.
 - Temas **Graphite (oscuro) y Silver (claro)**, o el del sistema, con contraste WCAG AA.
-- **Herramienta de línea de comandos** para unidades, análisis y mediciones.
+- **Menú contextual** (clic derecho) en el árbol de carpetas y el treemap: abrir, mostrar en el Explorador/Finder, copiar la ruta o mover a la Papelera tras confirmar. El árbol, el treemap y los totales se actualizan al instante, sin volver a analizar.
+- **Desglose por tipo de archivo** de la carpeta seleccionada (categorías y extensiones principales) y el modo de color del treemap **Folders / File types**.
+- **Búsquedas predefinidas con un clic** para los devoradores de espacio habituales (`node_modules`, `target`, `.venv`, `.git`, imágenes de disco, archivos de más de 1 GB), con el tamaño total que se puede recuperar.
+- **Instantáneas y comparación**: guarda un análisis en un archivo pequeño y compáralo con uno posterior para ver qué creció, qué se redujo y qué es nuevo.
+- **Exclusiones de análisis**: en los ajustes puedes excluir nombres, patrones (`node_modules`, `*.tmp`) o rutas completas. Lo excluido no cuenta en ningún total.
+- **Informes CSV y JSON** de cualquier carpeta para hojas de cálculo y scripts (**Export report…**).
+- **Herramienta de línea de comandos** para unidades, análisis, instantáneas, exclusiones, informes y mediciones.
 
 ![Información emergente del treemap: nombre de archivo, ruta completa, tamaño y proporción de la vista](docs/screenshots/treemap-tooltip.png)
 
@@ -64,6 +70,8 @@ Requisitos: Windows 10/11 x64 y WebView2 (viene preinstalado en Windows 11; en W
 
 **Aplicación.** Elige una unidad y pulsa **Scan**, o pulsa **Fast scan (admin)** para reiniciar con permisos elevados y analizar de inmediato. Selecciona carpetas en el árbol o rectángulos en el treemap (ambos se mantienen sincronizados). Haz doble clic en una carpeta del treemap para hacer zoom; vuelve atrás con las migas de pan, la flecha hacia arriba o la rueda del ratón.
 
+**Exclusiones.** En los ajustes (**Excluded from scans**) añade nombres o patrones (`node_modules`, `*.tmp`, `$RECYCLE.BIN`) que coinciden en cualquier carpeta. Una ruta completa (`C:\Windows\WinSxS`) excluye solo esa carpeta. Las reglas se aplican desde el siguiente análisis; las rutas fuera de la ubicación analizada se ignoran. La barra de estado indica cuánto se dejó fuera.
+
 **CLI.**
 
 ```text
@@ -71,6 +79,10 @@ byteforest drives                    # lista las unidades disponibles
 byteforest scan C: --top 20          # analiza e imprime los 20 elementos más grandes
 byteforest scan C: --top 20 --json   # lo mismo, en JSON
 byteforest bench C: --runs 3         # mide el análisis tres veces
+byteforest scan C: --save-snapshot before.bfsnap                         # guarda una instantánea del análisis
+byteforest scan C: --diff before.bfsnap                                  # muestra qué cambió desde la instantánea
+byteforest scan C: --exclude node_modules --exclude "C:\Windows\WinSxS"  # omite nombres y rutas
+byteforest scan D:\Projects --export report.csv --export-depth 3         # escribe un informe CSV (también .json)
 ```
 
 Ejecuta la CLI desde un terminal con permisos de administrador para usar el escáner MFT.
@@ -115,9 +127,10 @@ ByteForest funciona totalmente sin conexión. No tiene telemetría y su código 
 ## Hoja de ruta
 
 - Uso de memoria de 120 bytes por entrada o menos (hoy unos 400).
-- Búsqueda y ordenación.
-- Panel de detalles.
-- Mover a la Papelera de reciclaje.
+- Vista Sunburst junto al treemap.
+- Discard Pile: reunir elementos y eliminarlos juntos.
+- Instantáneas automáticas.
+- Reanálisis incrementales con el diario USN de NTFS.
 - Interfaz localizada.
 
 ## Contribuir
@@ -139,4 +152,4 @@ Salvo que indiques expresamente lo contrario, cualquier contribución enviada in
 
 ## Agradecimientos
 
-Inspirado en analizadores de disco como WinDirStat y WizTree.
+Inspirado en analizadores de disco como WinDirStat, WizTree y [Radix](https://github.com/colinvkim/Radix).

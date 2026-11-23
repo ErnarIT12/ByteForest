@@ -116,6 +116,24 @@ export function useTreeModel(root: NodeView, scanId: number): TreeController {
     };
   }, [invalidation, model, scanId, refresh, loadMore]);
 
+  // Starting or stopping a snapshot comparison only changes the `diff` of the rows: refetch
+  // the loaded pages in place so expansion and selection survive.
+  const baselineSeq = useAppStore((s) => s.baselineSeq);
+  const seenBaseline = useRef(baselineSeq);
+  useEffect(() => {
+    if (baselineSeq === seenBaseline.current) return;
+    seenBaseline.current = baselineSeq;
+    let alive = true;
+    void Promise.all([...inflight.current.values()]).then(async () => {
+      if (!alive) return;
+      await model.refreshViews((id, offset) => getChildren(id, 'SizeDesc', offset, PAGE_SIZE, scanId), () => alive);
+      if (alive) refresh();
+    });
+    return () => {
+      alive = false;
+    };
+  }, [baselineSeq, model, scanId, refresh]);
+
   // First page of the root.
   useEffect(() => {
     void loadMore(model.rootId);

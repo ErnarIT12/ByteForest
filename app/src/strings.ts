@@ -30,6 +30,27 @@ export const strings = {
   settingsLoadFailed: 'Could not load settings',
   settingsSaveFailed: (reason: string) => `Could not save the setting: ${reason}`,
 
+  // Scan exclusions
+  exclusionsTitle: 'Excluded from scans',
+  exclusionsEmpty: 'Nothing is excluded.',
+  exclusionPlaceholder: 'node_modules, *.tmp or a full path',
+  exclusionInputLabel: 'Name, wildcard or full path to exclude',
+  exclusionAdd: 'Add',
+  exclusionRemove: (pattern: string) => `Remove ${pattern}`,
+  exclusionTooLong: 'That pattern is too long (260 characters at most).',
+  exclusionTooMany: 'Too many patterns (200 at most).',
+  exclusionsHelp:
+    'A name or wildcard (node_modules, *.tmp, $RECYCLE.BIN) matches anywhere; * stands for any text and ? for one character. A full path (C:\\Windows\\WinSxS, /Users/me/Library/Caches) matches only that folder.',
+  exclusionsNextScan: 'Applies to the next scan.',
+  excludedSummary: (count: number, items: string, size: string) =>
+    count === 1 ? `Excluded 1 item · ${size}` : `Excluded ${items} items · ${size}`,
+  excludedHint: 'Left out of this scan by your exclusion settings.',
+
+  // Report export
+  exportReport: 'Export report…',
+  reportExported: (path: string) => `Report saved to ${path}`,
+  reportExportFailed: 'Could not export the report',
+
   // Elevation hint bar
   elevationBarText: (secs: string) =>
     `Scanned in ${secs} in standard mode. With admin rights it takes a few seconds.`,
@@ -151,6 +172,7 @@ export const strings = {
   searchSummary: (shown: string, total: string, noun: string, size: string) =>
     shown === total ? `${total} ${noun} · ${size}` : `Showing ${shown} of ${total} ${noun} · ${size}`,
   searchNouns: { files: 'files', folders: 'folders' },
+  folderMetadata: 'Folder metadata',
   breakdownRow: (name: string, size: string, share: string) => `${name}, ${size}, ${share}`,
   tooltipCategory: (name: string) => `Type: ${name}`,
 

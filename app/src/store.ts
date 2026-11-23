@@ -11,6 +11,7 @@ import {
   type FileCategory,
   type LocationStep,
   type NodeView,
+  type ExcludedInfo,
   type ScanDone,
   type ScanErrorEvent,
   type ScanProgress,
@@ -91,6 +92,8 @@ interface AppState {
 
   /** Result being shown. */
   stats: ScanStats | null;
+  /** What the exclusion settings cut out of the shown result, if anything. */
+  excluded: ExcludedInfo | null;
   root: NodeView | null;
   rootId: number | null;
   /** Exact target of the shown result: "C:" or a folder path. */
@@ -100,7 +103,7 @@ interface AppState {
   generation: number;
   /** Snapshot the result is being compared with, or null. */
   baseline: BaselineInfo | null;
-  /** Bumped whenever `baseline` is set or cleared, so the folder tree reloads its pages. */
+  /** Bumped whenever `baseline` is set or cleared, so the folder tree refetches its loaded pages in place. */
   baselineSeq: number;
 
   focusId: number | null;
@@ -174,6 +177,7 @@ const initialState: AppState = {
   lastFinished: 0,
   lastOutcome: null,
   stats: null,
+  excluded: null,
   root: null,
   rootId: null,
   resultTarget: null,
@@ -261,6 +265,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       lastFinished: d.scan_id,
       lastOutcome: 'done',
       stats: d.stats,
+      excluded: d.excluded && d.excluded.items > 0 ? d.excluded : null,
       root: d.root,
       rootId: d.root.id,
       resultTarget: s.scanTarget,

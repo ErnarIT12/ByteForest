@@ -11,6 +11,17 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     /// Restart as administrator at every start.
     pub always_elevated: bool,
+    /// Names, wildcards and absolute paths left out of every scan; see
+    /// [`bf_core::ExclusionSet::from_patterns`] for the syntax.
+    pub exclusions: Vec<String>,
+}
+
+impl Settings {
+    /// The settings with `exclusions` trimmed, deduplicated and capped.
+    pub fn sanitized(mut self) -> Self {
+        self.exclusions = bf_core::normalize_patterns(&self.exclusions);
+        self
+    }
 }
 
 /// Reads settings from `path`; a missing or corrupt file gives the defaults.
@@ -130,11 +141,38 @@ mod tests {
     }
 
     #[test]
+    fn old_file_without_exclusions_loads_with_none() {
+        let dir = temp_dir();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"always_elevated": true}"#).unwrap();
+        let s = load(&path);
+        assert!(s.always_elevated);
+        assert!(s.exclusions.is_empty());
+    }
+
+    #[test]
+    fn sanitized_trims_dedupes_and_caps_exclusions() {
+        let s = Settings {
+            always_elevated: false,
+            exclusions: vec![" a ".into(), "a".into(), String::new(), "x".repeat(300)],
+        }
+        .sanitized();
+        assert_eq!(s.exclusions, vec!["a".to_string()]);
+        let many = Settings {
+            always_elevated: false,
+            exclusions: (0..400).map(|i| format!("p{i}")).collect(),
+        }
+        .sanitized();
+        assert_eq!(many.exclusions.len(), 200);
+    }
+
+    #[test]
     fn save_then_load_round_trips_and_creates_folder() {
         let dir = temp_dir();
         let path = dir.path().join("sub").join("settings.json");
         let s = Settings {
             always_elevated: true,
+            exclusions: vec!["node_modules".to_string(), r"C:\Windows\WinSxS".to_string()],
         };
         save(&path, &s).unwrap();
         assert_eq!(load(&path), s);

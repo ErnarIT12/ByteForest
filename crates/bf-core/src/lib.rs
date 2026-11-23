@@ -7,9 +7,11 @@
 mod builder;
 mod category;
 mod diff;
+mod exclude;
 mod flags;
 mod record;
 mod remove;
+mod report;
 mod snapshot;
 mod tree;
 mod treemap;
@@ -21,12 +23,18 @@ pub use category::{
     extension_of,
 };
 pub use diff::{DiffEntry, DiffStatus, DiffSummary, Gone, SnapshotDiff, diff};
+pub use exclude::{
+    Excluded, ExclusionSet, MAX_EXCLUSION_PATTERN_LEN, MAX_EXCLUSION_PATTERNS, NamePattern,
+    normalize_patterns,
+};
 pub use flags::NodeFlags;
 pub use record::EntryRecord;
 pub use remove::{RemoveError, Removed};
+pub use report::{MAX_REPORT_DEPTH, MAX_REPORT_ROWS, Report, ReportOptions, ReportRow, write_csv};
 pub use snapshot::{
-    MAX_LABEL_LEN, MAX_NAME_LEN, MAX_NODE_COUNT, MAX_PAYLOAD_LEN, SNAPSHOT_VERSION, Snapshot,
-    SnapshotError, read_snapshot, write_snapshot,
+    MAX_COMPRESSION_RATIO, MAX_LABEL_LEN, MAX_NAME_LEN, MAX_NODE_COUNT, MAX_PAYLOAD_LEN,
+    SNAPSHOT_VERSION, Snapshot, SnapshotError, SnapshotLimits, read_snapshot,
+    read_snapshot_with_limits, write_snapshot,
 };
 pub use tree::{DirAgg, NodeId, Tree};
 pub use treemap::{Rect, TreemapOptions, header_fits};

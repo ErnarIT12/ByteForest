@@ -253,3 +253,54 @@ optgroup {
 .popover h2 { margin: 2px 0 14px; font-size: 16px; }
 .appearance-setting { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .appearance-setting select { padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--control-solid); }
+
+/* Scan exclusions editor in the settings popover */
+.exclusions {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.exclusions h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.exclusion-list {
+  max-height: 140px;
+  margin: 6px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.exclusion-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+.exclusion-list code {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.exclusion-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.exclusion-add input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--control-solid);
+  color: var(--text);
+  font: inherit;
+}
+.exclusion-add input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}

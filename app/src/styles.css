@@ -499,3 +499,6 @@ select {
 }
 .location-meter span { display: block; height: 100%; background: var(--bar-fill); }
 .choose-folder { justify-self: start; margin-top: 10px; }
+.status-excluded {
+  color: var(--text-3);
+}

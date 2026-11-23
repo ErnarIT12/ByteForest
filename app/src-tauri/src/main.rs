@@ -48,6 +48,7 @@ fn main() {
             commands::set_settings,
             commands::pick_folder,
             commands::save_snapshot,
+            commands::export_report,
             commands::compare_with_snapshot,
             commands::clear_baseline,
             commands::top_changes,

@@ -42,7 +42,13 @@ Ohne Administratorrechte weicht ByteForest auf einen normalen Verzeichnisdurchla
 - **Schaltfläche „Fast scan (admin)“**: startet ByteForest mit Administratorrechten neu und setzt den Scan automatisch fort.
 - Einstellung **„Always run as administrator“**, damit jeder Start schnell ist.
 - Designs **Graphite (dunkel) und Silver (hell)** oder Anpassung an das System, mit WCAG-AA-Kontrast.
-- **Kommandozeilenwerkzeug** für Laufwerke, Scans und Benchmarks.
+- **Kontextmenü** (Rechtsklick) im Ordnerbaum und in der Treemap: öffnen, im Explorer/Finder anzeigen, Pfad kopieren oder nach Bestätigung in den Papierkorb verschieben. Baum, Treemap und Summen aktualisieren sich sofort, ohne neuen Scan.
+- **Aufschlüsselung nach Dateityp** für den gewählten Ordner (Kategorien und häufigste Erweiterungen) und der Treemap-Farbmodus **Folders / File types**.
+- **Suchvorlagen mit einem Klick** für typische Platzfresser (`node_modules`, `target`, `.venv`, `.git`, Datenträgerabbilder, Dateien über 1 GB) mit der Gesamtgröße, die sich freigeben lässt.
+- **Snapshots und Vergleich**: Speichern Sie einen Scan in einer kleinen Datei und vergleichen Sie einen späteren Scan damit, um zu sehen, was gewachsen, geschrumpft oder neu ist.
+- **Scan-Ausschlüsse**: In den Einstellungen lassen sich Namen, Muster (`node_modules`, `*.tmp`) oder vollständige Pfade ausschließen. Ausgeschlossenes zählt in keiner Summe mit.
+- **CSV- und JSON-Berichte** zu jedem Ordner für Tabellenkalkulationen und Skripte (**Export report…**).
+- **Kommandozeilenwerkzeug** für Laufwerke, Scans, Snapshots, Ausschlüsse, Berichte und Benchmarks.
 
 ![Treemap-Tooltip mit Dateiname, vollständigem Pfad, Größe und Anteil an der Ansicht](docs/screenshots/treemap-tooltip.png)
 
@@ -64,6 +70,8 @@ Voraussetzungen: Windows 10/11 x64 und WebView2 (unter Windows 11 vorinstalliert
 
 **App.** Wählen Sie ein Laufwerk und klicken Sie auf **Scan**, oder auf **Fast scan (admin)**, um mit erhöhten Rechten neu zu starten und sofort zu scannen. Wählen Sie Ordner im Baum oder Rechtecke in der Treemap (beides bleibt synchron). Ein Doppelklick auf einen Ordner in der Treemap zoomt hinein; zurück geht es über die Brotkrumen, den Aufwärtspfeil oder das Mausrad.
 
+**Ausschlüsse.** Fügen Sie in den Einstellungen (**Excluded from scans**) Namen oder Muster (`node_modules`, `*.tmp`, `$RECYCLE.BIN`) hinzu, die in jedem Ordner greifen. Ein vollständiger Pfad (`C:\Windows\WinSxS`) schließt nur diesen Ordner aus. Die Regeln gelten ab dem nächsten Scan; Pfade außerhalb des gescannten Ortes werden ignoriert. Die Statusleiste zeigt, wie viel ausgelassen wurde.
+
 **CLI.**
 
 ```text
@@ -71,6 +79,10 @@ byteforest drives                    # verfügbare Laufwerke auflisten
 byteforest scan C: --top 20          # scannen und die 20 größten Elemente ausgeben
 byteforest scan C: --top 20 --json   # dasselbe als JSON
 byteforest bench C: --runs 3         # den Scan dreimal messen
+byteforest scan C: --save-snapshot before.bfsnap                         # Snapshot des Scans speichern
+byteforest scan C: --diff before.bfsnap                                  # zeigen, was sich seit dem Snapshot geändert hat
+byteforest scan C: --exclude node_modules --exclude "C:\Windows\WinSxS"  # Namen und Pfade auslassen
+byteforest scan D:\Projects --export report.csv --export-depth 3         # CSV-Bericht schreiben (auch .json)
 ```
 
 Starten Sie die CLI in einem Terminal mit Administratorrechten, um den MFT-Scanner zu nutzen.
@@ -115,9 +127,10 @@ ByteForest arbeitet vollständig offline. Es gibt keine Telemetrie und der Code 
 ## Roadmap
 
 - Speicherverbrauch von höchstens 120 Byte pro Eintrag (heute etwa 400).
-- Suche und Sortierung.
-- Detailbereich.
-- In den Papierkorb verschieben.
+- Sunburst-Ansicht neben der Treemap.
+- Discard Pile: Elemente sammeln und gemeinsam entfernen.
+- Automatische Snapshots.
+- Inkrementelle Neu-Scans über das NTFS-USN-Journal.
 - Lokalisierte Oberfläche.
 
 ## Mitwirken
@@ -139,4 +152,4 @@ Sofern Sie nicht ausdrücklich etwas anderes erklären, wird jeder Beitrag, der 
 
 ## Danksagung
 
-Inspiriert von Festplattenanalysatoren wie WinDirStat und WizTree.
+Inspiriert von Festplattenanalysatoren wie WinDirStat, WizTree und [Radix](https://github.com/colinvkim/Radix).

@@ -116,10 +116,18 @@ export interface ScanStats {
   errors: number;
 }
 
+/** What the scan exclusions cut out of a scan. */
+export interface ExcludedInfo {
+  items: number;
+  bytes: number;
+}
+
 export interface ScanDone {
   scan_id: number;
   stats: ScanStats;
   root: NodeView;
+  /** Present only when the exclusions removed something. */
+  excluded?: ExcludedInfo | null;
 }
 
 export interface ScanErrorEvent {
@@ -195,6 +203,8 @@ export interface Breakdown {
   categories: CategoryTotal[];
   extensions: ExtTotal[];
   other_extensions: { bytes: number; files: number };
+  /** Sizes recorded on the folders themselves; part of `total_bytes`, in no category. */
+  folder_bytes: number;
   total_bytes: number;
   total_files: number;
 }
@@ -248,6 +258,8 @@ export const isElevated = () => invoke<boolean>('is_elevated');
 /** User settings stored in `%APPDATA%\ByteForest\settings.json`. */
 export interface Settings {
   always_elevated: boolean;
+  /** Names, wildcards and absolute paths left out of every scan. */
+  exclusions: string[];
 }
 
 /** Restarts the app as administrator (exits on success). Rejects with "declined" if UAC is refused. */
@@ -257,6 +269,10 @@ export const restartElevated = (target?: string) =>
 export const takeStartupScan = () => invoke<string | null>('take_startup_scan');
 export const getSettings = () => invoke<Settings>('get_settings');
 export const setSettings = (settings: Settings) => invoke<void>('set_settings', { settings });
+
+/** Saves a CSV or JSON report of a folder through a save dialog; the path, or null if cancelled. */
+export const exportReport = (scanId: number, node: number) =>
+  invoke<string | null>('export_report', { scanId, node });
 
 /** Summary of a started comparison. */
 export interface BaselineInfo {

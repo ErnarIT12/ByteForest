@@ -42,7 +42,13 @@ NTFS ボリュームでは、ByteForest はフォルダーごとに Windows へ�
 - **「Fast scan (admin)」ボタン**：管理者権限で ByteForest を再起動し、スキャンを自動的に再開します。
 - 毎回の起動を高速にする **「Always run as administrator」** 設定。
 - **Graphite（ダーク）と Silver（ライト）のテーマ**、またはシステム設定に追従。WCAG AA コントラストに対応。
-- ドライブ一覧、スキャン、ベンチマークのための**コマンドラインツール**。
+- フォルダーツリーと treemap の**右クリックメニュー**：開く、エクスプローラー/Finder で表示、パスのコピー、確認後にごみ箱へ移動。ツリー、treemap、合計は再スキャンなしですぐに更新されます。
+- 選択したフォルダーの**ファイル種別の内訳**（カテゴリと上位の拡張子）と、treemap の色モード **Folders / File types**。
+- よくある容量食い（`node_modules`、`target`、`.venv`、`.git`、ディスクイメージ、1 GB 超のファイル）を**ワンクリックで検索**するプリセット。解放できる合計サイズも表示します。
+- **スナップショットと比較**：スキャン結果を小さなファイルに保存し、後のスキャンと比較して、増えたもの、減ったもの、新しいものを確認できます。
+- **スキャンの除外**：設定で名前、パターン（`node_modules`、`*.tmp`）、フルパスを除外できます。除外したものはどの合計にも含まれません。
+- 表計算ソフトやスクリプト向けに、任意のフォルダーの **CSV / JSON レポート**を出力（**Export report…**）。
+- ドライブ一覧、スキャン、スナップショット、除外、レポート、ベンチマークのための**コマンドラインツール**。
 
 ![treemap のツールチップ：ファイル名、フルパス、サイズ、表示中の割合](docs/screenshots/treemap-tooltip.png)
 
@@ -64,6 +70,8 @@ NTFS ボリュームでは、ByteForest はフォルダーごとに Windows へ�
 
 **アプリ。** ドライブを選んで **Scan** を押すか、**Fast scan (admin)** で昇格して再起動し、すぐにスキャンします。ツリーのフォルダーまたは treemap の矩形を選択します（両方は同期します）。treemap でフォルダーをダブルクリックするとズームインし、パンくずリスト、上矢印、マウスホイールで戻れます。
 
+**除外。** 設定（**Excluded from scans**）で、どのフォルダーでも一致する名前やパターン（`node_modules`、`*.tmp`、`$RECYCLE.BIN`）を追加できます。フルパス（`C:\Windows\WinSxS`）はそのフォルダーだけを除外します。ルールは次回のスキャンから有効で、スキャン対象の外にあるパスは無視されます。除外した量はステータスバーに表示されます。
+
 **CLI。**
 
 ```text
@@ -71,6 +79,10 @@ byteforest drives                    # 利用可能なドライブを一覧表�
 byteforest scan C: --top 20          # スキャンして大きい順に 20 件を表示
 byteforest scan C: --top 20 --json   # 同じ内容を JSON で出力
 byteforest bench C: --runs 3         # スキャンを 3 回計測
+byteforest scan C: --save-snapshot before.bfsnap                         # スキャンのスナップショットを保存
+byteforest scan C: --diff before.bfsnap                                  # スナップショット以降の変更を表示
+byteforest scan C: --exclude node_modules --exclude "C:\Windows\WinSxS"  # 名前とパスを除外
+byteforest scan D:\Projects --export report.csv --export-depth 3         # CSV レポートを出力（.json も可）
 ```
 
 MFT スキャナーを使うには、管理者権限のターミナルから CLI を実行してください。
@@ -115,9 +127,10 @@ ByteForest は完全にオフラインで動作します。テレメトリはな
 ## ロードマップ
 
 - 1 エントリあたり 120 バイト以下のメモリ使用量（現在は約 400）。
-- 検索と並べ替え。
-- 詳細パネル。
-- ごみ箱への移動。
+- treemap と並ぶ Sunburst ビュー。
+- Discard Pile：項目を集めてまとめて削除。
+- 自動スナップショット。
+- NTFS USN ジャーナルによる増分再スキャン。
 - UI の多言語化。
 
 ## コントリビュート
@@ -139,4 +152,4 @@ issue と pull request を歓迎します。まず [CONTRIBUTING.md](CONTRIBUTIN
 
 ## 謝辞
 
-WinDirStat や WizTree などのディスクアナライザーに着想を得ています。
+WinDirStat、WizTree、[Radix](https://github.com/colinvkim/Radix) などのディスクアナライザーに着想を得ています。

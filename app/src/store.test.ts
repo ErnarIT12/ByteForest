@@ -228,6 +228,20 @@ describe('snapshot comparison', () => {
     expect(useAppStore.getState().generation).toBe(before.generation + 2);
   });
 
+  it('toggling the comparison keeps the focus and selection', () => {
+    scanned();
+    const st = useAppStore.getState();
+    st.setFocus(5);
+    st.select(7);
+    const before = useAppStore.getState();
+    before.setBaseline(info);
+    let s = useAppStore.getState();
+    expect([s.focusId, s.selectedId]).toEqual([before.focusId, before.selectedId]);
+    s.setBaseline(null);
+    s = useAppStore.getState();
+    expect([s.focusId, s.selectedId]).toEqual([before.focusId, before.selectedId]);
+  });
+
   it('a removal lowers the net change by the removed bytes', () => {
     scanned();
     useAppStore.getState().setBaseline(info);
@@ -247,5 +261,29 @@ describe('snapshot comparison', () => {
     useAppStore.getState().setBaseline(info);
     useAppStore.getState().handleDone(done(1));
     expect(useAppStore.getState().baseline).toBeNull();
+  });
+});
+
+describe('excluded summary', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  const finish = (excluded?: ScanDone['excluded']) => {
+    const s = useAppStore.getState();
+    s.beginScan('C');
+    s.scanResolved(1);
+    useAppStore.getState().handleDone({ ...done(1), excluded });
+  };
+
+  it('is kept from the done event when something was excluded', () => {
+    finish({ items: 3, bytes: 4096 });
+    expect(useAppStore.getState().excluded).toEqual({ items: 3, bytes: 4096 });
+  });
+
+  it('is null when nothing was excluded', () => {
+    finish({ items: 0, bytes: 0 });
+    expect(useAppStore.getState().excluded).toBeNull();
+    useAppStore.getState().reset();
+    finish();
+    expect(useAppStore.getState().excluded).toBeNull();
   });
 });

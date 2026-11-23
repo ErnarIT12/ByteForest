@@ -38,10 +38,15 @@ export async function compareWithFile(): Promise<void> {
   }
 }
 
-/** Leaves the comparison view. The views switch back at once; the back end follows. */
+/**
+ * Leaves the comparison view. The back end drops the baseline first, so the views that
+ * refetch their rows afterwards no longer receive change data.
+ */
 export function stopComparing(): void {
-  useAppStore.getState().setBaseline(null);
-  clearBaseline().catch((error: unknown) => fail(strings.snapshotCompareFailed, error));
+  clearBaseline().then(
+    () => useAppStore.getState().setBaseline(null),
+    (error: unknown) => fail(strings.snapshotCompareFailed, error),
+  );
 }
 
 /** Runs a Snapshots menu entry. Actions of other menus are ignored. */

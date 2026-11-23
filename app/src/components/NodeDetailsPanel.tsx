@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { copyNodePath, nodeDetails, revealNodeInFileManager, type NodeDetails } from '../api';
+import { copyNodePath, exportReport, nodeDetails, revealNodeInFileManager, type NodeDetails } from '../api';
 import { deltaCell } from '../diffView';
 import { formatBytes, formatDelta, formatFiletime, formatInt, formatScanShare } from '../format';
 import { useFileActions } from '../fileActions';
@@ -32,6 +32,19 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
       setNotice(success);
     } catch (error) {
       setNotice(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const exportFolderReport = async () => {
+    setNotice('');
+    setBusy(true);
+    try {
+      const path = await exportReport(scanId, id);
+      if (path) setNotice(strings.reportExported(path));
+    } catch (error) {
+      setNotice(`${strings.reportExportFailed}: ${String(error)}`);
     } finally {
       setBusy(false);
     }
@@ -71,6 +84,12 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
           </dl>
           {details.node.is_dir && (
             <FileTypeBreakdown scanId={scanId} id={id} name={details.node.name} />
+          )}
+          {details.node.is_dir && (
+            <div className="details-actions">
+              <button type="button" className="btn" disabled={busy}
+                onClick={() => void exportFolderReport()}>{strings.exportReport}</button>
+            </div>
           )}
           {details.has_native_path ? (
             <div className="details-actions">

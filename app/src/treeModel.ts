@@ -134,6 +134,51 @@ export class TreeModel {
     parent.failed = false;
   }
 
+  /** Offsets of the pages that are loaded under `parentId`, contiguous and located ones. */
+  loadedPageOffsets(parentId: number, pageSize = PAGE_SIZE): number[] {
+    const e = this.entries.get(parentId);
+    if (!e) return [];
+    const offsets: number[] = [];
+    for (let at = 0; at < e.children.length; at += pageSize) offsets.push(at);
+    for (const at of e.locatedPages?.keys() ?? []) offsets.push(at);
+    return offsets;
+  }
+
+  /**
+   * Re-reads every loaded page through `fetchPage(parent, offset)` and stores the fresh views
+   * of the nodes in place (same order, same entries), so expansion, loaded pages and the
+   * selection survive. Meant for changes that only touch a node's fields (for example its
+   * `diff`), not the sort order. Stops quietly when `alive()` turns false; a failed fetch
+   * leaves the affected nodes as they were. Returns whether every page was refreshed.
+   */
+  async refreshViews(
+    fetchPage: (parent: number, offset: number) => Promise<NodeView[]>,
+    alive: () => boolean = () => true,
+    concurrency = 4,
+  ): Promise<boolean> {
+    const jobs: [number, number][] = [];
+    for (const [id, e] of this.entries) {
+      if (e.children.length === 0 && !e.locatedPages?.size) continue;
+      for (const at of this.loadedPageOffsets(id)) jobs.push([id, at]);
+    }
+    let ok = true;
+    let next = 0;
+    const worker = async () => {
+      while (alive() && next < jobs.length) {
+        const [id, at] = jobs[next++];
+        try {
+          const nodes = await fetchPage(id, at);
+          if (!alive()) return;
+          for (const node of nodes) this.setNode(node);
+        } catch {
+          ok = false;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, worker));
+    return ok;
+  }
+
   /** Forgets everything but the root, which gets `root` as its fresh view and no children. */
   resetPages(root: NodeView): void {
     const entry = this.entries.get(this.rootId);

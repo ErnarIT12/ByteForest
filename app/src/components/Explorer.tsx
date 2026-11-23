@@ -32,7 +32,6 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   const selected = useAppStore((s) => s.selectedId);
   const generation = useAppStore((s) => s.generation);
   const comparing = useAppStore((s) => s.baseline !== null);
-  const baselineSeq = useAppStore((s) => s.baselineSeq);
   // The Changes view only exists while comparing.
   const changes = changesMode && comparing;
   const colorMode = useTreemapColorMode();
@@ -135,7 +134,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
           )}
         </div>
         <div className="explorer-view" hidden={search || changes}>
-          <TreePanel key={baselineSeq} root={root} scanId={scanId} />
+          <TreePanel root={root} scanId={scanId} />
         </div>
         {changes && (
           <div className="explorer-view">

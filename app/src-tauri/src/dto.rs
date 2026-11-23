@@ -26,6 +26,17 @@ pub struct ScanDone {
     pub stats: ScanStats,
     /// The root node of the new tree.
     pub root: NodeView,
+    /// What the exclusion settings cut out of this scan; `None` when nothing was.
+    pub excluded: Option<ExcludedInfo>,
+}
+
+/// Summary of what the scan exclusions removed.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExcludedInfo {
+    /// Outermost files and folders removed.
+    pub items: u64,
+    /// Logical bytes removed.
+    pub bytes: u64,
 }
 
 /// Payload of `scan://error` (also used for a cancelled scan).

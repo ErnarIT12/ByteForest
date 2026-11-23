@@ -41,10 +41,48 @@ pub const SNAPSHOT_VERSION: u16 = 1;
 pub const MAX_LABEL_LEN: usize = 4096;
 /// Longest node name stored or accepted, in bytes.
 pub const MAX_NAME_LEN: usize = 32 * 1024;
-/// Most nodes a snapshot may declare.
-pub const MAX_NODE_COUNT: u32 = 500_000_000;
-/// Largest uncompressed payload accepted, in bytes.
-pub const MAX_PAYLOAD_LEN: u64 = 16 * 1024 * 1024 * 1024;
+/// Most nodes a snapshot may declare by default.
+pub const MAX_NODE_COUNT: u32 = 100_000_000;
+/// Largest uncompressed payload accepted by default, in bytes.
+pub const MAX_PAYLOAD_LEN: u64 = 8 * 1024 * 1024 * 1024;
+/// Largest uncompressed-to-compressed size ratio [`SnapshotLimits::for_compressed_len`]
+/// accepts. Generated 100k-node trees measure about 1.8x (random names) and 12x (a
+/// maximally repetitive tree, see the `snapshot_compression_ratio` test); 64 leaves about
+/// 5x headroom over the latter while a crafted deflate bomb (up to ~1000x) is refused
+/// before anything is decoded.
+pub const MAX_COMPRESSION_RATIO: u64 = 64;
+
+/// Caps applied while reading a snapshot, so a small crafted file cannot exhaust memory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SnapshotLimits {
+    /// Most nodes the header may declare.
+    pub max_nodes: u32,
+    /// Largest uncompressed payload the header may declare, in bytes.
+    pub max_payload_len: u64,
+}
+
+impl Default for SnapshotLimits {
+    fn default() -> Self {
+        SnapshotLimits {
+            max_nodes: MAX_NODE_COUNT,
+            max_payload_len: MAX_PAYLOAD_LEN,
+        }
+    }
+}
+
+impl SnapshotLimits {
+    /// Defaults tightened by the size of the compressed file: the payload may not exceed
+    /// [`MAX_COMPRESSION_RATIO`] times `compressed_len`.
+    pub fn for_compressed_len(compressed_len: u64) -> Self {
+        let d = SnapshotLimits::default();
+        SnapshotLimits {
+            max_nodes: d.max_nodes,
+            max_payload_len: d
+                .max_payload_len
+                .min(compressed_len.saturating_mul(MAX_COMPRESSION_RATIO)),
+        }
+    }
+}
 
 /// Why a snapshot could not be written or read.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -61,6 +99,9 @@ pub enum SnapshotError {
     /// The data is structurally invalid.
     #[error("snapshot is corrupt: {0}")]
     Corrupt(&'static str),
+    /// The header declares more than the caller's [`SnapshotLimits`] allow.
+    #[error("snapshot exceeds the allowed size: {0}")]
+    LimitExceeded(&'static str),
     /// The payload does not match its checksum.
     #[error("snapshot checksum mismatch")]
     ChecksumMismatch,
@@ -268,8 +309,16 @@ fn read_varint<R: Read>(r: &mut R) -> Result<u64, SnapshotError> {
     }
 }
 
-/// Reads a snapshot. Never panics, whatever the input.
+/// Reads a snapshot with the default [`SnapshotLimits`]. Never panics, whatever the input.
 pub fn read_snapshot<R: Read>(r: R) -> Result<Snapshot, SnapshotError> {
+    read_snapshot_with_limits(r, SnapshotLimits::default())
+}
+
+/// Reads a snapshot, refusing headers that declare more than `limits` allow. Never panics.
+pub fn read_snapshot_with_limits<R: Read>(
+    r: R,
+    limits: SnapshotLimits,
+) -> Result<Snapshot, SnapshotError> {
     let mut file = BufReader::new(r);
 
     let magic: [u8; 6] = read_array(&mut file)?;
@@ -294,13 +343,16 @@ pub fn read_snapshot<R: Read>(r: R) -> Result<Snapshot, SnapshotError> {
     let payload_len = u64::from_le_bytes(read_array(&mut file)?);
     let payload_crc = u32::from_le_bytes(read_array(&mut file)?);
 
-    if payload_len > MAX_PAYLOAD_LEN {
-        return Err(SnapshotError::Corrupt("payload too large"));
+    if payload_len > limits.max_payload_len {
+        return Err(SnapshotError::LimitExceeded("payload too large"));
     }
     if node_count == 0 {
         return Err(SnapshotError::Corrupt("snapshot has no root"));
     }
-    if node_count > MAX_NODE_COUNT || u64::from(node_count) > payload_len / 4 {
+    if node_count > limits.max_nodes {
+        return Err(SnapshotError::LimitExceeded("too many nodes"));
+    }
+    if u64::from(node_count) > payload_len / 4 {
         return Err(SnapshotError::Corrupt("node count exceeds payload size"));
     }
 

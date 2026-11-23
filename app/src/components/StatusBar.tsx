@@ -8,6 +8,7 @@ import { strings } from '../strings';
 /** Scan summary, drive usage and the elevation badge. */
 export function StatusBar() {
   const stats = useAppStore((s) => s.stats);
+  const excluded = useAppStore((s) => s.excluded);
   const elevated = useAppStore((s) => s.elevated);
   const isMac = useAppStore((s) => s.isMac);
   const drives = useAppStore((s) => s.drives);
@@ -38,6 +39,12 @@ export function StatusBar() {
               strings.methodName[stats.method],
             )
           : strings.ready}
+        {excluded && (
+          <span className="status-excluded" title={strings.excludedHint}>
+            {' · '}
+            {strings.excludedSummary(excluded.items, formatInt(excluded.items), formatBytes(excluded.bytes))}
+          </span>
+        )}
         {issues > 0 && (
           <span className="status-issues" title={strings.scanIssuesHint}>
             {' · '}

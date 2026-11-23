@@ -253,10 +253,11 @@ impl SnapshotDiff {
     }
 
     /// The nodes that grew or are new, largest increase first (ties by node id), at most
-    /// `limit`. Files and folders are both listed, so a big new file is followed by every
-    /// folder above it that grew by the same amount. The root and removed nodes are left
-    /// out, as are nodes inside an added folder (the folder is listed) and added entries
-    /// of size 0.
+    /// `limit`. Files and folders are both listed. A folder is left out when one single
+    /// descendant already accounts for at least 99% of its increase, so a big new file is
+    /// not followed by every folder above it; the deepest entry explaining the growth is
+    /// kept. The root and removed nodes are left out, as are nodes inside an added folder
+    /// (the folder is listed) and added entries of size 0.
     pub fn top_changes(&self, current: &Tree, limit: usize) -> Vec<(NodeId, DiffEntry)> {
         let n = current.len();
         if limit == 0 || self.base_size.len() != n {
@@ -277,11 +278,27 @@ impl SnapshotDiff {
                 && current
                     .parent(id)
                     .is_some_and(|p| self.base_size[p.0 as usize] == ADDED);
-            let skip = inside_added;
-            if !skip {
+            if !inside_added {
                 out.push((id, e));
             }
         }
+
+        // Drop every ancestor whose growth is (nearly) all due to one listed descendant.
+        let mut hidden = vec![false; n];
+        for &(id, e) in &out {
+            let mut cur = current.parent(id);
+            while let Some(p) = cur {
+                if p.0 == 0 {
+                    break;
+                }
+                let pd = self.entry(current, p).delta;
+                if pd > 0 && i128::from(e.delta) * 100 >= i128::from(pd) * 99 {
+                    hidden[p.0 as usize] = true;
+                }
+                cur = current.parent(p);
+            }
+        }
+        out.retain(|(id, _)| !hidden[id.0 as usize]);
         out.sort_unstable_by(|a, b| b.1.delta.cmp(&a.1.delta).then(a.0.0.cmp(&b.0.0)));
         out.truncate(limit);
         out

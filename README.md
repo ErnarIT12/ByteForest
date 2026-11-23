@@ -42,7 +42,13 @@ Without administrator rights ByteForest falls back to a regular directory walk, 
 - **"Fast scan (admin)" button**: restarts ByteForest with administrator rights and resumes the scan automatically.
 - **"Always run as administrator"** setting, so every start is fast.
 - **Graphite (dark) and Silver (light) themes**, or follow the system, with WCAG AA contrast.
-- **Command-line tool** for drives, scans and benchmarks.
+- **Right-click context menu** on the folder tree and the treemap: open, show in Explorer/Finder, copy the path, or move to the Recycle Bin/Trash after confirmation. The tree, the treemap and the totals update instantly, without a rescan.
+- **File-type breakdown** of the selected folder (categories and top extensions) and a **Folders / File types** color mode for the treemap.
+- **One-click search presets** for common space hogs (`node_modules`, `target`, `.venv`, `.git`, disk images, files over 1 GB) with the total size you could reclaim.
+- **Snapshots and compare mode**: save a scan to a small file, then compare a later scan with it to see what grew, shrank or is new.
+- **Scan exclusions**: leave names, wildcards (`node_modules`, `*.tmp`) or full paths out of every scan in Settings. Excluded items are not counted in any total.
+- **CSV and JSON reports** of any folder for spreadsheets and scripts (**Export report…**).
+- **Command-line tool** for drives, scans, snapshots, exclusions, reports and benchmarks.
 
 ![Treemap tooltip showing a file name, full path, size and share of the view](docs/screenshots/treemap-tooltip.png)
 
@@ -73,6 +79,8 @@ After scanning, open **Largest Files** to search by name, extension, or size acr
 
 **App.** Pick a drive and press **Scan**, or press **Fast scan (admin)** to restart elevated and scan right away. Select folders in the tree or rectangles in the treemap (both stay in sync). Double-click a folder in the treemap to zoom into it; use the breadcrumbs, the up arrow or the mouse wheel to zoom back out.
 
+**Exclusions.** In Settings (**Excluded from scans**), add names or wildcards (`node_modules`, `*.tmp`, `$RECYCLE.BIN`) that match in any folder. A full path (`C:\Windows\WinSxS`) excludes only that folder. Rules apply from the next scan; paths outside the scanned location are ignored. The status bar shows how much was left out.
+
 **CLI.**
 
 ```text
@@ -80,6 +88,10 @@ byteforest drives                    # list available drives
 byteforest scan C: --top 20          # scan and print the 20 largest items
 byteforest scan C: --top 20 --json   # same, as JSON
 byteforest bench C: --runs 3         # time the scan three times
+byteforest scan C: --save-snapshot before.bfsnap                         # save a snapshot of the scan
+byteforest scan C: --diff before.bfsnap                                  # show what changed since the snapshot
+byteforest scan C: --exclude node_modules --exclude "C:\Windows\WinSxS"  # skip names and paths
+byteforest scan D:\Projects --export report.csv --export-depth 3         # write a CSV report (.json also works)
 ```
 
 Run the CLI from an elevated terminal to use the MFT scanner.
@@ -126,9 +138,10 @@ ByteForest works fully offline. It has no telemetry and its code makes no networ
 ## Roadmap
 
 - Memory use of 120 bytes per entry or less (today about 400).
-- Search and sorting.
-- Details panel.
-- Move to Recycle Bin.
+- Sunburst view next to the treemap.
+- Discard Pile: collect items and remove them together.
+- Automatic snapshots.
+- Incremental rescans from the NTFS USN journal.
 - Localized interface.
 
 ## Contributing
@@ -150,4 +163,4 @@ at your option. Unless you explicitly state otherwise, any contribution intentio
 
 ## Acknowledgements
 
-Inspired by disk analyzers such as WinDirStat and WizTree.
+Inspired by disk analyzers such as WinDirStat, WizTree and [Radix](https://github.com/colinvkim/Radix).

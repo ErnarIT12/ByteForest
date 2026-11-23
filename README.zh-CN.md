@@ -42,7 +42,13 @@
 - **“Fast scan (admin)”按钮**：以管理员权限重新启动 ByteForest，并自动继续扫描。
 - **“Always run as administrator”** 设置，让每次启动都是快速模式。
 - **Graphite（深色）与 Silver（浅色）主题**，或跟随系统，对比度符合 WCAG AA。
-- 用于列出磁盘、扫描和基准测试的**命令行工具**。
+- 文件夹树和 treemap 的**右键菜单**：打开、在资源管理器/Finder 中显示、复制路径，或确认后移至回收站/废纸篓。树、treemap 和总计会立即更新，无需重新扫描。
+- 所选文件夹的**文件类型分布**（类别和主要扩展名），以及 treemap 的 **Folders / File types** 配色模式。
+- 针对常见占空间大户（`node_modules`、`target`、`.venv`、`.git`、磁盘镜像、超过 1 GB 的文件）的**一键搜索预设**，并显示可释放的总大小。
+- **快照与对比**：把一次扫描保存为小文件，之后用新的扫描与它对比，查看哪些增长、缩小或是新增。
+- **扫描排除**：在设置中排除名称、通配符（`node_modules`、`*.tmp`）或完整路径。被排除的内容不计入任何总计。
+- 为表格和脚本提供任意文件夹的 **CSV 和 JSON 报告**（**Export report…**）。
+- 用于列出磁盘、扫描、快照、排除、报告和基准测试的**命令行工具**。
 
 ![treemap 提示：文件名、完整路径、大小以及占当前视图的比例](docs/screenshots/treemap-tooltip.png)
 
@@ -64,6 +70,8 @@
 
 **应用。** 选择一个磁盘并点击 **Scan**，或点击 **Fast scan (admin)** 以提升权限重启并立即扫描。在树中选择文件夹，或在 treemap 中选择矩形（两者保持同步）。双击 treemap 中的文件夹即可放大；用面包屑、向上箭头或鼠标滚轮返回。
 
+**排除。** 在设置（**Excluded from scans**）中添加名称或通配符（`node_modules`、`*.tmp`、`$RECYCLE.BIN`），它们在任何文件夹中都生效；完整路径（`C:\Windows\WinSxS`）只排除那一个文件夹。规则从下一次扫描起生效，位于扫描位置之外的路径会被忽略。状态栏会显示排除了多少内容。
+
 **命令行。**
 
 ```text
@@ -71,6 +79,10 @@ byteforest drives                    # 列出可用磁盘
 byteforest scan C: --top 20          # 扫描并输出最大的 20 项
 byteforest scan C: --top 20 --json   # 同上，输出 JSON
 byteforest bench C: --runs 3         # 扫描三次并计时
+byteforest scan C: --save-snapshot before.bfsnap                         # 保存本次扫描的快照
+byteforest scan C: --diff before.bfsnap                                  # 显示自快照以来的变化
+byteforest scan C: --exclude node_modules --exclude "C:\Windows\WinSxS"  # 跳过指定名称和路径
+byteforest scan D:\Projects --export report.csv --export-depth 3         # 写出 CSV 报告（也可用 .json）
 ```
 
 要使用 MFT 扫描器，请在管理员终端中运行命令行工具。
@@ -115,9 +127,10 @@ ByteForest 完全离线运行。它没有遥测，代码也不发起任何网络
 ## 路线图
 
 - 每个条目的内存占用降到 120 字节或更低（目前约 400）。
-- 搜索与排序。
-- 详情面板。
-- 移至回收站。
+- 与 treemap 并列的 Sunburst（旭日图）视图。
+- Discard Pile：集中收集项目并一起删除。
+- 自动快照。
+- 基于 NTFS USN 日志的增量重新扫描。
 - 本地化界面。
 
 ## 参与贡献
@@ -139,4 +152,4 @@ ByteForest 完全离线运行。它没有遥测，代码也不发起任何网络
 
 ## 致谢
 
-灵感来自 WinDirStat 和 WizTree 等磁盘分析器。
+灵感来自 WinDirStat、WizTree 和 [Radix](https://github.com/colinvkim/Radix) 等磁盘分析器。

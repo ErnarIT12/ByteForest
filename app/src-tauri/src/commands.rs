@@ -5,15 +5,16 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use bf_core::{
-    FileFilter, NodeFlags, NodeId, Rect, SnapshotDiff, SortKey, Tree, TreemapOptions, diff,
-    read_snapshot, write_snapshot,
+    ExclusionSet, FileFilter, NodeFlags, NodeId, Rect, ReportOptions, SnapshotDiff, SnapshotLimits,
+    SortKey, Tree, TreemapOptions, diff, read_snapshot_with_limits, write_csv, write_snapshot,
 };
-use bf_scan::{CancelToken, ScanError, ScanRoot, VolumeSummary};
+use bf_scan::{CancelToken, ScanError, ScanRoot, ScanStats, VolumeSummary};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::dto::{
-    BaselineInfo, ChangeDto, NodeViewDto, ScanDone, ScanErrorEvent, ScanProgressEvent, TreemapRect,
+    BaselineInfo, ChangeDto, ExcludedInfo, NodeViewDto, ScanDone, ScanErrorEvent,
+    ScanProgressEvent, TreemapRect,
 };
 #[cfg(windows)]
 use crate::elevation::{self, ElevateError};
@@ -255,7 +256,7 @@ pub fn get_settings() -> Settings {
 /// Saves user settings.
 #[tauri::command]
 pub fn set_settings(settings: Settings) -> Result<(), String> {
-    store::save_default_path(&settings).map_err(|e| e.to_string())
+    store::save_default_path(&settings.sanitized()).map_err(|e| e.to_string())
 }
 
 /// Starts a scan in the background and returns its id. Progress and the outcome arrive as
@@ -309,6 +310,28 @@ fn run_scan(app: AppHandle, scan_id: u64, root: ScanRoot, token: CancelToken) {
     }
 }
 
+/// Cuts the user's exclusions out of a fresh tree and out of its stats. `label` is the scan
+/// root (`C:` or a folder path). `None` when nothing was removed.
+fn exclude_from_scan(
+    tree: &mut Tree,
+    stats: &mut ScanStats,
+    label: &str,
+    patterns: &[String],
+) -> Option<ExcludedInfo> {
+    if patterns.is_empty() {
+        return None;
+    }
+    let set = ExclusionSet::from_patterns(patterns, label, case_insensitive_names());
+    let cut = tree.apply_exclusions(&set, case_insensitive_names());
+    stats.files = stats.files.saturating_sub(cut.files);
+    stats.dirs = stats.dirs.saturating_sub(cut.dirs);
+    stats.bytes = stats.bytes.saturating_sub(cut.bytes);
+    (cut.items > 0).then_some(ExcludedInfo {
+        items: cut.items,
+        bytes: cut.bytes,
+    })
+}
+
 /// Stores the tree and emits the outcome, but only while `scan_id` is still the current scan.
 fn finish_scan(
     app: &AppHandle,
@@ -318,7 +341,9 @@ fn finish_scan(
     result: Result<(Tree, bf_scan::ScanStats), ScanError>,
 ) {
     match result {
-        Ok((tree, stats)) if !token.is_cancelled() => {
+        Ok((mut tree, mut stats)) if !token.is_cancelled() => {
+            let patterns = store::load_default_path().exclusions;
+            let excluded = exclude_from_scan(&mut tree, &mut stats, &label, &patterns);
             let tree = Arc::new(tree);
             let root = tree.view(tree.root());
             tracing::info!(
@@ -344,6 +369,7 @@ fn finish_scan(
                         scan_id,
                         stats,
                         root,
+                        excluded,
                     }),
                 ))
             });
@@ -843,8 +869,28 @@ fn utc_stamp(unix_ms: i64) -> String {
 /// `byteforest-<target>-<YYYYMMDD-HHMM>.bfsnap` with the target reduced to file-name-safe
 /// characters.
 pub fn default_snapshot_name(target: &str, unix_ms: i64) -> String {
+    format!(
+        "byteforest-{}-{}.bfsnap",
+        file_name_part(target),
+        utc_stamp(unix_ms)
+    )
+}
+
+/// `byteforest-<name>-<YYYYMMDD-HHMM>.csv` with the name reduced to file-name-safe
+/// characters.
+pub fn default_report_name(name: &str, unix_ms: i64) -> String {
+    format!(
+        "byteforest-{}-{}.csv",
+        file_name_part(name),
+        utc_stamp(unix_ms)
+    )
+}
+
+/// Letters and digits of `text` with every other run replaced by one `-`, at most 40
+/// characters; `scan` when nothing is left.
+fn file_name_part(text: &str) -> String {
     let mut safe = String::new();
-    for ch in target.chars() {
+    for ch in text.chars() {
         let ch = if ch.is_alphanumeric() { ch } else { '-' };
         if ch != '-' || !safe.ends_with('-') {
             safe.push(ch);
@@ -852,8 +898,11 @@ pub fn default_snapshot_name(target: &str, unix_ms: i64) -> String {
     }
     let safe: String = safe.trim_matches('-').chars().take(40).collect();
     let safe = safe.trim_end_matches('-');
-    let safe = if safe.is_empty() { "scan" } else { safe };
-    format!("byteforest-{safe}-{}.bfsnap", utc_stamp(unix_ms))
+    if safe.is_empty() {
+        "scan".to_string()
+    } else {
+        safe.to_string()
+    }
 }
 
 /// Writes the snapshot to `<path>.tmp` and renames it over `path`.
@@ -897,8 +946,11 @@ fn load_baseline(path: &Path, current: &Tree) -> Result<LoadedBaseline, String> 
         return Err("This snapshot file is too large to open.".to_owned());
     }
     let file = std::fs::File::open(path).map_err(|e| format!("Cannot open the snapshot: {e}"))?;
-    let snap = read_snapshot(std::io::BufReader::new(file))
-        .map_err(|e| format!("Cannot read the snapshot: {e}"))?;
+    let snap = read_snapshot_with_limits(
+        std::io::BufReader::new(file),
+        SnapshotLimits::for_compressed_len(meta.len()),
+    )
+    .map_err(|e| format!("Cannot read the snapshot: {e}"))?;
     let diff = diff(&snap.tree, current, case_insensitive_names());
     Ok(LoadedBaseline {
         label: snap.label,
@@ -967,6 +1019,96 @@ pub async fn save_snapshot(
     .await
     .map_err(|err| err.to_string())?
     .map(|path| Some(path.to_string_lossy().into_owned()))
+}
+
+/// Folder levels an exported report covers.
+const REPORT_DEPTH: u8 = 3;
+
+/// Most rows an exported report holds.
+const REPORT_ROWS: usize = 100_000;
+
+/// Writes the report of `id` to `<path>.tmp` and renames it over `path`. A `.json` extension
+/// gives JSON, anything else CSV.
+fn write_report_file(tree: &Tree, id: NodeId, path: &Path) -> Result<(), String> {
+    use std::io::Write;
+    let opts = ReportOptions {
+        max_depth: REPORT_DEPTH,
+        max_rows: REPORT_ROWS,
+        path_separator: std::path::MAIN_SEPARATOR,
+    };
+    let report = tree
+        .report(id, opts)
+        .ok_or_else(|| "Could not export the report: unknown node".to_string())?;
+    let json = path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("json"));
+    let mut tmp_name = path.as_os_str().to_owned();
+    tmp_name.push(".tmp");
+    let tmp = PathBuf::from(tmp_name);
+    let write = || -> Result<(), String> {
+        let file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+        let mut w = std::io::BufWriter::new(file);
+        if json {
+            serde_json::to_writer(&mut w, &report).map_err(|e| e.to_string())?;
+        } else {
+            write_csv(&report, ',', &mut w).map_err(|e| e.to_string())?;
+        }
+        w.flush().map_err(|e| e.to_string())?;
+        drop(w);
+        std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+    };
+    write().map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        format!("Could not export the report: {e}")
+    })
+}
+
+/// Exports a CSV or JSON report of a folder (and its biggest contents) to a file chosen in a
+/// save dialog. Returns the path written, or `None` when the dialog was cancelled.
+#[tauri::command]
+pub async fn export_report(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    scan_id: u64,
+    node: u32,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let tree = current_tree(&state, Some(scan_id))?;
+    let id = node_id_checked(&tree, node)?;
+    let name = default_report_name(tree.name(id), unix_ms_now());
+    let dir = app
+        .path()
+        .document_dir()
+        .or_else(|_| app.path().download_dir())
+        .ok();
+
+    let dialog_app = app.clone();
+    let chosen = tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = dialog_app
+            .dialog()
+            .file()
+            .add_filter("CSV (spreadsheet)", &["csv"])
+            .add_filter("JSON", &["json"])
+            .set_file_name(name);
+        if let Some(dir) = dir.filter(|dir| dir.is_dir()) {
+            dialog = dialog.set_directory(dir);
+        }
+        dialog.blocking_save_file()
+    })
+    .await
+    .map_err(|err| err.to_string())?;
+    let Some(chosen) = chosen else {
+        return Ok(None);
+    };
+    let mut path = chosen.into_path().map_err(|err| err.to_string())?;
+    if path.extension().is_none() {
+        path.set_extension("csv");
+    }
+
+    tauri::async_runtime::spawn_blocking(move || write_report_file(&tree, id, &path).map(|()| path))
+        .await
+        .map_err(|err| err.to_string())?
+        .map(|path| Some(path.to_string_lossy().into_owned()))
 }
 
 /// Opens a snapshot chosen in an open dialog and compares the scan with it. Returns `None`
@@ -1247,6 +1389,62 @@ mod tests {
         );
         let long = default_snapshot_name(&"x".repeat(500), 0);
         assert!(long.len() < 80, "{long}");
+    }
+
+    #[test]
+    fn report_names_are_safe_and_stamped() {
+        assert_eq!(
+            default_report_name("my docs", 1_700_000_000_000),
+            "byteforest-my-docs-20231114-2213.csv"
+        );
+        assert_eq!(
+            default_report_name("..", 0),
+            "byteforest-scan-19700101-0000.csv"
+        );
+    }
+
+    #[test]
+    fn exclusions_are_cut_from_tree_and_stats() {
+        let mut tree = tiny_tree();
+        let mut stats = ScanStats {
+            files: 1,
+            dirs: 0,
+            bytes: 10,
+            elapsed_ms: 0,
+            method: bf_scan::ScanMethod::Walk,
+            fallback_reason: None,
+            skipped_records: 0,
+            errors: 0,
+        };
+        let none = exclude_from_scan(&mut tree, &mut stats, "C:", &[]);
+        assert!(none.is_none());
+        let cut = exclude_from_scan(&mut tree, &mut stats, "C:", &["*.TXT".to_string()]);
+        assert_eq!(
+            cut,
+            Some(ExcludedInfo {
+                items: 1,
+                bytes: 10
+            })
+        );
+        assert_eq!((stats.files, stats.bytes), (0, 0));
+        assert_eq!(tree.total(tree.root()).size, 0);
+    }
+
+    #[test]
+    fn report_file_is_written_as_csv_or_json_without_temp_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let tree = tiny_tree();
+        let csv = dir.path().join("r.csv");
+        write_report_file(&tree, tree.root(), &csv).unwrap();
+        let text = std::fs::read_to_string(&csv).unwrap();
+        assert!(text.starts_with('\u{FEFF}'));
+        assert!(text.contains("a.txt"));
+        let json = dir.path().join("r.JSON");
+        write_report_file(&tree, tree.root(), &json).unwrap();
+        let v: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&json).unwrap()).unwrap();
+        assert_eq!(v["rows"][1]["name"], "a.txt");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
     }
 
     #[test]

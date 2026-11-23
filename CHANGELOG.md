@@ -19,6 +19,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Hide the "Always run as administrator" setting on macOS.
 - Add a right-click context menu (also Shift+F10 or the Menu key) to the folder tree and treemap, with Open folder, Show in Explorer/Finder, Copy Path and Move to Recycle Bin/Trash after confirmation. The tree, treemap and totals update instantly without a rescan.
 - Save a scan as a compact snapshot file (Snapshots, Save snapshot…) and compare a later scan with it (Compare with snapshot…): the folder tree shows what grew, shrank or is new, a Changes view lists the biggest increases, and the file inspector reports what is gone. The CLI gets `byteforest scan <target> --save-snapshot <FILE>` and `--diff <FILE>`, with JSON output for `--diff`.
+- Refuse oversized or highly compressed snapshot files before decoding them, so a crafted file cannot exhaust memory.
+- Keep expanded folders and the selection when starting or stopping a snapshot comparison.
+- Hide parent folders in the Changes list when a single file or folder inside accounts for their whole increase.
+- Show the size of folders themselves ("Folder metadata") in the file-type breakdown so the total matches the folder size.
+- Add scan exclusions in Settings (Excluded from scans): names and wildcards such as `node_modules` or `*.tmp` match in any folder, and an absolute path such as `C:\Windows\WinSxS` matches only that folder. Excluded items are left out of the tree, the treemap and all totals from the next scan on, and the status bar shows how much was excluded. The CLI gets a repeatable `byteforest scan --exclude <PATTERN>`.
+- Fix saving one setting wiping the others: the settings popover now always sends the complete settings.
+- Export a CSV or JSON report of any folder (Export report… in the file inspector): Excel-friendly UTF-8 CSV with formula-injection protection, or JSON. The CLI gets `byteforest scan --export <FILE>` with `--export-depth` and `--export-rows`.
+- Update all READMEs with the snapshot, file-type, search-preset, context-menu, exclusion and report features, and credit Radix as an inspiration.
 
 ## [0.2.0] - 2026-11-23
 

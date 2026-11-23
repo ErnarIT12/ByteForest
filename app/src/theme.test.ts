@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contrastRatio } from './contrast';
+import { contrastRatio, mixSrgb } from './contrast';
 import { HUES, labelColors, treemapColor, type Role, type Theme } from './treemapPaint';
 
 // Representative token pairs from styles.css, including the raised inspector surface.
@@ -46,6 +46,15 @@ describe('contrastRatio', () => {
   it('computes known ratios', () => {
     expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 1);
     expect(contrastRatio('#777777', '#777777')).toBeCloseTo(1, 5);
+  });
+});
+
+describe('mixSrgb', () => {
+  it('blends like color-mix in srgb', () => {
+    expect(mixSrgb('#000000', '#ffffff', 50)).toBe('#808080');
+    expect(mixSrgb('#ff0000', '#0000ff', 0)).toBe('#0000ff');
+    expect(mixSrgb('#ff0000', '#0000ff', 100)).toBe('#ff0000');
+    expect(mixSrgb('#a62839', '#f6f7f9', 14)).toBe('#ebdade');
   });
 });
 
@@ -99,6 +108,45 @@ describe('snapshot change colour contrast', () => {
           expect(contrastRatio(ink, surface)).toBeGreaterThanOrEqual(4.5);
         });
       }
+    }
+  }
+});
+
+// Destructive text: `.context-menu-item.danger` (on the raised menu surface, and on a 14% tint
+// of --danger over it when hovered or focused) and `.btn.danger` (on --surface, --control and
+// the 14% tint over --surface when hovered), see contextMenu.css.
+const danger = {
+  light: {
+    ink: '#a62839',
+    surface: '#ffffff',
+    raised: '#f6f7f9',
+    control: '#f0f1f4',
+    controlHover: '#e2e5eb',
+  },
+  dark: {
+    ink: '#ff9ea9',
+    surface: '#202226',
+    raised: '#292c32',
+    control: '#30333a',
+    controlHover: '#3a3e46',
+  },
+};
+
+describe('danger colour contrast', () => {
+  for (const theme of ['light', 'dark'] as const) {
+    const d = danger[theme];
+    const backgrounds: [string, string][] = [
+      ['menu item', d.raised],
+      ['menu item hover', mixSrgb(d.ink, d.raised, 14)],
+      ['btn on surface', d.surface],
+      ['btn on control', d.control],
+      ['btn hover tint', mixSrgb(d.ink, d.surface, 14)],
+      ['btn on control hover', d.controlHover],
+    ];
+    for (const [what, background] of backgrounds) {
+      it(`${theme} danger text on ${what} (${background}) meets AA`, () => {
+        expect(contrastRatio(d.ink, background)).toBeGreaterThanOrEqual(4.5);
+      });
     }
   }
 });
