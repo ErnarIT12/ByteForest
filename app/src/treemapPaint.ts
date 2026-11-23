@@ -2,9 +2,10 @@
  * Treemap geometry helpers and Canvas 2D painting. Everything works in device pixels:
  * rectangles are requested at `css size * devicePixelRatio` and drawn 1:1.
  */
-import type { Rect } from './api';
+import type { FileCategory, Rect } from './api';
 import { contrastRatio } from './contrast';
 import { formatBytes } from './format';
+import type { ColorMode } from './hooks/useTreemapColorMode';
 import type { Crumb } from './store';
 
 export type Theme = 'light' | 'dark';
@@ -21,6 +22,31 @@ const FONT_STACK = '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif'
 
 /** Muted blue, jade, amber and violet groups distinguish neighboring directory branches. */
 export const HUES = [211, 165, 34, 254, 187, 355, 83, 233];
+
+/** Display order of the file categories (same as `bf_core::FileCategory::ALL`). */
+export const CATEGORIES: readonly FileCategory[] = [
+  'video',
+  'archive',
+  'diskimage',
+  'codebuild',
+  'media',
+  'system',
+  'other',
+];
+
+/** Fixed hue per file category in the "File types" colour mode. */
+export const CATEGORY_HUES: Record<FileCategory, number> = {
+  video: 8,
+  archive: 45,
+  diskimage: 270,
+  codebuild: 145,
+  media: 205,
+  system: 320,
+  other: 220,
+};
+
+/** Saturation multiplier for neutral colours (folders in category mode, the "Other" files). */
+const NEUTRAL_SATURATION = 0.18;
 
 export interface TreemapLayout {
   rects: Rect[];
@@ -92,12 +118,22 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 
 /** Fill colour (`#rrggbb`) of a rectangle role for a palette slot and depth. */
 export function treemapColor(theme: Theme, slot: number, depth: number, role: Role): string {
-  const [h, s, l] = hsl(theme, slot, depth, role);
+  const [h, s, l] = hsl(theme, HUES[Math.max(0, slot)], depth, role);
   return hslToHex(h, s, l);
 }
 
-function hsl(theme: Theme, slot: number, depth: number, role: Role): [number, number, number] {
-  const h = HUES[Math.max(0, slot)];
+/**
+ * Colour of a rectangle in the "File types" mode. Files get their category's hue (the same
+ * for every depth); folders are neutral so only files carry colour.
+ */
+export function categoryColor(theme: Theme, category: FileCategory | null, role: Role): string {
+  const neutral = role !== 'file' || category === null || category === 'other';
+  const hue = CATEGORY_HUES[neutral ? 'other' : category];
+  const [h, s, l] = hsl(theme, hue, 1, role);
+  return hslToHex(h, neutral ? s * NEUTRAL_SATURATION : s, l);
+}
+
+function hsl(theme: Theme, h: number, depth: number, role: Role): [number, number, number] {
   const d = Math.max(0, depth - 1);
   if (theme === 'light') {
     switch (role) {
@@ -166,14 +202,20 @@ export function paintTreemap(
   layout: TreemapLayout,
   theme: Theme,
   background: string,
+  mode: ColorMode = 'depth',
 ): void {
   const { rects, slot, dpr, header } = layout;
   const cache = new Map<string, string>();
-  const paint = (s: number, depth: number, role: Role) => {
-    const key = `${s}|${depth}|${role}`;
+  const paint = (s: number, depth: number, role: Role, category: FileCategory | null = null) => {
+    // In category mode only the category and role matter, not the slot or depth.
+    const key =
+      mode === 'category' ? `c|${category ?? '-'}|${role}` : `d|${s}|${depth}|${role}`;
     let c = cache.get(key);
     if (c === undefined) {
-      c = treemapColor(theme, s, depth, role);
+      c =
+        mode === 'category'
+          ? categoryColor(theme, category, role)
+          : treemapColor(theme, s, depth, role);
       cache.set(key, c);
     }
     return c;
@@ -217,7 +259,7 @@ export function paintTreemap(
     }
     // Files: filled tiles with a 1 px gap so neighbours stay distinguishable.
     const gap = r.w > 3 && r.h > 3 ? 1 : 0;
-    const fileFill = paint(s, r.depth, 'file');
+    const fileFill = paint(s, r.depth, 'file', r.category);
     const text = labelColors(fileFill);
     ctx.fillStyle = fileFill;
     ctx.fillRect(r.x, r.y, r.w - gap, r.h - gap);

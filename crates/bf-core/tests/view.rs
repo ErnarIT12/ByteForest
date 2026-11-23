@@ -267,13 +267,16 @@ fn largest_files_searches_the_whole_tree_with_a_bounded_result() {
         name: "BACKUP".into(),
         extension: ".zip".into(),
         min_size: 50,
+        ..Default::default()
     };
-    let (total, hits) = tree.largest_files(&filter, 1);
+    let found = tree.largest_files(&filter, 1);
+    let (total, hits) = (found.total, found.ids);
     assert_eq!(total, 2);
     assert_eq!(tree.name(hits[0]), "Backup-é.ZIP");
-    assert_eq!(tree.largest_files(&filter, 0), (2, Vec::new()));
+    let none = tree.largest_files(&filter, 0);
+    assert_eq!((none.total, none.ids), (2, Vec::new()));
 
-    let (_, top) = tree.largest_files(&bf_core::FileFilter::default(), 3);
+    let top = tree.largest_files(&bf_core::FileFilter::default(), 3).ids;
     assert_eq!(
         top.iter()
             .map(|&id| tree.total(id).size)

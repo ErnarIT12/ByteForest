@@ -152,3 +152,100 @@ describe('scan target', () => {
     expect(useAppStore.getState().error).toBe('boom');
   });
 });
+
+describe('store applyRemoval', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('subtracts the totals, selects the parent and asks views to refresh', () => {
+    scanned();
+    const before = useAppStore.getState();
+    before.applyRemoval(5, { bytes: 40, files: 1, dirs: 0, parent: 3 });
+    const s = useAppStore.getState();
+    expect(s.root).toMatchObject({ size: 60, files: 0, dirs: 0 });
+    expect(s.stats).toMatchObject({ bytes: 60, files: 0 });
+    expect(s.selectedId).toBe(3);
+    expect(s.generation).toBe(before.generation + 1);
+    expect(s.invalidation).toEqual({ seq: 1, nodeId: 5, parentId: 3 });
+  });
+
+  it('never lets a total go below zero', () => {
+    scanned();
+    useAppStore.getState().applyRemoval(5, { bytes: 1e9, files: 9, dirs: 9, parent: 0 });
+    expect(useAppStore.getState().root).toMatchObject({ size: 0, files: 0, dirs: 0 });
+  });
+
+  it('moves the focus to the parent when the focused folder is removed', () => {
+    scanned();
+    useAppStore.getState().setFocus(3, [
+      { id: 0, name: 'C:' },
+      { id: 3, name: 'Users' },
+    ]);
+    useAppStore.getState().applyRemoval(3, { bytes: 10, files: 1, dirs: 1, parent: 0 });
+    const s = useAppStore.getState();
+    expect(s.focusId).toBe(0);
+    expect(s.focusPath.map((c) => c.id)).toEqual([0]);
+    expect(s.reveal?.path).toEqual([0]);
+  });
+
+  it('keeps the focus when something inside it is removed', () => {
+    scanned();
+    useAppStore.getState().applyRemoval(5, { bytes: 1, files: 1, dirs: 0, parent: 0 });
+    expect(useAppStore.getState().focusId).toBe(0);
+  });
+});
+
+describe('search preset', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('numbers every request so an identical preset is applied again', () => {
+    const preset = { category: 'video' as const, under: { id: 3, name: 'Movies' } };
+    useAppStore.getState().openSearch(preset);
+    useAppStore.getState().openSearch(preset);
+    expect(useAppStore.getState().searchPreset).toEqual({ ...preset, seq: 2 });
+  });
+});
+
+describe('snapshot comparison', () => {
+  const info = {
+    label: 'C:',
+    created_unix_ms: 1_700_000_000_000,
+    total_delta: 500,
+    added: { bytes: 600, count: 3 },
+    removed: { bytes: 100, count: 1 },
+  };
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('setBaseline stores the comparison and asks views to refetch', () => {
+    scanned();
+    const before = useAppStore.getState();
+    before.setBaseline(info);
+    const s = useAppStore.getState();
+    expect(s.baseline).toEqual(info);
+    expect(s.generation).toBe(before.generation + 1);
+    expect(s.baselineSeq).toBe(before.baselineSeq + 1);
+    s.setBaseline(null);
+    expect(useAppStore.getState().baseline).toBeNull();
+    expect(useAppStore.getState().generation).toBe(before.generation + 2);
+  });
+
+  it('a removal lowers the net change by the removed bytes', () => {
+    scanned();
+    useAppStore.getState().setBaseline(info);
+    useAppStore.getState().applyRemoval(5, { bytes: 40, files: 1, dirs: 0, parent: 0 });
+    expect(useAppStore.getState().baseline?.total_delta).toBe(460);
+  });
+
+  it('a new scan stops the comparison', () => {
+    scanned();
+    useAppStore.getState().setBaseline(info);
+    useAppStore.getState().beginScan('C');
+    expect(useAppStore.getState().baseline).toBeNull();
+  });
+
+  it('a new result never keeps the previous comparison', () => {
+    scanned();
+    useAppStore.getState().setBaseline(info);
+    useAppStore.getState().handleDone(done(1));
+    expect(useAppStore.getState().baseline).toBeNull();
+  });
+});

@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { deltaCell } from '../diffView';
 import { formatBytes, formatCount, formatFiletime, formatPercent } from '../format';
 import { strings } from '../strings';
 import type { NodeView } from '../api';
@@ -11,6 +12,8 @@ interface Props {
   expanded: boolean;
   isRoot: boolean;
   level: number;
+  /** Show the change column (comparing with a snapshot). */
+  showDelta: boolean;
   selected: boolean;
   focused: boolean;
   /** Offset in the virtual list, pixels. */
@@ -18,6 +21,8 @@ interface Props {
   onSelect(id: number): void;
   onToggle(id: number): void;
   onActivate(id: number): void;
+  /** Right click (pointer position) or the Menu key (position of the row). */
+  onContextMenu(id: number, x: number, y: number): void;
 }
 
 function Chevron({ open }: { open: boolean }) {
@@ -46,15 +51,18 @@ export const TreeRow = memo(function TreeRow({
   expanded,
   isRoot,
   level,
+  showDelta,
   selected,
   focused,
   top,
   onSelect,
   onToggle,
   onActivate,
+  onContextMenu,
 }: Props) {
   const expandable = node.is_dir && node.has_children;
   const percent = Math.min(100, Math.max(0, node.percent_of_parent));
+  const change = showDelta ? deltaCell(node.diff) : null;
 
   return (
     <div
@@ -67,6 +75,11 @@ export const TreeRow = memo(function TreeRow({
       style={{ transform: `translateY(${top}px)` }}
       onClick={() => onSelect(node.id)}
       onDoubleClick={() => node.is_dir && onActivate(node.id)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onSelect(node.id);
+        onContextMenu(node.id, e.clientX, e.clientY);
+      }}
     >
       <div className="cell name" style={{ paddingLeft: (level - 1) * INDENT_PX + 4 }}>
         {expandable ? (
@@ -91,6 +104,11 @@ export const TreeRow = memo(function TreeRow({
         </span>
       </div>
       <div className="cell num">{formatBytes(node.size)}</div>
+      {showDelta && (
+        <div className="cell num col-delta">
+          {change && <span className={`delta ${change.tone}`}>{change.text}</span>}
+        </div>
+      )}
       <div className="cell percent">
         {!isRoot && (
           <>

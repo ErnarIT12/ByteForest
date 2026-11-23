@@ -6,6 +6,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::category::{FileCategory, category_of};
 use crate::flags::NodeFlags;
 use crate::tree::{NONE, NodeId, Tree};
 
@@ -56,57 +57,228 @@ pub struct NodeView {
     pub percent_of_parent: f32,
 }
 
-/// Search filters over files in the entire tree.
+/// What a search looks for.
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SearchKind {
+    /// Individual files.
+    #[default]
+    Files,
+    /// Outermost folders, sized by their whole subtree.
+    Folders,
+}
+
+/// Search filters over the entire tree.
 #[derive(Deserialize, Debug, Default)]
 pub struct FileFilter {
+    /// Case-insensitive substring of the name.
     pub name: String,
+    /// One extension (files only); merged with `extensions`.
     pub extension: String,
+    /// Minimum size: a file's size, or a folder's total size.
     pub min_size: u64,
+    /// Only files of this category (files only).
+    #[serde(default)]
+    pub category: Option<FileCategory>,
+    /// Only nodes inside the subtree of this node (`NodeId.0`). An unknown or removed node
+    /// matches nothing.
+    #[serde(default)]
+    pub under: Option<u32>,
+    #[serde(default)]
+    pub kind: SearchKind,
+    /// Exact names, ASCII case-insensitive; empty means any.
+    #[serde(default)]
+    pub names: Vec<String>,
+    /// Any-of extensions (files only), with or without a leading dot.
+    #[serde(default)]
+    pub extensions: Vec<String>,
+}
+
+/// Result of [`Tree::largest_files`].
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct SearchOutcome {
+    /// Number of matches.
+    pub total: usize,
+    /// Sum of the sizes of all matches, not only the returned ones.
+    pub total_bytes: u64,
+    /// The largest matches, biggest first.
+    pub ids: Vec<NodeId>,
+}
+
+/// Keeps the `limit` largest matches and totals over all of them.
+struct Collector {
+    limit: usize,
+    total: usize,
+    total_bytes: u64,
+    heap: BinaryHeap<Reverse<(u64, Reverse<u32>)>>,
+}
+
+impl Collector {
+    fn new(limit: usize) -> Self {
+        Self {
+            limit,
+            total: 0,
+            total_bytes: 0,
+            heap: BinaryHeap::new(),
+        }
+    }
+
+    fn push(&mut self, raw: u32, size: u64) {
+        self.total += 1;
+        self.total_bytes = self.total_bytes.saturating_add(size);
+        let key = Reverse((size, Reverse(raw)));
+        if self.heap.len() < self.limit {
+            self.heap.push(key);
+        } else if self.heap.peek().is_some_and(|smallest| key < *smallest) {
+            *self.heap.peek_mut().expect("heap with an existing minimum") = key;
+        }
+    }
+
+    fn finish(self) -> SearchOutcome {
+        SearchOutcome {
+            total: self.total,
+            total_bytes: self.total_bytes,
+            ids: self
+                .heap
+                .into_sorted_vec()
+                .into_iter()
+                .map(|Reverse((_, Reverse(raw)))| NodeId(raw))
+                .collect(),
+        }
+    }
+}
+
+/// ASCII-case-insensitive substring test; `needle` must already be lowercase.
+fn contains_lowercase(haystack: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    if needle.is_ascii() {
+        // ASCII bytes never occur inside multi-byte UTF-8 sequences.
+        let n = needle.as_bytes();
+        return haystack
+            .as_bytes()
+            .windows(n.len())
+            .any(|w| w.eq_ignore_ascii_case(n));
+    }
+    haystack.to_lowercase().contains(needle)
+}
+
+/// `ext` equals one of the lowercase `wanted` extensions.
+fn extension_in(ext: &str, wanted: &[String]) -> bool {
+    if ext.is_ascii() {
+        wanted.iter().any(|w| ext.eq_ignore_ascii_case(w))
+    } else {
+        let lower = ext.to_lowercase();
+        wanted.contains(&lower)
+    }
 }
 
 impl Tree {
-    /// Returns the total number of matching files and a bounded list of the largest.
-    pub fn largest_files(&self, filter: &FileFilter, limit: usize) -> (usize, Vec<NodeId>) {
+    /// Finds files (or outermost folders) matching `filter`: the exact count, the summed
+    /// size of every match, and the `limit` largest.
+    pub fn largest_files(&self, filter: &FileFilter, limit: usize) -> SearchOutcome {
         let name = filter.name.trim().to_lowercase();
-        let extension = filter
-            .extension
-            .trim()
-            .trim_start_matches('.')
-            .to_lowercase();
-        let mut matches = 0;
-        let mut largest = BinaryHeap::new();
-        for raw in 1..self.len() as u32 {
+        let mut extensions: Vec<String> = filter
+            .extensions
+            .iter()
+            .chain(std::iter::once(&filter.extension))
+            .map(|e| e.trim().trim_start_matches('.').to_lowercase())
+            .filter(|e| !e.is_empty())
+            .collect();
+        extensions.sort();
+        extensions.dedup();
+        let names: Vec<&str> = filter
+            .names
+            .iter()
+            .map(|n| n.trim())
+            .filter(|n| !n.is_empty())
+            .collect();
+        let name_ok = |filename: &str| {
+            (names.is_empty() || names.iter().any(|n| n.eq_ignore_ascii_case(filename)))
+                && contains_lowercase(filename, &name)
+        };
+        let mut out = Collector::new(limit);
+        let under = match filter.under {
+            None => None,
+            Some(under) if (under as usize) < self.len() && !self.is_removed(NodeId(under)) => {
+                Some(under)
+            }
+            Some(_) => return out.finish(),
+        };
+        if filter.kind == SearchKind::Folders {
+            // Explicit stack: trees can be very deep. A match is not descended into, so only
+            // the outermost match of a nested chain counts.
+            let mut stack: Vec<u32> = match under {
+                Some(under) => vec![under],
+                None => self.children_raw(0).collect(),
+            };
+            while let Some(raw) = stack.pop() {
+                let id = NodeId(raw);
+                let flags = self.flags(id);
+                if flags.contains(NodeFlags::REMOVED) || !flags.contains(NodeFlags::DIR) {
+                    continue;
+                }
+                let size = self.total(id).size;
+                if size >= filter.min_size && name_ok(self.name(id)) {
+                    out.push(raw, size);
+                } else {
+                    stack.extend(self.children_raw(raw));
+                }
+            }
+            return out.finish();
+        }
+        let mut consider = |raw: u32| {
             let id = NodeId(raw);
             let size = self.size[id.idx()];
-            if self.flags(id).contains(NodeFlags::DIR) || size < filter.min_size {
-                continue;
+            let flags = self.flags(id);
+            if flags.intersects(NodeFlags::DIR | NodeFlags::REMOVED) || size < filter.min_size {
+                return;
             }
             let filename = self.name(id);
-            if !name.is_empty() && !filename.to_lowercase().contains(&name) {
-                continue;
+            if filter
+                .category
+                .is_some_and(|c| category_of(filename, flags) != c)
+            {
+                return;
             }
-            if !extension.is_empty()
+            if !name_ok(filename) {
+                return;
+            }
+            if !extensions.is_empty()
                 && !Path::new(filename)
                     .extension()
                     .and_then(|ext| ext.to_str())
-                    .is_some_and(|ext| ext.to_lowercase() == extension)
+                    .is_some_and(|ext| extension_in(ext, &extensions))
             {
-                continue;
+                return;
             }
-            matches += 1;
-            let key = Reverse((size, Reverse(raw)));
-            if largest.len() < limit {
-                largest.push(key);
-            } else if largest.peek().is_some_and(|smallest| key < *smallest) {
-                *largest.peek_mut().expect("heap with an existing minimum") = key;
+            out.push(raw, size);
+        };
+        match under {
+            None => (1..self.len() as u32).for_each(&mut consider),
+            Some(under) => {
+                let mut stack = vec![under];
+                while let Some(n) = stack.pop() {
+                    consider(n);
+                    stack.extend(self.children_raw(n));
+                }
             }
         }
-        let ids = largest
-            .into_sorted_vec()
-            .into_iter()
-            .map(|Reverse((_, Reverse(raw)))| NodeId(raw))
-            .collect();
-        (matches, ids)
+        out.finish()
+    }
+
+    /// Raw ids of a node's children.
+    fn children_raw(&self, raw: u32) -> impl Iterator<Item = u32> + '_ {
+        let mut c = self.first_child[raw as usize];
+        std::iter::from_fn(move || {
+            if c == NONE {
+                return None;
+            }
+            let current = c;
+            c = self.next_sibling[current as usize];
+            Some(current)
+        })
     }
 
     /// Zero-based position of a node in its parent's sorted child list.

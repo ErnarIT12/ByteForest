@@ -95,7 +95,8 @@ fn root_rect_comes_first_with_depth_zero() {
             w: 100.0,
             h: 80.0,
             depth: 0,
-            is_dir: true
+            is_dir: true,
+            category: None
         }
     );
     assert!(rects[1..].iter().all(|r| r.depth == 1 && !r.is_dir));

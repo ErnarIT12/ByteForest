@@ -23,6 +23,15 @@ export function formatBytes(n: number, decimals = 1): string {
   return `${value.toFixed(decimals)} ${BYTE_UNITS[unit]}`;
 }
 
+/**
+ * Signed size change: `5_153_960_755 → "+4.8 GB"`, `-125_829_120 → "−120.0 MB"` (a real minus
+ * sign), `0 → "0 B"`.
+ */
+export function formatDelta(delta: number): string {
+  if (!Number.isFinite(delta) || delta === 0) return '0 B';
+  return `${delta > 0 ? '+' : '−'}${formatBytes(Math.abs(delta))}`;
+}
+
 /** Share of logical bytes in a scan. Keep very small nonempty files distinguishable from zero. */
 export function formatScanShare(bytes: number, total: number): string {
   if (total <= 0) return '—';
@@ -74,6 +83,13 @@ const dateFormat = new Intl.DateTimeFormat('en-US', {
 export function formatFiletime(ft: number): string {
   const d = filetimeToDate(ft);
   return d ? dateFormat.format(d) : '';
+}
+
+/** Short local date of a unix time in milliseconds ("Nov 15, 2026"), or "" when unusable. */
+export function formatUnixMs(ms: number): string {
+  if (!Number.isFinite(ms)) return '';
+  const d = new Date(ms);
+  return Number.isNaN(d.getTime()) ? '' : dateFormat.format(d);
 }
 
 /** Seconds with one decimal: `3420 → "3.4 s"`; below 0.05 s it is `"<0.1 s"`. */

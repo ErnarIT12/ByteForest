@@ -136,6 +136,7 @@ button.crumb:hover {
   color: var(--text-2);
   overflow-wrap: anywhere;
 }
+.tooltip-category { color: var(--text-2); font-size: 12px; }
 .tooltip-size {
   display: flex;
   gap: 8px;
@@ -146,5 +147,36 @@ button.crumb:hover {
   color: var(--text);
 }
 
+.segmented {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+.segmented button {
+  border: 0;
+  border-radius: 4px;
+  padding: 3px 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.segmented button:hover { background: var(--hover); }
+.segmented button[aria-pressed="true"] { background: var(--selected); color: var(--text); }
+.treemap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 6px 12px;
+  list-style: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.treemap-legend li { display: flex; align-items: center; gap: 6px; }
+.legend-swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--border-strong); }
 .map-hint { color: var(--text-3); font-size: 12px; }
 @media (max-width: 1120px) { .map-hint { display: none; } }

@@ -7,15 +7,26 @@
 import { create } from 'zustand';
 import {
   SCAN_CANCELLED,
+  type BaselineInfo,
+  type FileCategory,
   type LocationStep,
   type NodeView,
   type ScanDone,
   type ScanErrorEvent,
   type ScanProgress,
   type ScanStats,
+  type TrashResult,
   type VolumeSummary,
 } from './api';
 import { strings } from './strings';
+
+/** Asks the folder tree to re-read the pages of `parentId` and its ancestors after a removal. */
+export interface TreeInvalidation {
+  seq: number;
+  /** The removed node. */
+  nodeId: number;
+  parentId: number;
+}
 
 /** One entry of the focus path (root first). */
 export interface Crumb {
@@ -49,6 +60,16 @@ export interface RevealRequest {
   filename?: string;
 }
 
+/** Pre-filled search (opened from a folder's file-type breakdown). */
+export interface SearchPreset {
+  /** Bumped for every request so the same preset can be applied again. */
+  seq: number;
+  category?: FileCategory;
+  extension?: string;
+  /** Folder the search is limited to. */
+  under: { id: number; name: string };
+}
+
 interface AppState {
   drives: VolumeSummary[] | null;
   drivesError: string | null;
@@ -77,11 +98,19 @@ interface AppState {
   resultScanId: number | null;
   /** Bumped for every new result so views drop their caches. */
   generation: number;
+  /** Snapshot the result is being compared with, or null. */
+  baseline: BaselineInfo | null;
+  /** Bumped whenever `baseline` is set or cleared, so the folder tree reloads its pages. */
+  baselineSeq: number;
 
   focusId: number | null;
   focusPath: Crumb[];
   selectedId: number | null;
   reveal: RevealRequest | null;
+  /** Last removal; the folder tree refreshes its cached pages when `seq` changes. */
+  invalidation: TreeInvalidation | null;
+  /** Latest request to open the search pane with these filters. */
+  searchPreset: SearchPreset | null;
   error: string | null;
   /** Heading of the error toast; null means the default scan failure title. */
   errorTitle: string | null;
@@ -114,6 +143,12 @@ interface AppActions {
   /** Selects `path`'s last node and asks the tree to expand the path to it. */
   revealNode(path: number[]): void;
   revealSearchResult(scanId: number, steps: LocationStep[]): void;
+  /** Applies a successful move to the trash: totals, focus, selection and view refresh. */
+  applyRemoval(id: number, result: TrashResult): void;
+  /** Starts (info) or stops (null) comparing; views refetch to pick up the changes. */
+  setBaseline(info: BaselineInfo | null): void;
+  /** Asks the explorer to show the file search with the filters of `preset`. */
+  openSearch(preset: Omit<SearchPreset, 'seq'>): void;
   dismissError(): void;
   setElevating(elevating: boolean): void;
   /** Shows a non-scan failure of the restart as administrator in the toast. */
@@ -144,10 +179,14 @@ const initialState: AppState = {
   resultTarget: null,
   resultScanId: null,
   generation: 0,
+  baseline: null,
+  baselineSeq: 0,
   focusId: null,
   focusPath: [],
   selectedId: null,
   reveal: null,
+  invalidation: null,
+  searchPreset: null,
   error: null,
   errorTitle: null,
   elevating: false,
@@ -181,6 +220,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       error: null,
       errorTitle: null,
       elevationBarDismissed: false,
+      // The back end drops the comparison when a scan starts.
+      baseline: null,
       gate: { ...s.gate, pending: true },
     })),
 
@@ -225,10 +266,14 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       resultTarget: s.scanTarget,
       resultScanId: d.scan_id,
       generation: s.generation + 1,
+      baseline: null,
+      baselineSeq: s.baselineSeq + 1,
       focusId: d.root.id,
       focusPath: [{ id: d.root.id, name: d.root.name }],
       selectedId: null,
       reveal: null,
+      invalidation: null,
+      searchPreset: null,
     });
   },
 
@@ -300,6 +345,47 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     });
   },
 
+  applyRemoval: (id, result) => {
+    const s = get();
+    if (!s.root) return;
+    const minus = (value: number, by: number) => Math.max(0, value - by);
+    const root = {
+      ...s.root,
+      size: minus(s.root.size, result.bytes),
+      files: minus(s.root.files, result.files),
+      dirs: minus(s.root.dirs, result.dirs),
+    };
+    const stats = s.stats && {
+      ...s.stats,
+      bytes: minus(s.stats.bytes, result.bytes),
+      files: minus(s.stats.files, result.files),
+      dirs: minus(s.stats.dirs, result.dirs),
+    };
+    // A removed folder on (or above) the focus moves the focus to its parent.
+    const at = s.focusPath.findIndex((c) => c.id === id);
+    const focusPath = at > 0 ? s.focusPath.slice(0, at) : s.focusPath;
+    const focusMoved = focusPath !== s.focusPath;
+    set({
+      root,
+      stats,
+      // The scan got smaller by what was removed, so the net change since the snapshot did too.
+      baseline: s.baseline && { ...s.baseline, total_delta: s.baseline.total_delta - result.bytes },
+      generation: s.generation + 1,
+      focusPath,
+      focusId: focusPath[focusPath.length - 1]?.id ?? s.focusId,
+      selectedId: result.parent,
+      reveal: focusMoved
+        ? { path: focusPath.map((c) => c.id), seq: (s.reveal?.seq ?? 0) + 1 }
+        : s.reveal,
+      invalidation: { seq: (s.invalidation?.seq ?? 0) + 1, nodeId: id, parentId: result.parent },
+    });
+  },
+
+  setBaseline: (info) =>
+    set((s) => ({ baseline: info, baselineSeq: s.baselineSeq + 1, generation: s.generation + 1 })),
+
+  openSearch: (preset) =>
+    set((s) => ({ searchPreset: { ...preset, seq: (s.searchPreset?.seq ?? 0) + 1 } })),
   dismissError: () => set({ error: null, errorTitle: null }),
   setElevating: (elevating) => set({ elevating }),
   elevationFailed: (message) =>

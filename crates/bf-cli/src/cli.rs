@@ -1,5 +1,7 @@
 //! Command-line arguments.
 
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 /// ByteForest disk-space analyzer (command-line tool).
@@ -29,6 +31,12 @@ pub enum Command {
         /// Print one JSON object instead of text.
         #[arg(long)]
         json: bool,
+        /// Save the scanned tree as a snapshot file (written after any --diff comparison).
+        #[arg(long, value_name = "FILE")]
+        save_snapshot: Option<PathBuf>,
+        /// Compare the scan with a snapshot file and list what grew or is new.
+        #[arg(long, value_name = "FILE")]
+        diff: Option<PathBuf>,
     },
     /// Scan several times and report timing and memory use.
     Bench {

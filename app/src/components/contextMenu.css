@@ -1,0 +1,122 @@
+/* Context menu and the confirmation dialog of file actions. */
+
+.context-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 200px;
+  max-width: 320px;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font: inherit;
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.context-menu-item:hover:not([aria-disabled='true']),
+.context-menu-item:focus-visible {
+  background: var(--hover);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.context-menu-item[aria-disabled='true'] {
+  color: var(--text-3);
+  opacity: 0.6;
+}
+
+.context-menu-item.danger:not([aria-disabled='true']) {
+  color: var(--danger);
+}
+
+.context-menu-item.danger:hover:not([aria-disabled='true']),
+.context-menu-item.danger:focus-visible {
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface-raised));
+}
+
+.context-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+}
+
+.modal {
+  width: min(440px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.modal h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.modal p {
+  margin: 6px 0;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.modal .modal-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.btn.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+}
+
+.action-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  z-index: 50;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 8px 14px;
+  transform: translateX(-50%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  overflow-wrap: anywhere;
+}

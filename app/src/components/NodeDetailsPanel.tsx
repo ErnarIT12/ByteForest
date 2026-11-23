@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
 import { copyNodePath, nodeDetails, revealNodeInFileManager, type NodeDetails } from '../api';
-import { formatBytes, formatFiletime, formatScanShare } from '../format';
+import { deltaCell } from '../diffView';
+import { formatBytes, formatDelta, formatFiletime, formatInt, formatScanShare } from '../format';
+import { useFileActions } from '../fileActions';
 import { useAppStore } from '../store';
+import { strings } from '../strings';
+import { FileTypeBreakdown } from './FileTypeBreakdown';
 
 export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id: number; scanSize: number }) {
   const [details, setDetails] = useState<NodeDetails | null>(null);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const isMac = useAppStore((s) => s.isMac);
+  const rootId = useAppStore((s) => s.rootId);
+  const comparing = useAppStore((s) => s.baseline !== null);
 
   useEffect(() => {
     let alive = true;
@@ -31,6 +37,9 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
     }
   };
 
+  const diff = details?.node.diff;
+  const change = deltaCell(diff);
+
   return (
     <section className="node-details" aria-label="Selection details">
       {details && (
@@ -48,17 +57,37 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
             <div><dt>Of scan</dt><dd>{formatScanShare(details.node.size, scanSize)}</dd></div>
             <div><dt>Allocated (estimate)</dt><dd>{formatBytes(details.node.alloc)}</dd></div>
             <div><dt>Modified</dt><dd>{formatFiletime(details.node.mtime) || '—'}</dd></div>
+            {comparing && change && diff && (
+              <div><dt>{strings.sinceSnapshot}</dt><dd>
+                <span className={`delta ${change.tone}`}>
+                  {diff.status === 'added' ? `${change.text} ${formatDelta(diff.delta)}` : change.text}
+                </span>
+              </dd></div>
+            )}
+            {comparing && diff?.removed && (
+              <div><dt>{strings.goneSinceSnapshot}</dt>
+                <dd>{strings.goneSummary(formatInt(diff.removed.count), formatBytes(diff.removed.bytes))}</dd></div>
+            )}
           </dl>
+          {details.node.is_dir && (
+            <FileTypeBreakdown scanId={scanId} id={id} name={details.node.name} />
+          )}
           {details.has_native_path ? (
             <div className="details-actions">
               <button type="button" className="btn" disabled={busy}
-                onClick={() => void perform(copyNodePath, 'Path copied')}>Copy Path</button>
+                onClick={() => void perform(copyNodePath, strings.pathCopied)}>{strings.copyPath}</button>
               <button type="button" className="btn" disabled={busy}
                 onClick={() => void perform(revealNodeInFileManager)}>
-                {isMac ? 'Show in Finder' : 'Show in Explorer'}
+                {isMac ? strings.showInFinder : strings.showInExplorer}
               </button>
+              {id !== rootId && (
+                <button type="button" className="btn danger" disabled={busy}
+                  onClick={() => void useFileActions.getState().requestTrash(scanId, id)}>
+                  {isMac ? strings.moveToTrash : strings.moveToRecycleBin}
+                </button>
+              )}
             </div>
-          ) : <p className="muted">This entry has no usable filesystem path.</p>}
+          ) : <p className="muted">{strings.noNativePath}</p>}
         </>
       )}
       {notice && <p role="status">{notice}</p>}

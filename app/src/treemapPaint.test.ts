@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { Rect } from './api';
-import { buildLayout, crumbsTo, headerFits, hitTest } from './treemapPaint';
+import { contrastRatio } from './contrast';
+import {
+  CATEGORIES,
+  buildLayout,
+  categoryColor,
+  crumbsTo,
+  headerFits,
+  hitTest,
+  labelColors,
+  type Role,
+  type Theme,
+} from './treemapPaint';
 
 const rect = (
   id: number,
@@ -11,7 +22,7 @@ const rect = (
   w: number,
   h: number,
   isDir = true,
-): Rect => ({ id, parent, name: `n${id}`, size: w * h, x, y, w, h, depth, is_dir: isDir });
+): Rect => ({ id, parent, name: `n${id}`, size: w * h, x, y, w, h, depth, is_dir: isDir, category: isDir ? null : 'other' });
 
 // Focused folder 10 with two top-level children; folder 11 holds file 13.
 const rects = [
@@ -51,5 +62,44 @@ describe('treemap layout helpers', () => {
     expect(headerFits(48, 48, 16)).toBe(true);
     expect(headerFits(47.9, 100, 16)).toBe(false);
     expect(headerFits(100, 100, 0)).toBe(false);
+  });
+});
+
+const themes: Theme[] = ['dark', 'light'];
+const saturation = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
+  return Math.max(r, g, b) - Math.min(r, g, b);
+};
+
+describe('category colour mode', () => {
+  it('gives every category its own file colour in both themes', () => {
+    for (const theme of themes) {
+      const fills = CATEGORIES.map((c) => categoryColor(theme, c, 'file'));
+      expect(new Set(fills).size).toBe(CATEGORIES.length);
+    }
+  });
+
+  it('keeps folders neutral and independent of the category', () => {
+    const roles: Role[] = ['dirFill', 'dirStroke', 'header'];
+    for (const theme of themes) {
+      for (const role of roles) {
+        const colors = new Set(CATEGORIES.map((c) => categoryColor(theme, c, role)));
+        expect(colors.size).toBe(1);
+        expect(saturation([...colors][0])).toBeLessThan(
+          saturation(categoryColor(theme, 'video', 'file')),
+        );
+        expect(saturation([...colors][0])).toBeLessThan(20);
+      }
+    }
+  });
+
+  it('keeps file labels readable on every category fill', () => {
+    for (const theme of themes) {
+      for (const category of CATEGORIES) {
+        const fill = categoryColor(theme, category, 'file');
+        const { main } = labelColors(fill);
+        expect(contrastRatio(fill, main), `${theme} ${category}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
   });
 });

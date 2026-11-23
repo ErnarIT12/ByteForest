@@ -122,3 +122,24 @@ describe('TreeModel', () => {
     expect(m.pathTo(99)).toBeNull();
   });
 });
+
+describe('TreeModel.replaceChildren', () => {
+  it('keeps expansion of surviving children and drops removed subtrees', () => {
+    const m = new TreeModel(node(0));
+    m.addPage(0, 0, [node(1), node(2), node(3)], 10);
+    m.addPage(1, 0, [node(4, false)], 10);
+    m.get(2)!.expanded = true;
+    m.replaceChildren(0, [node(2), node(3)], true);
+    expect(m.get(0)!.children).toEqual([2, 3]);
+    expect(m.get(2)!.expanded).toBe(true);
+    expect(m.get(1)).toBeUndefined();
+    expect(m.get(4)).toBeUndefined();
+  });
+
+  it('updates the stored views of children that stay', () => {
+    const m = new TreeModel(node(0));
+    m.addPage(0, 0, [node(1)], 10);
+    m.replaceChildren(0, [{ ...node(1), size: 7 }], true);
+    expect(m.get(1)!.node.size).toBe(7);
+  });
+});

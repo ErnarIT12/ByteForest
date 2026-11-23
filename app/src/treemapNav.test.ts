@@ -20,6 +20,7 @@ const rect = (
   h,
   depth: parent === null ? 0 : 1,
   is_dir: false,
+  category: null,
 });
 
 // Root 10 split: 11 left half, 12 top right, 13 bottom right; 14 is nested inside 11.

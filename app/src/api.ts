@@ -31,6 +31,26 @@ export interface VolumeSummary {
   free: number;
 }
 
+/** How a node differs from the snapshot being compared against (serde names of the Rust enum). */
+export type DiffStatus = 'added' | 'grown' | 'shrunk' | 'unchanged';
+
+/** Count and size of entries that were added or have disappeared. */
+export interface GoneInfo {
+  bytes: number;
+  count: number;
+}
+
+/** Comparison result of one node; only present while comparing with a snapshot. */
+export interface NodeDiff {
+  status: DiffStatus;
+  /** Size in the snapshot; null for new nodes. */
+  base: number | null;
+  /** Bytes gained (positive) or lost (negative) since the snapshot. */
+  delta: number;
+  /** Things inside a folder that are in the snapshot but gone now. */
+  removed: GoneInfo | null;
+}
+
 export interface NodeView {
   id: number;
   name: string;
@@ -43,7 +63,19 @@ export interface NodeView {
   /** Windows FILETIME (100-ns ticks since 1601-01-01). */
   mtime: number;
   percent_of_parent: number;
+  /** Set by the backend only while comparing with a snapshot, and only when something changed. */
+  diff?: NodeDiff | null;
 }
+
+/** File category (serde names of the Rust enum). */
+export type FileCategory =
+  | 'video'
+  | 'archive'
+  | 'diskimage'
+  | 'codebuild'
+  | 'media'
+  | 'system'
+  | 'other';
 
 /** One treemap rectangle, in the pixel space passed to `getTreemap`. */
 export interface Rect {
@@ -60,6 +92,8 @@ export interface Rect {
   /** 0 for the requested node itself. */
   depth: number;
   is_dir: boolean;
+  /** Category of a file; null for folders. */
+  category: FileCategory | null;
 }
 
 export interface ScanProgress {
@@ -112,18 +146,57 @@ export interface FileFilter {
   name: string;
   extension: string;
   min_size: number;
+  /** Only files of this category. */
+  category?: FileCategory;
+  /** Only files inside this node's subtree. */
+  under?: number;
+  /** `files` (default) or outermost `folders` sized by their whole subtree. */
+  kind?: SearchKind;
+  /** Exact names, case-insensitive. */
+  names?: string[];
+  /** Any-of extensions (files only). */
+  extensions?: string[];
 }
+
+export type SearchKind = 'files' | 'folders';
 
 export interface FileMatch {
   id: number;
   name: string;
   path: string;
+  /** Total size for folders. */
   size: number;
+  is_dir: boolean;
 }
 
 export interface SearchResults {
   total: number;
+  /** Summed size of every match, not only the listed ones. */
+  total_bytes: number;
   files: FileMatch[];
+}
+
+export interface CategoryTotal {
+  category: FileCategory;
+  bytes: number;
+  files: number;
+}
+
+export interface ExtTotal {
+  /** Lowercase, without the dot; empty for files without an extension. */
+  ext: string;
+  category: FileCategory;
+  bytes: number;
+  files: number;
+}
+
+/** File-type totals of a folder; `categories` holds all seven categories in a fixed order. */
+export interface Breakdown {
+  categories: CategoryTotal[];
+  extensions: ExtTotal[];
+  other_extensions: { bytes: number; files: number };
+  total_bytes: number;
+  total_files: number;
 }
 
 export interface LocationStep {
@@ -140,6 +213,9 @@ export interface NodeDetails {
 
 export const searchFiles = (scanId: number, filter: FileFilter) =>
   invoke<SearchResults>('search_files', { scanId, filter });
+/** File-type breakdown of a folder; `top` (1..50, default 10) limits the extension list. */
+export const folderBreakdown = (scanId: number, node: number, top?: number) =>
+  invoke<Breakdown>('folder_breakdown', { scanId, node, top });
 export const locateNode = (scanId: number, node: number) =>
   invoke<LocationStep[]>('locate_node', { scanId, node });
 export const nodeDetails = (scanId: number, node: number) =>
@@ -148,6 +224,18 @@ export const copyNodePath = (scanId: number, node: number) =>
   invoke<void>('copy_node_path', { scanId, node });
 export const revealNodeInFileManager = (scanId: number, node: number) =>
   invoke<void>('reveal_node_in_file_manager', { scanId, node });
+
+/** What `moveNodeToTrash` removed from the tree. */
+export interface TrashResult {
+  bytes: number;
+  files: number;
+  dirs: number;
+  /** Parent of the removed node. */
+  parent: number;
+}
+/** Moves a node to the Recycle Bin / Trash; the path is resolved by the backend from the tree. */
+export const moveNodeToTrash = (scanId: number, node: number) =>
+  invoke<TrashResult>('move_node_to_trash', { scanId, node });
 
 /**
  * Rectangles of the subtree under `node`, breadth-first (parents first). `header` (pixels)
@@ -169,6 +257,38 @@ export const restartElevated = (target?: string) =>
 export const takeStartupScan = () => invoke<string | null>('take_startup_scan');
 export const getSettings = () => invoke<Settings>('get_settings');
 export const setSettings = (settings: Settings) => invoke<void>('set_settings', { settings });
+
+/** Summary of a started comparison. */
+export interface BaselineInfo {
+  /** What was scanned when the snapshot was taken. */
+  label: string;
+  created_unix_ms: number;
+  /** Net change of the whole scan since the snapshot, bytes. */
+  total_delta: number;
+  added: GoneInfo;
+  removed: GoneInfo;
+}
+
+/** One row of the list of the biggest increases. */
+export interface ChangeEntry {
+  id: number;
+  name: string;
+  path: string;
+  status: DiffStatus;
+  base: number | null;
+  current: number;
+  delta: number;
+}
+
+/** Saves the scan through a save dialog; resolves to the file path, or null when cancelled. */
+export const saveSnapshot = (scanId: number) => invoke<string | null>('save_snapshot', { scanId });
+/** Picks a snapshot file and compares the scan with it; null when the dialog was cancelled. */
+export const compareWithSnapshot = (scanId: number) =>
+  invoke<BaselineInfo | null>('compare_with_snapshot', { scanId });
+export const clearBaseline = () => invoke<void>('clear_baseline');
+/** The nodes that grew or are new since the snapshot, largest first (`limit` is capped at 200). */
+export const topChanges = (scanId: number, limit: number) =>
+  invoke<ChangeEntry[]>('top_changes', { scanId, limit });
 
 export const onScanProgress = (cb: (p: ScanProgress) => void): Promise<UnlistenFn> =>
   listen<ScanProgress>('scan://progress', (e) => cb(e.payload));

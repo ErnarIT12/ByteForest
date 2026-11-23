@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ElevationBar } from './components/ElevationBar';
 import { EmptyState } from './components/EmptyState';
 import { ErrorToast } from './components/ErrorToast';
+import { FileActionsHost } from './components/FileActionsHost';
 import { Explorer } from './components/Explorer';
 import { ScanAnnouncer } from './components/ScanAnnouncer';
 import { StatusBar } from './components/StatusBar';
@@ -49,6 +50,7 @@ export default function App() {
       {root && scanId !== null ? <Explorer key={scanId} root={root} scanId={scanId} split={split} onSplitChange={setSplit} /> : <EmptyState />}
       <StatusBar />
       <ErrorToast />
+      <FileActionsHost />
       <ScanAnnouncer />
     </div>
   );

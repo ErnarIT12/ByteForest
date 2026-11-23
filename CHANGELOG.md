@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Add one-click search presets (node_modules, target, .venv, .git, disk images, files over 1 GB) that find outermost build and cache folders or large files and show the total size reclaimable.
+- Show a file-type breakdown (categories and top extensions) for the selected folder, with click-through to a search limited to that folder, and add a Folders / File types color mode to the treemap with a legend.
 - Apply the silver ByteForest mark across the desktop app, add Graphite, Silver and System appearances, and keep the file inspector beside the map and browser.
 - Graphite (dark) is the default appearance on fresh installs. Silver (light) and System are available in Settings, and the title bar and logo follow the selected theme.
 - Open (zoom into) a treemap folder with a double click. A single click selects it.
@@ -15,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Add hover feedback to primary buttons in both Graphite and Silver, respecting the reduced-motion setting.
 - Remove the "⚡" icon from the Fast scan (admin) label.
 - Hide the "Always run as administrator" setting on macOS.
+- Add a right-click context menu (also Shift+F10 or the Menu key) to the folder tree and treemap, with Open folder, Show in Explorer/Finder, Copy Path and Move to Recycle Bin/Trash after confirmation. The tree, treemap and totals update instantly without a rescan.
+- Save a scan as a compact snapshot file (Snapshots, Save snapshot…) and compare a later scan with it (Compare with snapshot…): the folder tree shows what grew, shrank or is new, a Changes view lists the biggest increases, and the file inspector reports what is gone. The CLI gets `byteforest scan <target> --save-snapshot <FILE>` and `--diff <FILE>`, with JSON output for `--diff`.
 
 ## [0.2.0] - 2026-11-23
 

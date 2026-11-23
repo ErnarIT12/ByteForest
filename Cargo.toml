@@ -13,6 +13,8 @@ authors = ["Ernar"]
 serde = { version = "1", features = ["derive"] }
 bitflags = "2"
 thiserror = "2"
+flate2 = "1"
+crc32fast = "1"
 insta = "1"
 serde_json = "1"
 rayon = "1"

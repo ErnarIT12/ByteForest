@@ -9,7 +9,10 @@ import {
 } from 'react';
 import { getTreemap } from '../api';
 import { formatBytes } from '../format';
+import { isContextMenuKey } from '../contextMenu';
+import { useFileActions } from '../fileActions';
 import { useColorScheme } from '../hooks/useColorScheme';
+import { useTreemapColorMode } from '../hooks/useTreemapColorMode';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 import {
@@ -83,6 +86,7 @@ export function TreemapCanvas() {
   );
   const generation = useAppStore((s) => s.generation);
   const theme = useColorScheme();
+  const colorMode = useTreemapColorMode();
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const baseRef = useRef<HTMLCanvasElement>(null);
@@ -131,8 +135,8 @@ export function TreemapCanvas() {
     canvas.width = layout.width;
     canvas.height = layout.height;
     const background = getComputedStyle(canvas).getPropertyValue('--tm-bg').trim() || '#808080';
-    paintTreemap(ctx, layout, theme, background);
-  }, [layout, theme]);
+    paintTreemap(ctx, layout, theme, background, colorMode);
+  }, [layout, theme, colorMode]);
 
   // Overlay: hover and selection outlines.
   const hoverIndex = hover?.i ?? -1;
@@ -205,7 +209,33 @@ export function TreemapCanvas() {
     useAppStore.getState().revealNode(crumbsTo(layout, i, focusPath).map((c) => c.id));
   };
 
+  /** Right click: selects the rectangle under the pointer, then opens the menu. */
+  const onContextMenu = (e: MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const i = indexAt(e);
+    if (!layout || i <= 0) return;
+    revealIndex(i);
+    const { resultScanId } = useAppStore.getState();
+    if (resultScanId !== null) {
+      void useFileActions.getState().openMenu(resultScanId, layout.rects[i].id, e.clientX, e.clientY);
+    }
+  };
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (isContextMenuKey(e) && e.target === e.currentTarget) {
+      e.preventDefault();
+      const { resultScanId } = useAppStore.getState();
+      if (!layout || selectedIndex <= 0 || resultScanId === null) return;
+      const r = layout.rects[selectedIndex];
+      const box = e.currentTarget.getBoundingClientRect();
+      void useFileActions.getState().openMenu(
+        resultScanId,
+        r.id,
+        box.left + (r.x + r.w / 2) / layout.dpr,
+        box.top + (r.y + r.h / 2) / layout.dpr,
+      );
+      return;
+    }
     if (e.ctrlKey || e.altKey || e.metaKey || e.target !== e.currentTarget) return;
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -259,6 +289,7 @@ export function TreemapCanvas() {
       onMouseMove={onMouseMove}
       onMouseLeave={() => setHover(null)}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       onWheel={onWheel}
       onMouseUp={onMouseUp}
       style={{ cursor: hover ? 'pointer' : 'default' }}

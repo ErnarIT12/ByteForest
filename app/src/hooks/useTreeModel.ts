@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getChildren, type NodeView } from '../api';
-import type { Crumb } from '../store';
+import { useAppStore, type Crumb, type TreeInvalidation } from '../store';
 import { MAX_REVEAL_PAGES, PAGE_SIZE, TreeModel, type Row } from '../treeModel';
 
 export interface TreeController {
@@ -98,10 +98,76 @@ export function useTreeModel(root: NodeView, scanId: number): TreeController {
     [model],
   );
 
+  // A removal changed sizes along the path to the root: fetch the loaded pages of those
+  // directories again, keeping the expanded state of every other node.
+  const invalidation = useAppStore((s) => s.invalidation);
+  const handled = useRef(invalidation?.seq ?? 0);
+  useEffect(() => {
+    if (!invalidation || invalidation.seq === handled.current) return;
+    handled.current = invalidation.seq;
+    let alive = true;
+    void refreshAfterRemoval(model, invalidation, scanId, () => alive, inflight.current).then((ok) => {
+      if (!alive) return;
+      refresh();
+      if (!ok) void loadMore(model.rootId);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [invalidation, model, scanId, refresh, loadMore]);
+
   // First page of the root.
   useEffect(() => {
     void loadMore(model.rootId);
   }, [model, loadMore]);
 
   return { model, rows, loadMore, setExpanded, revealPath, crumbsOf };
+}
+
+/**
+ * Re-reads the loaded children of the removed node's parent and of all its ancestors, from the
+ * root down. Returns false when the model had to be reset instead (the parent was not loaded
+ * or a page failed); the caller then loads the root again.
+ */
+async function refreshAfterRemoval(
+  model: TreeModel,
+  inv: TreeInvalidation,
+  scanId: number,
+  alive: () => boolean,
+  inflight: Map<number, Promise<void>>,
+): Promise<boolean> {
+  const root = useAppStore.getState().root;
+  if (!root) return true;
+  const chain = model.pathTo(inv.parentId);
+  const reset = () => {
+    model.resetPages(root);
+    return false;
+  };
+  if (!chain) return reset();
+  model.setNode(root);
+  try {
+    const fresh = await Promise.all(
+      chain.map(async (id) => {
+        await inflight.get(id);
+        const loaded = model.get(id)?.children.length ?? 0;
+        if (loaded === 0) return null;
+        const nodes: NodeView[] = [];
+        let complete = false;
+        while (nodes.length < loaded) {
+          const page = await getChildren(id, 'SizeDesc', nodes.length, PAGE_SIZE, scanId);
+          nodes.push(...page);
+          if (page.length < PAGE_SIZE) {
+            complete = true;
+            break;
+          }
+        }
+        return { id, nodes, complete };
+      }),
+    );
+    if (!alive()) return true;
+    for (const item of fresh) if (item && model.get(item.id)) model.replaceChildren(item.id, item.nodes, item.complete);
+    return true;
+  } catch {
+    return alive() ? reset() : true;
+  }
 }

@@ -79,3 +79,26 @@ describe('treemap label contrast', () => {
     }
   }
 });
+
+// Change text (--delta-grow, --delta-shrink) on the surfaces it appears on: panels, raised
+// areas, the selected row (accent mixed into the surface), hovered rows and the compare banner.
+const deltaInks = {
+  light: ['#9a3412', '#17663a'],
+  dark: ['#ffb27a', '#7fd6a0'],
+};
+const deltaSurfaces = {
+  light: ['#ffffff', '#f6f7f9', '#edf0f3', '#e8eaee', '#e0e2e6', '#eeeff0', '#ecedef'],
+  dark: ['#202226', '#292c32', '#17181b', '#3c4046', '#2f3238', '#31343a'],
+};
+
+describe('snapshot change colour contrast', () => {
+  for (const theme of ['light', 'dark'] as const) {
+    for (const ink of deltaInks[theme]) {
+      for (const surface of deltaSurfaces[theme]) {
+        it(`${theme} ${ink} on ${surface} meets AA`, () => {
+          expect(contrastRatio(ink, surface)).toBeGreaterThanOrEqual(4.5);
+        });
+      }
+    }
+  }
+});
