@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import {
   SCAN_CANCELLED,
+  type FileCategory,
   type LocationStep,
   type NodeView,
   type ScanDone,
@@ -58,6 +59,16 @@ export interface RevealRequest {
   filename?: string;
 }
 
+/** Pre-filled search (opened from a folder's file-type breakdown). */
+export interface SearchPreset {
+  /** Bumped for every request so the same preset can be applied again. */
+  seq: number;
+  category?: FileCategory;
+  extension?: string;
+  /** Folder the search is limited to. */
+  under: { id: number; name: string };
+}
+
 interface AppState {
   drives: VolumeSummary[] | null;
   drivesError: string | null;
@@ -93,6 +104,8 @@ interface AppState {
   reveal: RevealRequest | null;
   /** Last removal; the folder tree refreshes its cached pages when `seq` changes. */
   invalidation: TreeInvalidation | null;
+  /** Latest request to open the search pane with these filters. */
+  searchPreset: SearchPreset | null;
   error: string | null;
   /** Heading of the error toast; null means the default scan failure title. */
   errorTitle: string | null;
@@ -127,6 +140,8 @@ interface AppActions {
   revealSearchResult(scanId: number, steps: LocationStep[]): void;
   /** Applies a successful move to the trash: totals, focus, selection and view refresh. */
   applyRemoval(id: number, result: TrashResult): void;
+  /** Asks the explorer to show the file search with the filters of `preset`. */
+  openSearch(preset: Omit<SearchPreset, 'seq'>): void;
   dismissError(): void;
   setElevating(elevating: boolean): void;
   /** Shows a non-scan failure of the restart as administrator in the toast. */
@@ -162,6 +177,7 @@ const initialState: AppState = {
   selectedId: null,
   reveal: null,
   invalidation: null,
+  searchPreset: null,
   error: null,
   errorTitle: null,
   elevating: false,
@@ -244,6 +260,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       selectedId: null,
       reveal: null,
       invalidation: null,
+      searchPreset: null,
     });
   },
 
@@ -349,6 +366,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     });
   },
 
+  openSearch: (preset) =>
+    set((s) => ({ searchPreset: { ...preset, seq: (s.searchPreset?.seq ?? 0) + 1 } })),
   dismissError: () => set({ error: null, errorTitle: null }),
   setElevating: (elevating) => set({ elevating }),
   elevationFailed: (message) =>

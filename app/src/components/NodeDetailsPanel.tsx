@@ -4,6 +4,7 @@ import { formatBytes, formatFiletime, formatScanShare } from '../format';
 import { useFileActions } from '../fileActions';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
+import { FileTypeBreakdown } from './FileTypeBreakdown';
 
 export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id: number; scanSize: number }) {
   const [details, setDetails] = useState<NodeDetails | null>(null);
@@ -52,6 +53,9 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
             <div><dt>Allocated (estimate)</dt><dd>{formatBytes(details.node.alloc)}</dd></div>
             <div><dt>Modified</dt><dd>{formatFiletime(details.node.mtime) || '—'}</dd></div>
           </dl>
+          {details.node.is_dir && (
+            <FileTypeBreakdown scanId={scanId} id={id} name={details.node.name} />
+          )}
           {details.has_native_path ? (
             <div className="details-actions">
               <button type="button" className="btn" disabled={busy}

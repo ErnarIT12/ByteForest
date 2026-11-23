@@ -57,6 +57,11 @@ export function TreemapTooltip({ rect, generation, viewSize, x, y, flipX, flipY 
         {rect.name}
       </div>
       <div className="tooltip-path">{path ?? '…'}</div>
+      {rect.category && (
+        <div className="tooltip-category">
+          {strings.tooltipCategory(strings.categoryNames[rect.category])}
+        </div>
+      )}
       <div className="tooltip-size">
         <strong>{formatBytes(rect.size)}</strong>
         <span>

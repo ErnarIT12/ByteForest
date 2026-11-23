@@ -6,6 +6,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::category::{FileCategory, category_of};
 use crate::flags::NodeFlags;
 use crate::tree::{NONE, NodeId, Tree};
 
@@ -62,6 +63,13 @@ pub struct FileFilter {
     pub name: String,
     pub extension: String,
     pub min_size: u64,
+    /// Only files of this category.
+    #[serde(default)]
+    pub category: Option<FileCategory>,
+    /// Only files inside the subtree of this node (`NodeId.0`). An unknown or removed node
+    /// matches nothing.
+    #[serde(default)]
+    pub under: Option<u32>,
 }
 
 impl Tree {
@@ -75,19 +83,22 @@ impl Tree {
             .to_lowercase();
         let mut matches = 0;
         let mut largest = BinaryHeap::new();
-        for raw in 1..self.len() as u32 {
+        let mut consider = |raw: u32| {
             let id = NodeId(raw);
             let size = self.size[id.idx()];
-            if self
-                .flags(id)
-                .intersects(NodeFlags::DIR | NodeFlags::REMOVED)
-                || size < filter.min_size
-            {
-                continue;
+            let flags = self.flags(id);
+            if flags.intersects(NodeFlags::DIR | NodeFlags::REMOVED) || size < filter.min_size {
+                return;
             }
             let filename = self.name(id);
+            if filter
+                .category
+                .is_some_and(|c| category_of(filename, flags) != c)
+            {
+                return;
+            }
             if !name.is_empty() && !filename.to_lowercase().contains(&name) {
-                continue;
+                return;
             }
             if !extension.is_empty()
                 && !Path::new(filename)
@@ -95,7 +106,7 @@ impl Tree {
                     .and_then(|ext| ext.to_str())
                     .is_some_and(|ext| ext.to_lowercase() == extension)
             {
-                continue;
+                return;
             }
             matches += 1;
             let key = Reverse((size, Reverse(raw)));
@@ -104,6 +115,22 @@ impl Tree {
             } else if largest.peek().is_some_and(|smallest| key < *smallest) {
                 *largest.peek_mut().expect("heap with an existing minimum") = key;
             }
+        };
+        match filter.under {
+            None => (1..self.len() as u32).for_each(&mut consider),
+            Some(under) if (under as usize) < self.len() && !self.is_removed(NodeId(under)) => {
+                // Explicit stack: trees can be very deep.
+                let mut stack = vec![under];
+                while let Some(n) = stack.pop() {
+                    consider(n);
+                    let mut c = self.first_child[n as usize];
+                    while c != NONE {
+                        stack.push(c);
+                        c = self.next_sibling[c as usize];
+                    }
+                }
+            }
+            Some(_) => {}
         }
         let ids = largest
             .into_sorted_vec()

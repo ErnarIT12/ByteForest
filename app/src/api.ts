@@ -45,6 +45,16 @@ export interface NodeView {
   percent_of_parent: number;
 }
 
+/** File category (serde names of the Rust enum). */
+export type FileCategory =
+  | 'video'
+  | 'archive'
+  | 'diskimage'
+  | 'codebuild'
+  | 'media'
+  | 'system'
+  | 'other';
+
 /** One treemap rectangle, in the pixel space passed to `getTreemap`. */
 export interface Rect {
   id: number;
@@ -60,6 +70,8 @@ export interface Rect {
   /** 0 for the requested node itself. */
   depth: number;
   is_dir: boolean;
+  /** Category of a file; null for folders. */
+  category: FileCategory | null;
 }
 
 export interface ScanProgress {
@@ -112,6 +124,10 @@ export interface FileFilter {
   name: string;
   extension: string;
   min_size: number;
+  /** Only files of this category. */
+  category?: FileCategory;
+  /** Only files inside this node's subtree. */
+  under?: number;
 }
 
 export interface FileMatch {
@@ -124,6 +140,29 @@ export interface FileMatch {
 export interface SearchResults {
   total: number;
   files: FileMatch[];
+}
+
+export interface CategoryTotal {
+  category: FileCategory;
+  bytes: number;
+  files: number;
+}
+
+export interface ExtTotal {
+  /** Lowercase, without the dot; empty for files without an extension. */
+  ext: string;
+  category: FileCategory;
+  bytes: number;
+  files: number;
+}
+
+/** File-type totals of a folder; `categories` holds all seven categories in a fixed order. */
+export interface Breakdown {
+  categories: CategoryTotal[];
+  extensions: ExtTotal[];
+  other_extensions: { bytes: number; files: number };
+  total_bytes: number;
+  total_files: number;
 }
 
 export interface LocationStep {
@@ -140,6 +179,9 @@ export interface NodeDetails {
 
 export const searchFiles = (scanId: number, filter: FileFilter) =>
   invoke<SearchResults>('search_files', { scanId, filter });
+/** File-type breakdown of a folder; `top` (1..50, default 10) limits the extension list. */
+export const folderBreakdown = (scanId: number, node: number, top?: number) =>
+  invoke<Breakdown>('folder_breakdown', { scanId, node, top });
 export const locateNode = (scanId: number, node: number) =>
   invoke<LocationStep[]>('locate_node', { scanId, node });
 export const nodeDetails = (scanId: number, node: number) =>

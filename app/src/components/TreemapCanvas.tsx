@@ -12,6 +12,7 @@ import { formatBytes } from '../format';
 import { isContextMenuKey } from '../contextMenu';
 import { useFileActions } from '../fileActions';
 import { useColorScheme } from '../hooks/useColorScheme';
+import { useTreemapColorMode } from '../hooks/useTreemapColorMode';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 import {
@@ -85,6 +86,7 @@ export function TreemapCanvas() {
   );
   const generation = useAppStore((s) => s.generation);
   const theme = useColorScheme();
+  const colorMode = useTreemapColorMode();
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const baseRef = useRef<HTMLCanvasElement>(null);
@@ -133,8 +135,8 @@ export function TreemapCanvas() {
     canvas.width = layout.width;
     canvas.height = layout.height;
     const background = getComputedStyle(canvas).getPropertyValue('--tm-bg').trim() || '#808080';
-    paintTreemap(ctx, layout, theme, background);
-  }, [layout, theme]);
+    paintTreemap(ctx, layout, theme, background, colorMode);
+  }, [layout, theme, colorMode]);
 
   // Overlay: hover and selection outlines.
   const hoverIndex = hover?.i ?? -1;

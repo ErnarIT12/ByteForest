@@ -34,6 +34,7 @@ fn main() {
             commands::get_node,
             commands::get_path,
             commands::search_files,
+            commands::folder_breakdown,
             commands::locate_node,
             commands::node_details,
             commands::copy_node_path,

@@ -267,6 +267,7 @@ fn largest_files_searches_the_whole_tree_with_a_bounded_result() {
         name: "BACKUP".into(),
         extension: ".zip".into(),
         min_size: 50,
+        ..Default::default()
     };
     let (total, hits) = tree.largest_files(&filter, 1);
     assert_eq!(total, 2);

@@ -56,4 +56,6 @@ pub struct TreemapRect {
     /// Distance from the requested node (which is depth 0).
     pub depth: u8,
     pub is_dir: bool,
+    /// File category; `None` for directories.
+    pub category: Option<bf_core::FileCategory>,
 }

@@ -193,3 +193,14 @@ describe('store applyRemoval', () => {
     expect(useAppStore.getState().focusId).toBe(0);
   });
 });
+
+describe('search preset', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('numbers every request so an identical preset is applied again', () => {
+    const preset = { category: 'video' as const, under: { id: 3, name: 'Movies' } };
+    useAppStore.getState().openSearch(preset);
+    useAppStore.getState().openSearch(preset);
+    expect(useAppStore.getState().searchPreset).toEqual({ ...preset, seq: 2 });
+  });
+});

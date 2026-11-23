@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use serde::Serialize;
 
+use crate::category::{FileCategory, category_of};
 use crate::flags::NodeFlags;
 use crate::tree::{NodeId, Tree};
 
@@ -17,6 +18,8 @@ pub struct Rect {
     /// Distance from the treemap root (the root itself is 0); saturates at 255.
     pub depth: u8,
     pub is_dir: bool,
+    /// Category of a file; `None` for directories.
+    pub category: Option<FileCategory>,
 }
 
 /// Parameters of [`Tree::treemap`].
@@ -106,7 +109,8 @@ impl Tree {
             if rects.len() >= opts.max_rects {
                 break;
             }
-            let is_dir = self.flags(id).contains(NodeFlags::DIR);
+            let flags = self.flags(id);
+            let is_dir = flags.contains(NodeFlags::DIR);
             rects.push(Rect {
                 id: id.0,
                 x: area.x as f32,
@@ -115,6 +119,7 @@ impl Tree {
                 h: area.h as f32,
                 depth,
                 is_dir,
+                category: (!is_dir).then(|| category_of(self.name(id), flags)),
             });
             if !is_dir {
                 continue;

@@ -1,12 +1,15 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { setTreemapColorMode, useTreemapColorMode } from '../hooks/useTreemapColorMode';
 import { locateNode, type NodeView } from '../api';
 import { formatBytes, formatInt } from '../format';
 import { useAppStore } from '../store';
 import { Breadcrumbs } from './Breadcrumbs';
 import { FileSearch } from './FileSearch';
 import { NodeDetailsPanel } from './NodeDetailsPanel';
+import { strings } from '../strings';
 import { Splitter } from './Splitter';
 import { TreemapCanvas } from './TreemapCanvas';
+import { TreemapLegend } from './TreemapLegend';
 import { TreePanel } from './TreePanel';
 
 /** The Explorer screen: disk map and file browser. */
@@ -25,6 +28,25 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   const focusId = useAppStore((s) => s.focusId);
   const selected = useAppStore((s) => s.selectedId);
   const generation = useAppStore((s) => s.generation);
+  const colorMode = useTreemapColorMode();
+  const presetSeq = useAppStore((s) => s.searchPreset?.seq ?? 0);
+  // A new search preset (from the file-type breakdown) opens the search pane. Adjusting state
+  // while rendering avoids an extra effect pass.
+  const [seenPreset, setSeenPreset] = useState(presetSeq);
+  if (presetSeq !== seenPreset) {
+    setSeenPreset(presetSeq);
+    if (presetSeq > 0) {
+      setOpening(false);
+      setError(null);
+      setSearch(true);
+      setMapOnly(false);
+    }
+  }
+
+  // Drops a pending "locate file" request so it cannot switch the pane back.
+  useEffect(() => {
+    request.current += 1;
+  }, [presetSeq]);
 
   const showSearch = (value: boolean) => {
     request.current += 1;
@@ -70,13 +92,19 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
         <div className="map-toolbar">
           <Breadcrumbs />
           <span className="map-hint">Double-click a folder to open</span>
+          <div className="segmented" role="group" aria-label={strings.colorModeLabel}>
+            <button type="button" aria-pressed={colorMode === 'depth'}
+              onClick={() => setTreemapColorMode('depth')}>{strings.colorModeFolders}</button>
+            <button type="button" aria-pressed={colorMode === 'category'}
+              onClick={() => setTreemapColorMode('category')}>{strings.colorModeTypes}</button>
+          </div>
           <button type="button" className="map-mode" aria-controls="result-browser"
             aria-expanded={!mapOnly} onClick={() => setMapOnly(!mapOnly)}>
             {mapOnly ? 'Show file list' : 'Expand map'}
           </button>
         </div>
+        {colorMode === 'category' && <TreemapLegend />}
         <TreemapCanvas />
-
       </section>
       {!mapOnly && <Splitter value={split} min={0.45} max={0.82} onChange={onSplitChange} />}
       <section id="result-browser" hidden={mapOnly} className="explorer-sidebar" aria-label="Scan results">

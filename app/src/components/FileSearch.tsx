@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { searchFiles, type FileFilter, type SearchResults } from '../api';
+import { searchFiles, type FileCategory, type FileFilter, type SearchResults } from '../api';
 import { formatBytes, formatInt } from '../format';
+import { useAppStore } from '../store';
+import { strings } from '../strings';
+import { CATEGORIES } from '../treemapPaint';
 
 const MIN_SIZES = [
   { label: 'Any size', value: 0 },
@@ -26,8 +29,30 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
   const [name, setName] = useState('');
   const [extension, setExtension] = useState('');
   const [minSize, setMinSize] = useState(0);
+  const [category, setCategory] = useState<FileCategory | ''>('');
+  const [scope, setScope] = useState<{ id: number; name: string } | null>(null);
+  const preset = useAppStore((s) => s.searchPreset);
+  const [appliedSeq, setAppliedSeq] = useState(preset?.seq ?? 0);
+  // A new preset replaces the filters (adjusting state while rendering, not in an effect).
+  if (preset && preset.seq !== appliedSeq) {
+    setAppliedSeq(preset.seq);
+    setName('');
+    setMinSize(0);
+    setCategory(preset.category ?? '');
+    setExtension(preset.extension ?? '');
+    setScope(preset.under);
+  }
   const [response, setResponse] = useState<RequestResult | null>(null);
-  const filter = useMemo(() => ({ name, extension, min_size: minSize }), [name, extension, minSize]);
+  const filter = useMemo<FileFilter>(
+    () => ({
+      name,
+      extension,
+      min_size: minSize,
+      category: category || undefined,
+      under: scope?.id,
+    }),
+    [name, extension, minSize, category, scope],
+  );
   const current = response?.filter === filter ? response : null;
 
   useEffect(() => {
@@ -48,6 +73,14 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
   const results = current?.results;
   return (
     <section className="file-search" aria-label="Largest files">
+      {scope && (
+        <div className="search-scope" role="group" aria-label={strings.searchScopeLabel}>
+          <span title={scope.name}>{strings.searchInFolder(scope.name)}</span>
+          <button type="button" className="btn" onClick={() => setScope(null)}>
+            {strings.searchClearScope}
+          </button>
+        </div>
+      )}
       <div className="file-filters">
         <label>File name
           <input type="search" value={name} maxLength={255}
@@ -56,6 +89,12 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
         <label>Extension
           <input value={extension} maxLength={64}
             placeholder=".zip" onChange={(event) => setExtension(event.target.value)} />
+        </label>
+        <label>{strings.searchCategory}
+          <select value={category} onChange={(event) => setCategory(event.target.value as FileCategory | '')}>
+            <option value="">{strings.searchAnyType}</option>
+            {CATEGORIES.map((c) => <option key={c} value={c}>{strings.categoryNames[c]}</option>)}
+          </select>
         </label>
         <label>Minimum size
           <select value={minSize} onChange={(event) => setMinSize(Number(event.target.value))}>

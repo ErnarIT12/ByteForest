@@ -100,6 +100,7 @@ pub fn treemap_rects(tree: &Tree, rects: Vec<Rect>) -> Vec<TreemapRect> {
                 h: r.h,
                 depth: r.depth,
                 is_dir: r.is_dir,
+                category: r.category,
             }
         })
         .collect()
@@ -466,6 +467,23 @@ pub async fn search_files(
     .map_err(|err| err.to_string())
 }
 
+/// Per-category and per-extension totals of a folder (`top` is clamped to 1..=50, default 10).
+#[tauri::command]
+pub async fn folder_breakdown(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    node: u32,
+    top: Option<u32>,
+) -> Result<bf_core::Breakdown, String> {
+    let tree = current_tree(&state, Some(scan_id))?;
+    let id = node_id_checked(&tree, node)?;
+    let top = top.unwrap_or(10).clamp(1, 50) as usize;
+    tauri::async_runtime::spawn_blocking(move || tree.extension_breakdown(id, top))
+        .await
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| "unknown node".to_string())
+}
+
 #[derive(Serialize)]
 pub struct LocationStep {
     id: u32,
@@ -764,6 +782,8 @@ mod tests {
         assert_eq!(rects[1].name, "a.txt");
         assert_eq!(rects[1].size, 10);
         assert!(!rects[1].is_dir);
+        assert_eq!(rects[0].category, None);
+        assert_eq!(rects[1].category, Some(bf_core::FileCategory::Other));
     }
 
     #[test]

@@ -115,6 +115,7 @@
   --tm-bg: #181a1e;
   --tm-hover-line: #ffffff;
   --tm-sel-inner: #141518;
+  --tm-hover-fill: rgb(255 255 255 / 8%);
   --danger: #ff9ea9;
   --chrome-bg: linear-gradient(110deg, #353941, #22252a 48%, #18191c);
   --chrome-border: #454951;

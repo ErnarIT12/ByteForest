@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod builder;
+mod category;
 mod flags;
 mod record;
 mod remove;
@@ -13,6 +14,10 @@ mod treemap;
 mod view;
 
 pub use builder::TreeBuilder;
+pub use category::{
+    Breakdown, CategoryTotal, ExtTotal, FileCategory, MAX_EXT_LEN, OtherExtensions, category_of,
+    extension_of,
+};
 pub use flags::NodeFlags;
 pub use record::EntryRecord;
 pub use remove::{RemoveError, Removed};
