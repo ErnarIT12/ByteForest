@@ -4,7 +4,7 @@
 
 <h1 align="center">ByteForest</h1>
 
-<p align="center"><b>Un analizador de espacio en disco para Windows, rápido y de código abierto: descubre en segundos qué llena tu unidad.</b></p>
+<p align="center"><b>Un analizador rápido y de código abierto del espacio en disco para Windows y macOS.</b></p>
 
 <p align="center"><a href="README.md">English</a> | <a href="README.ru.md">Русский</a> | <a href="README.kk.md">Қазақша</a> | <a href="README.zh-CN.md">简体中文</a> | <b>Español</b> | <a href="README.de.md">Deutsch</a> | <a href="README.ja.md">日本語</a></p>
 
@@ -13,11 +13,12 @@
   <a href="https://github.com/ErnarIT12/byteforest/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ErnarIT12/byteforest?include_prereleases"></a>
   <a href="#licencia"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
   <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4">
+  <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
-![Ventana principal de ByteForest con treemap, árbol de carpetas y panel de detalles (tema Graphite)](docs/screenshots/explorer-dark.png)
+![ByteForest en macOS con treemap, árbol de carpetas y panel de detalles en el tema Graphite](docs/screenshots/macos-treemap-graphite.png)
 
-*Las capturas muestran datos de demostración ficticios creados con [`scripts/make-demo-data.ps1`](scripts/make-demo-data.ps1).*
+*Capturas tomadas en macOS con datos de demostración ficticios.*
 
 ## Análisis ultrarrápido: MFT y recorrido de directorios, con exclusiones
 
@@ -48,7 +49,7 @@ Son cifras de máquinas concretas, no un benchmark formal; mide las tuyas con `b
 - **Desglose por tipo de archivo** de la carpeta seleccionada (categorías y extensiones principales) y modo de color **Folders / File types** para los mapas, con leyenda.
 - **Menú contextual** con clic derecho (también Mayús+F10) en el árbol y en los mapas: abrir, mostrar en el Explorador/Finder, copiar la ruta o mover a la Papelera tras confirmar. Todo se actualiza al instante, sin volver a analizar.
 
-![Información emergente del treemap al pasar el cursor, con nombre de archivo, ruta completa, tamaño y porcentaje de la vista](docs/screenshots/treemap-tooltip.png)
+![ByteForest en macOS con el gráfico Sunburst y el panel de detalles en el tema Silver](docs/screenshots/macos-sunburst-silver.png)
 
 ## Discard Pile, instantáneas automáticas y comparación
 

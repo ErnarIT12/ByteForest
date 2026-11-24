@@ -4,7 +4,7 @@
 
 <h1 align="center">ByteForest</h1>
 
-<p align="center"><b>A fast, open-source disk space analyzer for Windows: see what fills your drive in seconds.</b></p>
+<p align="center"><b>A fast, open-source disk space analyzer for Windows and macOS.</b></p>
 
 <p align="center"><b>English</b> | <a href="README.ru.md">Русский</a> | <a href="README.kk.md">Қазақша</a> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.es.md">Español</a> | <a href="README.de.md">Deutsch</a> | <a href="README.ja.md">日本語</a></p>
 
@@ -13,11 +13,12 @@
   <a href="https://github.com/ErnarIT12/byteforest/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/ErnarIT12/byteforest?include_prereleases"></a>
   <a href="#license"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
   <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4">
+  <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
-![ByteForest main window with treemap, folder tree and details panel (Graphite theme)](docs/screenshots/explorer-dark.png)
+![ByteForest on macOS with Treemap, folder tree, and inspector in Graphite](docs/screenshots/macos-treemap-graphite.png)
 
-*The screenshots show fictional demo data created by [`scripts/make-demo-data.ps1`](scripts/make-demo-data.ps1).*
+*Captured on macOS with fictional demo data.*
 
 ## Blazing-fast scanning: MFT and directory walk, with exclusions
 
@@ -48,7 +49,7 @@ These are single-machine numbers, not a formal benchmark; measure your own with 
 - **File-type breakdown** of the selected folder (categories and top extensions) and a **Folders / File types** color mode for the maps, with a legend.
 - **Right-click context menu** (also Shift+F10) on the tree and the maps: open, show in Explorer/Finder, copy the path, or move to the Recycle Bin/Trash after confirmation. Everything updates instantly, without a rescan.
 
-![Treemap hover tooltip showing a file name, full path, size and share of the view](docs/screenshots/treemap-tooltip.png)
+![ByteForest on macOS with the Sunburst chart and inspector in Silver](docs/screenshots/macos-sunburst-silver.png)
 
 ## Discard Pile, auto-snapshots and diff
 

@@ -4,7 +4,7 @@
 
 <h1 align="center">ByteForest</h1>
 
-<p align="center"><b>面向 Windows 的快速开源磁盘空间分析器：几秒钟看清是什么占满了你的磁盘。</b></p>
+<p align="center"><b>适用于 Windows 和 macOS 的快速开源磁盘空间分析器。</b></p>
 
 <p align="center"><a href="README.md">English</a> | <a href="README.ru.md">Русский</a> | <a href="README.kk.md">Қазақша</a> | <b>简体中文</b> | <a href="README.es.md">Español</a> | <a href="README.de.md">Deutsch</a> | <a href="README.ja.md">日本語</a></p>
 
@@ -13,11 +13,12 @@
   <a href="https://github.com/ErnarIT12/byteforest/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ErnarIT12/byteforest?include_prereleases"></a>
   <a href="#许可证"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
   <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4">
+  <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
-![ByteForest 主窗口：treemap、文件夹树和详情面板（Graphite 主题）](docs/screenshots/explorer-dark.png)
+![macOS 上的 ByteForest，显示 Treemap、文件夹树和详情面板（Graphite 主题）](docs/screenshots/macos-treemap-graphite.png)
 
-*截图中的数据均为虚构的演示数据，由 [`scripts/make-demo-data.ps1`](scripts/make-demo-data.ps1) 生成。*
+*截图在 macOS 上使用虚构的演示数据拍摄。*
 
 ## 极速扫描：MFT 与目录遍历，支持排除规则
 
@@ -48,7 +49,7 @@
 - 所选文件夹的**文件类型分布**（类别和主要扩展名），以及带图例的地图着色模式 **Folders / File types**。
 - 树和地图上的**右键菜单**（也可用 Shift+F10）：打开、在 Explorer/Finder 中显示、复制路径，或确认后移到回收站。所有内容立即更新，无需重新扫描。
 
-![鼠标悬停时的 treemap 提示，显示文件名、完整路径、大小以及在当前视图中的占比](docs/screenshots/treemap-tooltip.png)
+![macOS 上的 ByteForest，显示 Sunburst 图和详情面板（Silver 主题）](docs/screenshots/macos-sunburst-silver.png)
 
 ## Discard Pile、自动快照与差异对比
 

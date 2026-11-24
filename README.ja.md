@@ -4,7 +4,7 @@
 
 <h1 align="center">ByteForest</h1>
 
-<p align="center"><b>Windows 向けの高速なオープンソースのディスク使用量アナライザー。ドライブを埋めているものが数秒でわかります。</b></p>
+<p align="center"><b>Windows と macOS に対応する高速なオープンソースのディスク使用量アナライザー。</b></p>
 
 <p align="center"><a href="README.md">English</a> | <a href="README.ru.md">Русский</a> | <a href="README.kk.md">Қазақша</a> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.es.md">Español</a> | <a href="README.de.md">Deutsch</a> | <b>日本語</b></p>
 
@@ -13,11 +13,12 @@
   <a href="https://github.com/ErnarIT12/byteforest/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ErnarIT12/byteforest?include_prereleases"></a>
   <a href="#ライセンス"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
   <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4">
+  <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
-![ByteForest のメインウィンドウ：treemap、フォルダーツリー、詳細パネル（Graphite テーマ）](docs/screenshots/explorer-dark.png)
+![macOS 版 ByteForest の treemap、フォルダーツリー、詳細パネル（Graphite テーマ）](docs/screenshots/macos-treemap-graphite.png)
 
-*スクリーンショットは、[`scripts/make-demo-data.ps1`](scripts/make-demo-data.ps1) で作成した架空のデモデータです。*
+*macOS で架空のデモデータを使って撮影したスクリーンショットです。*
 
 ## 圧倒的な速さのスキャン：MFT とディレクトリ走査、除外設定つき
 
@@ -48,7 +49,7 @@ NTFS ボリュームでは、ByteForest はフォルダーごとに Windows へ�
 - 選択したフォルダーの**ファイルタイプ別の内訳**（カテゴリと上位の拡張子）と、凡例つきでマップの色を切り替える **Folders / File types** モード。
 - ツリーとマップの**右クリックメニュー**（Shift+F10 でも開けます）：開く、Explorer/Finder で表示、パスをコピー、確認後にごみ箱へ移動。再スキャンなしですぐに反映されます。
 
-![ホバー時の treemap ツールチップ。ファイル名、フルパス、サイズ、ビューに占める割合を表示](docs/screenshots/treemap-tooltip.png)
+![macOS 版 ByteForest の Sunburst グラフと詳細パネル（Silver テーマ）](docs/screenshots/macos-sunburst-silver.png)
 
 ## Discard Pile、自動スナップショット、差分比較
 
