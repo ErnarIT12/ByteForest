@@ -4,7 +4,7 @@
 
 <h1 align="center">ByteForest</h1>
 
-<p align="center"><b>Windows үшін жылдам open-source диск орны анализаторы: дискіні не толтырып тұрғанын секундтар ішінде көріңіз.</b></p>
+<p align="center"><b>Windows және macOS жүйелеріне арналған ашық кодты жылдам диск кеңістігі анализаторы.</b></p>
 
 <p align="center"><a href="README.md">English</a> | <a href="README.ru.md">Русский</a> | <b>Қазақша</b> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.es.md">Español</a> | <a href="README.de.md">Deutsch</a> | <a href="README.ja.md">日本語</a></p>
 
@@ -13,11 +13,12 @@
   <a href="https://github.com/ErnarIT12/byteforest/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ErnarIT12/byteforest?include_prereleases"></a>
   <a href="#лицензия"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
   <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4">
+  <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
-![ByteForest негізгі терезесі: treemap, қалталар ағашы және мәліметтер панелі (Graphite тақырыбы)](docs/screenshots/explorer-dark.png)
+![macOS жүйесіндегі ByteForest қолданбасының Treemap картасы, қалталар ағашы және мәліметтер тақтасы (Graphite тақырыбы)](docs/screenshots/macos-treemap-graphite.png)
 
-*Скриншоттарда [`scripts/make-demo-data.ps1`](scripts/make-demo-data.ps1) скрипті жасаған ойдан шығарылған демо-деректер көрсетілген.*
+*Скриншоттар macOS жүйесінде ойдан шығарылған демо-деректермен түсірілді.*
 
 ## Жарқыл жылдамдықпен сканерлеу: MFT және қалталарды аралау, қалдыру ережелерімен
 
@@ -48,7 +49,7 @@ NTFS томдарында ByteForest әр қалтаны Windows-тан бір-�
 - Таңдалған қалта үшін **файл түрлері бойынша бөлу** (санаттар және ең ірі кеңейтулер) және карталардың шартты белгісі бар **Folders / File types** түс режимі.
 - Ағашта және карталарда **контекстік мәзір** (тінтуірдің оң жағы, сондай-ақ Shift+F10): ашу, Explorer/Finder-де көрсету, жолды көшіру немесе растаудан кейін Себетке жылжыту. Барлығы қайта сканерлеусіз бірден жаңарады.
 
-![Меңзер басқанда шығатын treemap кеңесі: файл атауы, толық жолы, өлшемі және көріністегі үлесі](docs/screenshots/treemap-tooltip.png)
+![macOS жүйесіндегі ByteForest қолданбасының Sunburst диаграммасы және мәліметтер тақтасы (Silver тақырыбы)](docs/screenshots/macos-sunburst-silver.png)
 
 ## Discard Pile, авто-снапшоттар және салыстыру
 

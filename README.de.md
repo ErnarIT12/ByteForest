@@ -4,7 +4,7 @@
 
 <h1 align="center">ByteForest</h1>
 
-<p align="center"><b>Ein schneller Open-Source-Festplattenanalysator für Windows: In Sekunden sehen, was Ihr Laufwerk füllt.</b></p>
+<p align="center"><b>Ein schneller Open-Source-Analysator für die Speicherbelegung unter Windows und macOS.</b></p>
 
 <p align="center"><a href="README.md">English</a> | <a href="README.ru.md">Русский</a> | <a href="README.kk.md">Қазақша</a> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.es.md">Español</a> | <b>Deutsch</b> | <a href="README.ja.md">日本語</a></p>
 
@@ -13,11 +13,12 @@
   <a href="https://github.com/ErnarIT12/byteforest/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ErnarIT12/byteforest?include_prereleases"></a>
   <a href="#lizenz"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
   <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4">
+  <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
-![ByteForest-Hauptfenster mit Treemap, Ordnerbaum und Detailbereich (Graphite-Design)](docs/screenshots/explorer-dark.png)
+![ByteForest unter macOS mit Treemap, Ordnerbaum und Detailbereich im Graphite-Design](docs/screenshots/macos-treemap-graphite.png)
 
-*Die Screenshots zeigen fiktive Demodaten, die mit [`scripts/make-demo-data.ps1`](scripts/make-demo-data.ps1) erzeugt wurden.*
+*Die Screenshots wurden unter macOS mit fiktiven Demodaten aufgenommen.*
 
 ## Blitzschnelles Scannen: MFT und Verzeichnisdurchlauf, mit Ausschlüssen
 
@@ -48,7 +49,7 @@ Das sind Messwerte einzelner Rechner, kein formaler Benchmark; messen Sie Ihren 
 - **Aufschlüsselung nach Dateityp** für den gewählten Ordner (Kategorien und häufigste Erweiterungen) und der Farbmodus **Folders / File types** für die Karten, mit Legende.
 - **Kontextmenü** per Rechtsklick (auch Umschalt+F10) im Baum und auf den Karten: öffnen, im Explorer/Finder anzeigen, Pfad kopieren oder nach Bestätigung in den Papierkorb verschieben. Alles aktualisiert sich sofort, ohne neuen Scan.
 
-![Treemap-Tooltip beim Überfahren mit Dateiname, vollständigem Pfad, Größe und Anteil an der Ansicht](docs/screenshots/treemap-tooltip.png)
+![ByteForest unter macOS mit Sunburst-Diagramm und Detailbereich im Silver-Design](docs/screenshots/macos-sunburst-silver.png)
 
 ## Discard Pile, automatische Snapshots und Vergleich
 

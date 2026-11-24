@@ -4,7 +4,7 @@
 
 <h1 align="center">ByteForest</h1>
 
-<p align="center"><b>Быстрый open-source анализатор занятого места на диске для Windows: за секунды видно, что заполняет диск.</b></p>
+<p align="center"><b>Быстрый анализатор дискового пространства с открытым исходным кодом для Windows и macOS.</b></p>
 
 <p align="center"><a href="README.md">English</a> | <b>Русский</b> | <a href="README.kk.md">Қазақша</a> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.es.md">Español</a> | <a href="README.de.md">Deutsch</a> | <a href="README.ja.md">日本語</a></p>
 
@@ -13,11 +13,12 @@
   <a href="https://github.com/ErnarIT12/byteforest/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ErnarIT12/byteforest?include_prereleases"></a>
   <a href="#лицензия"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
   <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4">
+  <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
-![Главное окно ByteForest с treemap, деревом папок и панелью сведений (тема Graphite)](docs/screenshots/explorer-dark.png)
+![ByteForest в macOS с картой Treemap, деревом папок и панелью сведений в теме Graphite](docs/screenshots/macos-treemap-graphite.png)
 
-*На скриншотах вымышленные демо-данные, созданные скриптом [`scripts/make-demo-data.ps1`](scripts/make-demo-data.ps1).*
+*Скриншоты сделаны в macOS на вымышленных демо-данных.*
 
 ## Молниеносное сканирование: MFT и обход папок, с исключениями
 
@@ -48,7 +49,7 @@
 - **Разбивка по типам файлов** для выбранной папки (категории и самые крупные расширения) и режим цвета карт **Folders / File types** с легендой.
 - **Контекстное меню** (правая кнопка, также Shift+F10) в дереве и на картах: открыть, показать в Проводнике/Finder, скопировать путь или переместить в Корзину после подтверждения. Всё обновляется сразу, без повторного скана.
 
-![Подсказка treemap при наведении: имя файла, полный путь, размер и доля от вида](docs/screenshots/treemap-tooltip.png)
+![ByteForest в macOS с диаграммой Sunburst и панелью сведений в теме Silver](docs/screenshots/macos-sunburst-silver.png)
 
 ## Discard Pile, автоснимки и сравнение
 
