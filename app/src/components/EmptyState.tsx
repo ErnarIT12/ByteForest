@@ -1,4 +1,5 @@
 import { useAppStore } from '../store';
+import { chooseFolderAndScan } from '../scanController';
 import { formatBytes } from '../format';
 import { scanTargetFor } from '../scanTargets';
 import { strings } from '../strings';
@@ -28,14 +29,13 @@ function VolumeUsage() {
 /** Centered invitation before the first result, or the first scan's progress. */
 export function EmptyState() {
   const scanning = useAppStore((s) => s.scanning);
-  const isMac = useAppStore((s) => s.isMac);
   const scanTarget = useAppStore((s) => s.scanTarget);
   const target = useAppStore((s) => s.target);
   const shownTarget = target === null ? null : scanTargetFor(target);
 
   return (
     <section className="empty">
-      <div className="empty-card">
+      <div className="empty-card" key={scanning ? 'scanning' : 'ready'}>
         {scanning ? (
           <>
             <TreeGlyph size={100} />
@@ -47,9 +47,9 @@ export function EmptyState() {
           </>
         ) : (
           <>
-            <TreeGlyph size={108} />
+            <TreeGlyph size={72} />
             <h1>{strings.emptyTitle}</h1>
-            <p>{shownTarget === null ? strings.emptyChooseLocation : isMac ? strings.emptyBodyMac : strings.emptyBody}</p>
+            <p>{shownTarget === null ? strings.emptyChooseLocation : strings.emptyBody}</p>
             {shownTarget !== null && (
               <div className="empty-target">
                 <span className="empty-target-label">{strings.emptySelected}</span>
@@ -58,7 +58,10 @@ export function EmptyState() {
               </div>
             )}
             <div className="empty-actions">
-              <ScanButton />
+              {shownTarget !== null && <ScanButton />}
+              <button type="button" className={shownTarget === null ? 'btn primary' : 'btn'} onClick={chooseFolderAndScan}>
+                {strings.chooseFolder}
+              </button>
               <FastScanButton />
             </div>
           </>

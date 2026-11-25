@@ -3,6 +3,8 @@
     "windows": [
       {
         "title": "ByteForest",
+        "center": true,
+        "preventOverflow": true,
         "width": 1280,
         "height": 800,
         "minWidth": 900,

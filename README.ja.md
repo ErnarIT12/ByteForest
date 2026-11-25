@@ -16,6 +16,14 @@
   <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
+## 初めてのスキャン
+
+1. [ByteForest をダウンロード](https://github.com/ErnarIT12/ByteForest/releases).
+2. **Choose folder…** でフォルダーを選ぶか、**Scan** で選択中のドライブをスキャンします。
+3. マップ上のフォルダーをダブルクリックして開きます。上の階層に戻るには、マップの上にあるパスをクリックします。
+
+![Windows の初回スキャン画面](docs/screenshots/windows-first-scan.png)
+
 ![macOS 版 ByteForest の treemap、フォルダーツリー、詳細パネル（Graphite テーマ）](docs/screenshots/macos-treemap-graphite.png)
 
 *macOS で架空のデモデータを使って撮影したスクリーンショットです。*

@@ -8,6 +8,7 @@ vi.mock('./api', () => ({
   isElevated: vi.fn(),
   startScan: vi.fn(),
   cancelScan: vi.fn(),
+  pickFolder: vi.fn(),
   onScanProgress: vi.fn(),
   onScanDone: vi.fn(),
   onScanError: vi.fn(),
@@ -15,7 +16,7 @@ vi.mock('./api', () => ({
 }));
 
 import * as api from './api';
-import { listenToScanEvents, loadEnvironment, requestElevation } from './scanController';
+import { chooseFolderAndScan, listenToScanEvents, loadEnvironment, requestElevation } from './scanController';
 import { useAppStore } from './store';
 
 const drive = { letter: 'C', label: '', fs: 'NTFS', total: 100, free: 50 };
@@ -37,6 +38,16 @@ beforeEach(() => {
       .mockReset()
       .mockResolvedValue(() => {});
   }
+});
+
+describe('chooseFolderAndScan', () => {
+  it('scans the chosen folder and leaves the selection alone on cancel', async () => {
+    vi.mocked(api.pickFolder).mockResolvedValueOnce('C:/Demo').mockResolvedValueOnce(null);
+    await chooseFolderAndScan();
+    await chooseFolderAndScan();
+    expect(api.startScan).toHaveBeenCalledExactlyOnceWith('C:/Demo');
+    expect(useAppStore.getState().target).toBe('C:/Demo');
+  });
 });
 
 describe('requestElevation', () => {

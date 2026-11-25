@@ -16,6 +16,14 @@
   <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
+## Primer escaneo
+
+1. [Descargar ByteForest](https://github.com/ErnarIT12/ByteForest/releases).
+2. Pulsa **Choose folder…** para analizar una carpeta o **Scan** para analizar la unidad seleccionada.
+3. Haz doble clic en una carpeta del mapa para abrirla. Usa la ruta sobre el mapa para volver.
+
+![Primer escaneo en Windows](docs/screenshots/windows-first-scan.png)
+
 ![ByteForest en macOS con treemap, árbol de carpetas y panel de detalles en el tema Graphite](docs/screenshots/macos-treemap-graphite.png)
 
 *Capturas tomadas en macOS con datos de demostración ficticios.*

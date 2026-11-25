@@ -16,6 +16,14 @@
   <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
+## Алғашқы сканерлеу
+
+1. [ByteForest жүктеп алу](https://github.com/ErnarIT12/ByteForest/releases).
+2. Бір қалтаны сканерлеу үшін **Choose folder…**, ал таңдалған дискіні сканерлеу үшін **Scan** түймесін басыңыз.
+3. Картадағы қалтаны екі рет басып ашыңыз. Жоғары деңгейге оралу үшін картаның үстіндегі жолды пайдаланыңыз.
+
+![Windows жүйесіндегі алғашқы сканерлеу](docs/screenshots/windows-first-scan.png)
+
 ![macOS жүйесіндегі ByteForest қолданбасының Treemap картасы, қалталар ағашы және мәліметтер тақтасы (Graphite тақырыбы)](docs/screenshots/macos-treemap-graphite.png)
 
 *Скриншоттар macOS жүйесінде ойдан шығарылған демо-деректермен түсірілді.*

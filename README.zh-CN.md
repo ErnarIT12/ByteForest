@@ -16,6 +16,14 @@
   <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
+## 首次扫描
+
+1. [下载 ByteForest](https://github.com/ErnarIT12/ByteForest/releases).
+2. 点击 **Choose folder…** 扫描单个文件夹，或点击 **Scan** 扫描所选驱动器。
+3. 双击图中的文件夹即可查看其内容。点击图上方的路径可返回上级目录。
+
+![Windows 上的首次扫描](docs/screenshots/windows-first-scan.png)
+
 ![macOS 上的 ByteForest，显示 Treemap、文件夹树和详情面板（Graphite 主题）](docs/screenshots/macos-treemap-graphite.png)
 
 *截图在 macOS 上使用虚构的演示数据拍摄。*

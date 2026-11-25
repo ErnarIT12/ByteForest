@@ -16,6 +16,14 @@
   <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
+## Первое сканирование
+
+1. [Скачать ByteForest](https://github.com/ErnarIT12/ByteForest/releases).
+2. Нажмите **Choose folder…**, чтобы проверить одну папку, или **Scan**, чтобы просканировать выбранный диск.
+3. Дважды щёлкните папку на карте, чтобы открыть её. Вернуться на уровень выше можно по пути над картой.
+
+![Первый запуск в Windows](docs/screenshots/windows-first-scan.png)
+
 ![ByteForest в macOS с картой Treemap, деревом папок и панелью сведений в теме Graphite](docs/screenshots/macos-treemap-graphite.png)
 
 *Скриншоты сделаны в macOS на вымышленных демо-данных.*
