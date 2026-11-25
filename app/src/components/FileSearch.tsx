@@ -10,6 +10,7 @@ import { formatBytes, formatInt } from '../format';
 import { useAppStore } from '../store';
 import { SEARCH_PRESET_IDS, presetFilter, type SearchPresetId } from '../searchPresets';
 import { strings } from '../strings';
+import { FileKindIcon } from './FileKindIcon';
 import { Check, Icon } from './Icon';
 import { CATEGORIES } from '../treemapPaint';
 
@@ -195,7 +196,7 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
           <tbody>{results?.files.map((file) => (
             <tr key={file.id}>
               <td><button type="button" className="match-name" onClick={() => onOpen(file.id)}
-                title={`Show in disk map: ${file.name}`}>{file.name}</button></td>
+                title={`Show in disk map: ${file.name}`}><FileKindIcon name={file.name} directory={file.is_dir} />{file.name}</button></td>
               <td title={file.path}>{file.path}</td>
               <td>{formatBytes(file.size)}</td>
             </tr>

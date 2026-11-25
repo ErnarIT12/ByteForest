@@ -478,3 +478,5 @@ button.type-row:hover { background: var(--hover); }
 .matches tr:hover td { background: var(--hover); }
 .match-name { padding: 3px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
 .match-name:hover { text-decoration: underline; }
+
+.match-name .kind-icon { vertical-align: -3px; margin-right: 8px; }

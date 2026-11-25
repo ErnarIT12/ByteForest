@@ -1,9 +1,10 @@
+import { FileKindIcon } from './FileKindIcon';
 import { memo } from 'react';
 import { deltaCell } from '../diffView';
 import { formatBytes, formatCount, formatFiletime, formatPercent } from '../format';
 import { strings } from '../strings';
 import type { NodeView } from '../api';
-import { ChevronRight, File, Folder, Icon, Trash2 } from './Icon';
+import { ChevronRight, Icon, Trash2 } from './Icon';
 
 const INDENT_PX = 16;
 
@@ -30,14 +31,6 @@ interface Props {
 
 function Chevron({ open }: { open: boolean }) {
   return <Icon icon={ChevronRight} size={14} className={`chevron${open ? ' open' : ''}`} />;
-}
-
-function KindIcon({ dir }: { dir: boolean }) {
-  return dir ? (
-    <Icon icon={Folder} className="kind-icon folder" />
-  ) : (
-    <Icon icon={File} className="kind-icon file" />
-  );
 }
 
 /** One line of the folder tree: name with indent and chevron, size, share, files, date. */
@@ -94,7 +87,7 @@ export const TreeRow = memo(function TreeRow({
         ) : (
           <span className="disclosure-spacer" />
         )}
-        <KindIcon dir={node.is_dir} />
+        <FileKindIcon name={node.name} directory={node.is_dir} />
         <span className="name-text" title={node.name}>
           {node.name}
         </span>
