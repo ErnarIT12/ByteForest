@@ -795,26 +795,28 @@ pub async fn application_icon(
         {
             return Err("No application icon".into());
         }
-        let read = async {
-            let file = StorageFile::GetFileFromPathAsync(&HSTRING::from(path.as_os_str()))?.await?;
+        let read = tauri::async_runtime::spawn_blocking(move || {
+            let file =
+                StorageFile::GetFileFromPathAsync(&HSTRING::from(path.as_os_str()))?.join()?;
             let icon = file
                 .GetThumbnailAsyncOverloadDefaultOptions(ThumbnailMode::SingleItem, 32)?
-                .await?;
+                .join()?;
             let size = icon.Size()?;
             if !(1..=65536).contains(&size) {
                 return Ok(None);
             }
             let reader = DataReader::CreateDataReader(&icon.GetInputStreamAt(0)?)?;
-            let count = reader.LoadAsync(size as u32)?.await?;
+            let count = reader.LoadAsync(size as u32)?.join()?;
             if u64::from(count) != size {
                 return Ok(None);
             }
             let mut bytes = vec![0; count as usize];
             reader.ReadBytes(&mut bytes)?;
             Ok::<_, windows::core::Error>(Some(bytes))
-        };
+        });
         let bytes = read
             .await
+            .map_err(|err| err.to_string())?
             .map_err(|err| err.to_string())?
             .ok_or("No application icon")?;
         Ok(tauri::ipc::Response::new(bytes))
