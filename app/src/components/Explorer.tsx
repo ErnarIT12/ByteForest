@@ -31,9 +31,15 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   const [mapOnly, setMapOnly] = useState(false);
   const view = useAppStore((s) => s.resultView);
   const search = view === 'files';
+  const [seenView, setSeenView] = useState(view);
   const [changesMode, setChangesMode] = useState(false);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  if (seenView !== view) {
+    setSeenView(view);
+    setOpening(false);
+    setError(null);
+  }
   const request = useRef(0);
   const treeButton = useRef<HTMLButtonElement>(null);
   const focusId = useAppStore((s) => s.focusId);
@@ -103,7 +109,8 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       if (!isCurrent()) return;
       useAppStore.getState().revealSearchResult(scanId, steps);
       setChangesMode(false);
-      treeButton.current?.focus();
+      setMapOnly(false);
+      requestAnimationFrame(() => treeButton.current?.focus());
     } catch (failure) {
       if (isCurrent()) setError(String(failure));
     } finally {

@@ -135,14 +135,14 @@ describe('startup scan', () => {
     expect(useAppStore.getState().target).toBe('C');
   });
 
-  it('scans a folder as given without touching the drive select', async () => {
+  it('selects the requested folder so refresh scans the same path', async () => {
     void listenToScanEvents();
     vi.mocked(api.takeStartupScan).mockResolvedValue('D:\\Data\\Stuff');
     loadEnvironment();
     await flush();
     expect(api.startScan).toHaveBeenCalledWith('D:\\Data\\Stuff');
     const s = useAppStore.getState();
-    expect(s.target).toBe('C'); // default pick, not a fake "D"
+    expect(s.target).toBe(s.scanTarget);
     expect(s.scanTarget).toBe('D:\\Data\\Stuff');
   });
 

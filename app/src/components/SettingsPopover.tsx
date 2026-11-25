@@ -12,7 +12,7 @@ import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { Icon, Settings as SettingsGlyph, X } from './Icon';
 
-/** Gear button with a small popover holding the app settings. */
+/** Sidebar settings button and its modal dialog. */
 export function SettingsPopover() {
   const [open, setOpen] = useState(false);
   // The settings as last loaded or saved; null until loaded. `set_settings` replaces the whole

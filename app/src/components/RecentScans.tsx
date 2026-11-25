@@ -31,7 +31,7 @@ export const VISIBLE_SNAPSHOT_ROWS = 10;
 interface Props {
   /** Icon rail: only the recent scans, no snapshot rows. */
   rail: boolean;
-  /** Scans `target` again. */
+  /** Show absolute dates and inline comparison controls on the history screen. */
   detailed?: boolean;
 }
 
