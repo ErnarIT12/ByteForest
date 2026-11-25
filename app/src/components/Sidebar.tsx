@@ -11,6 +11,7 @@ import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { DiscardPileDock } from './DiscardPileDock';
 import {
+  LayoutGrid,
   Download,
   FileText,
   Folder,
@@ -106,6 +107,8 @@ function LocationList({ locations, target, onChoose }: {
 
 /** Left column in every state: where to scan, what was scanned recently and the Discard Pile. */
 export function Sidebar() {
+  const hasScan = useAppStore((s) => s.root !== null);
+  const largeFiles = useAppStore((s) => s.largeFilesOpen);
   const drives = useAppStore((s) => s.drives);
   const userFolders = useAppStore((s) => s.userFolders);
   const recentScans = useAppStore((s) => s.recentScans);
@@ -155,6 +158,15 @@ export function Sidebar() {
         </div>
       )}
       <div id="sidebar-body" className="sidebar-body">
+        {hasScan && <section className="sidebar-section" aria-label="Scan views">
+          {[{ label: 'Disk map', icon: LayoutGrid, files: false }, { label: 'Largest files', icon: FileText, files: true }].map(({ label, icon, files }) => (
+            <button key={label} type="button" className="sidebar-item" title={label}
+              aria-current={largeFiles === files ? 'page' : undefined}
+              onClick={() => useAppStore.setState({ largeFilesOpen: files })}>
+              <Icon icon={icon} className="sidebar-icon" /><span className="sidebar-text">{label}</span>
+            </button>
+          ))}
+        </section>}
         <section className="sidebar-section" aria-labelledby="sidebar-locations">
           <h2 id="sidebar-locations" className="sidebar-heading">{strings.locationsTitle}</h2>
           {drives === null ? (

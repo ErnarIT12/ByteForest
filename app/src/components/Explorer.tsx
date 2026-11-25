@@ -24,7 +24,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   onSplitChange: (value: number) => void;
 }) {
   const [mapOnly, setMapOnly] = useState(false);
-  const [search, setSearch] = useState(false);
+  const search = useAppStore((s) => s.largeFilesOpen);
   const [changesMode, setChangesMode] = useState(false);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +47,6 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
     if (presetSeq > 0) {
       setOpening(false);
       setError(null);
-      setSearch(true);
       setChangesMode(false);
       setMapOnly(false);
     }
@@ -61,7 +60,6 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
     if (revealSeq > 0) {
       setOpening(false);
       setError(null);
-      setSearch(false);
       setChangesMode(false);
       setMapOnly(false);
     }
@@ -70,13 +68,13 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   // Drops a pending "locate file" request so it cannot switch the pane back.
   useEffect(() => {
     request.current += 1;
-  }, [presetSeq]);
+  }, [presetSeq, search]);
 
   const showSearch = (value: boolean) => {
     request.current += 1;
     setOpening(false);
     setError(null);
-    setSearch(value);
+    useAppStore.setState({ largeFilesOpen: value });
     setChangesMode(false);
   };
 
@@ -84,7 +82,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
     request.current += 1;
     setOpening(false);
     setError(null);
-    setSearch(false);
+    useAppStore.setState({ largeFilesOpen: false });
     setChangesMode(true);
   };
 
@@ -98,7 +96,6 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       const steps = await locateNode(scanId, id);
       if (!isCurrent()) return;
       useAppStore.getState().revealSearchResult(scanId, steps);
-      setSearch(false);
       setChangesMode(false);
       treeButton.current?.focus();
     } catch (failure) {
@@ -109,20 +106,20 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   };
   return (
     <main
-      className={mapOnly ? "explorer map-expanded" : "explorer"}
+      className={search ? "explorer files-expanded" : mapOnly ? "explorer map-expanded" : "explorer"}
       // Flexible tracks share the width split : (1 - split) whatever the content; the
       // minimums keep both panes usable in a narrow window.
-      style={{ gridTemplateColumns: mapOnly ? 'minmax(0, 1fr)' : `minmax(400px, ${split}fr) 8px minmax(235px, ${1 - split}fr)` }}
+      style={{ gridTemplateColumns: search || mapOnly ? 'minmax(0, 1fr)' : `minmax(400px, ${split}fr) 8px minmax(235px, ${1 - split}fr)` }}
     >
       <header className="scan-heading">
-        <h1 title={root.name}>{root.name}</h1>
+        <h1 title={root.name}>{search ? 'Largest files' : root.name}</h1>
         <dl className="scan-totals">
           <div><dt>Scanned</dt><dd>{formatBytes(root.size)}</dd></div>
           <div><dt>Files</dt><dd>{formatInt(root.files)}</dd></div>
           <div><dt>Folders</dt><dd>{formatInt(root.dirs)}</dd></div>
         </dl>
       </header>
-      <section className="map-panel">
+      {!search && <section className="map-panel">
         <div className="map-toolbar">
           <Breadcrumbs />
           <span className="map-hint">Double-click a folder to open</span>
@@ -140,22 +137,21 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
         {colorMode === 'category' && <TreemapLegend />}
         {comparing && <DiffLegend />}
         {mapView === 'sunburst' ? <SunburstCanvas /> : <TreemapCanvas />}
-      </section>
-      {!mapOnly && <Splitter value={split} min={0.45} max={0.82} onChange={onSplitChange} />}
-      <section id="result-browser" hidden={mapOnly} className="explorer-sidebar" aria-label="Scan results">
+      </section>}
+      {!search && !mapOnly && <Splitter value={split} min={0.45} max={0.82} onChange={onSplitChange} />}
+      <section id="result-browser" hidden={mapOnly && !search} className="explorer-sidebar" aria-label="Scan results">
         <SnapshotBanner />
         <CompareBanner />
-        <div className="explorer-modes" role="group" aria-label="Result view">
+        {!search && <div className="explorer-modes" role="group" aria-label="Result view">
           <button type="button" ref={treeButton} aria-pressed={!search && !changes} onClick={() => showSearch(false)}>Tree</button>
-          <button type="button" aria-pressed={search} onClick={() => showSearch(true)}>Largest Files</button>
           {comparing && (
             <button type="button" aria-pressed={changes} onClick={showChanges}>{strings.changesMode}</button>
           )}
-        </div>
+        </div>}
         <div className="explorer-view" hidden={search || changes}>
           <TreePanel root={root} scanId={scanId} />
         </div>
-        {changes && (
+        {!search && changes && (
           <div className="explorer-view">
             <ChangesList scanId={scanId} active={changes} opening={opening} navigationError={error}
               onOpen={(id) => void openResult(id)} />
@@ -166,7 +162,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
             onOpen={(id) => void openResult(id)} />
         </div>
       </section>
-      {!mapOnly && <aside className="inspector">
+      {!search && !mapOnly && <aside className="inspector">
         <h2>{selected !== null ? 'Selection details' : focusId === root.id ? 'Scan details' : 'Folder details'}</h2>
         <NodeDetailsPanel key={`${selected ?? focusId ?? root.id}:${generation}`} scanId={scanId} id={selected ?? focusId ?? root.id} scanSize={root.size} />
       </aside>}

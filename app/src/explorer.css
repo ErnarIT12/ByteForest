@@ -453,3 +453,7 @@ button.type-row:hover { background: var(--hover); }
 .snapshot-banner { background: var(--warn-soft, var(--accent-soft)); }
 .snapshot-banner .compare-text { white-space: normal; }
 .snapshot-badge { margin-left: 6px; }
+
+.explorer.files-expanded { grid-template-rows: auto minmax(0, 1fr); }
+.files-expanded > .explorer-sidebar { grid-area: 2 / 1; margin-top: 0; }
+.sidebar-item[aria-current="page"] { background: var(--selected); color: var(--text); }
