@@ -196,7 +196,7 @@ export const strings = {
   tooltipCategory: (name: string) => `Type: ${name}`,
 
   // Snapshots and comparison
-  snapshots: 'Snapshots',
+  snapshots: 'Save or compare…',
   snapshotsMenuLabel: 'Snapshot actions',
   snapshotSave: 'Save snapshot…',
   snapshotCompare: 'Compare with snapshot…',
@@ -230,7 +230,7 @@ export const strings = {
   driveFree: (free: string) => `${free} free`,
   driveUsageLabel: (percent: string) => `${percent} used`,
   userFolderNames: { desktop: 'Desktop', downloads: 'Downloads', documents: 'Documents' },
-  recentTitle: 'Recent Scans',
+  recentTitle: 'Scan history',
   recentEmpty: 'Scans you run will show up here.',
   recentRescan: (label: string) => `Scan ${label} again`,
   snapshotRowsLabel: 'Saved snapshots',

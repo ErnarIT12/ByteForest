@@ -5,7 +5,6 @@ import { strings } from '../strings';
 import { FastScanButton } from './FastScanButton';
 import { ScanButton } from './ScanButton';
 import { ScanProgressText } from './ScanProgressText';
-import { SettingsPopover } from './SettingsPopover';
 import { SnapshotsMenu } from './SnapshotsMenu';
 import { TreeGlyph } from './TreeGlyph';
 
@@ -41,7 +40,6 @@ export function TopBar() {
         <SnapshotsMenu />
       </div>}
       <div className="caption-space" data-tauri-drag-region />
-      <SettingsPopover />
       {!isMac && <WindowControls />}
     </header>
   );

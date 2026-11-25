@@ -24,6 +24,7 @@ import {
   PanelLeftOpen,
   type LucideIcon,
 } from './Icon';
+import { SettingsPopover } from './SettingsPopover';
 import { RecentScans } from './RecentScans';
 
 /** Windows narrower than this always show the icon rail so the explorer keeps its room. */
@@ -189,6 +190,7 @@ export function Sidebar() {
         <RecentScans groups={groups} rail={rail} onScan={(scanTarget) => choose(locationOf(scanTarget))} />
       </div>
       <DiscardPileDock rail={rail} />
+      <SettingsPopover />
     </nav>
   );
 }
