@@ -417,7 +417,7 @@ select {
   overflow: auto;
 }
 .empty-card {
-  width: min(100%, 30rem);
+  width: min(100%, 35rem);
   padding: 32px;
   border-radius: 14px;
   background: var(--surface);
@@ -441,8 +441,19 @@ select {
   display: grid;
   justify-items: center;
   gap: 6px;
-  margin-bottom: 4px;
+  padding: 14px;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .empty-card, .app > .explorer { animation: workspace-enter 180ms ease-out; }
+  @keyframes workspace-enter {
+    from { opacity: 0.65; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 }
 .empty-target-label { color: var(--text-2); font-size: 12px; }
 .empty-target strong {

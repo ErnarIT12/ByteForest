@@ -61,10 +61,9 @@ export const strings = {
   badgeRestartHint: 'Click to restart with administrator rights for fast scanning',
 
   // Empty and scanning states
-  emptyTitle: 'Explore your storage',
-  emptyBody: 'Select a drive to explore its folders and largest files.',
-  emptyBodyMac: 'Choose a volume or folder to see what takes up space.',
-  emptyChooseLocation: 'Pick a location in the sidebar to begin.',
+  emptyTitle: 'What’s taking up space?',
+  emptyBody: 'Scan the selected location or choose a folder to explore.',
+  emptyChooseLocation: 'Choose a folder below or select a drive in the sidebar.',
   emptySelected: 'Selected location',
   volumeUsed: 'Used',
   volumeAvailable: 'Available',

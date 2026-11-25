@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Center the desktop window on launch and constrain its initial size to the work area. Choose a folder directly from the welcome screen, with reduced-motion-aware transitions into scanning and results.
+
 ## [0.4.0] - 2026-11-24
 
 This release also contains everything planned for 0.3.0, which was never released separately.

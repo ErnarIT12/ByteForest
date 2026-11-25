@@ -1,6 +1,7 @@
 /** Glue between the IPC layer and the store: starting, cancelling and listening to scans. */
 import {
   cancelScan,
+  pickFolder,
   isElevated,
   listDrives,
   listUserFolders,
@@ -13,6 +14,20 @@ import {
 } from './api';
 import { driveLetterOf, isAcceptableStartupTarget, isDeclined } from './elevation';
 import { useAppStore } from './store';
+
+import { strings } from './strings';
+
+export async function chooseFolderAndScan(): Promise<void> {
+  try {
+    const folder = await pickFolder();
+    if (folder) {
+      useAppStore.getState().setTarget(folder);
+      await runScan(folder);
+    }
+  } catch (error) {
+    useAppStore.setState({ error: String(error), errorTitle: strings.chooseFolderFailed });
+  }
+}
 
 /** Counts `startScan` calls so that only the latest one's id becomes current. */
 let requestSeq = 0;

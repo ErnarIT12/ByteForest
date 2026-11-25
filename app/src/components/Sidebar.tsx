@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
-import { pickFolder, type UserFolder, type VolumeSummary } from '../api';
+import { type UserFolder, type VolumeSummary } from '../api';
 import { formatBytes } from '../format';
 import { setSidebarCollapsed, useSidebarCollapsed } from '../hooks/useSidebarCollapsed';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useAutoSnapshots, watchAutoSnapshots } from '../autoSnapshots';
-import { runScan } from '../scanController';
+import { chooseFolderAndScan, runScan } from '../scanController';
 import { groupSnapshots } from '../snapshotsModel';
 import { folderLabel, locationOf, scanTargetFor } from '../scanTargets';
 import { useAppStore } from '../store';
@@ -124,14 +124,6 @@ export function Sidebar() {
     void runScan(scanTargetFor(value));
   };
 
-  const chooseFolder = () => {
-    void pickFolder().then(
-      (folder) => { if (folder) choose(folder); },
-      (error: unknown) =>
-        useAppStore.setState({ error: String(error), errorTitle: strings.chooseFolderFailed }),
-    );
-  };
-
   const locations: Location[] = [
     ...(drives ?? []).map(driveLocation),
     ...userFolders.map(folderLocation),
@@ -174,7 +166,7 @@ export function Sidebar() {
           )}
           {isMac && (
             <button type="button" className="sidebar-item sidebar-action" title={strings.chooseFolder}
-              onClick={chooseFolder}>
+              onClick={chooseFolderAndScan}>
               <Icon icon={FolderOpen} className="sidebar-icon" />
               <span className="sidebar-text">
                 <span className="sidebar-name">{strings.chooseFolder}</span>

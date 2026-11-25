@@ -16,6 +16,14 @@
   <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
+## Your first scan
+
+1. [Download ByteForest](https://github.com/ErnarIT12/ByteForest/releases).
+2. Choose **Choose folder…** to scan one folder, or **Scan** to explore the selected drive.
+3. Double-click a folder on the map to explore it. Use the breadcrumbs to return.
+
+![First scan on Windows](docs/screenshots/windows-first-scan.png)
+
 ![ByteForest on macOS with Treemap, folder tree, and inspector in Graphite](docs/screenshots/macos-treemap-graphite.png)
 
 *Captured on macOS with fictional demo data.*
