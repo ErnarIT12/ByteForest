@@ -25,10 +25,10 @@
   padding: 0 16px 12px 8px;
   min-height: 0;
 }
-.explorer > .map-panel { grid-area: 2 / 1; }
-.explorer > .explorer-sidebar { grid-area: 3 / 1; margin-top: 8px; }
-.explorer > .splitter { grid-area: 2 / 2 / span 2; width: 8px; }
-.explorer > .inspector { grid-area: 2 / 3 / span 2; overflow: auto; }
+.explorer > .map-panel { grid-area: 2 / 1 / -1; }
+.explorer > .explorer-sidebar { grid-area: 2 / 3; }
+.explorer > .splitter { grid-area: 2 / 2 / -1; width: 8px; }
+.explorer > .inspector { grid-area: 4 / 3; overflow: auto; }
 .explorer.map-expanded { grid-template-rows: auto minmax(0, 1fr); }
 .explorer > .map-panel, .explorer > .explorer-sidebar, .inspector {
   overflow: hidden;
@@ -480,3 +480,7 @@ button.type-row:hover { background: var(--hover); }
 .match-name:hover { text-decoration: underline; }
 
 .match-name .kind-icon { vertical-align: -3px; margin-right: 8px; }
+
+.explorer > .row-splitter { grid-area: 3 / 3; width: auto; cursor: row-resize; }
+.row-splitter::after { inset: 3px calc(50% - 18px); }
+.row-splitter:hover::after, .row-splitter:focus-visible::after { inset: 2px calc(50% - 22px); }

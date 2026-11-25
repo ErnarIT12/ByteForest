@@ -3,7 +3,6 @@ import { scanTargetFor } from '../scanTargets';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { FastScanButton } from './FastScanButton';
-import { MapViewToggle } from './MapViewToggle';
 import { ScanButton } from './ScanButton';
 import { ScanProgressText } from './ScanProgressText';
 import { SettingsPopover } from './SettingsPopover';
@@ -39,7 +38,6 @@ export function TopBar() {
         <ScanButton />
         <FastScanButton />
         {scanning && <ScanProgressText />}
-        <MapViewToggle />
         <SnapshotsMenu />
       </div>}
       <div className="caption-space" data-tauri-drag-region />

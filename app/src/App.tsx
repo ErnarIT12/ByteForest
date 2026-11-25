@@ -23,7 +23,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export default function App() {
   const root = useAppStore((s) => s.root);
   const scanId = useAppStore((s) => s.resultScanId);
-  const [split, setSplit] = useState(0.74);
+  const [split, setSplit] = useState(0.55);
 
   useEffect(() => {
     const ready = listenToScanEvents();

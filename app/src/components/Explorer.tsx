@@ -10,6 +10,7 @@ import { SnapshotBanner } from './SnapshotBanner';
 import { FileSearch } from './FileSearch';
 import { NodeDetailsPanel } from './NodeDetailsPanel';
 import { strings } from '../strings';
+import { MapViewToggle } from './MapViewToggle';
 import { Splitter } from './Splitter';
 import { TreemapCanvas } from './TreemapCanvas';
 import { DiffLegend, TreemapLegend } from './TreemapLegend';
@@ -23,6 +24,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   split: number;
   onSplitChange: (value: number) => void;
 }) {
+  const [treeShare, setTreeShare] = useState(0.6);
   const [mapOnly, setMapOnly] = useState(false);
   const search = useAppStore((s) => s.largeFilesOpen);
   const [changesMode, setChangesMode] = useState(false);
@@ -109,7 +111,8 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       className={search ? "explorer files-expanded" : mapOnly ? "explorer map-expanded" : "explorer"}
       // Flexible tracks share the width split : (1 - split) whatever the content; the
       // minimums keep both panes usable in a narrow window.
-      style={{ gridTemplateColumns: search || mapOnly ? 'minmax(0, 1fr)' : `minmax(400px, ${split}fr) 8px minmax(235px, ${1 - split}fr)` }}
+      style={{ gridTemplateColumns: search || mapOnly ? 'minmax(0, 1fr)' : `minmax(300px, ${split}fr) 8px minmax(280px, ${1 - split}fr)`,
+        gridTemplateRows: search || mapOnly ? undefined : `auto minmax(110px, ${treeShare}fr) 8px minmax(100px, ${1 - treeShare}fr)` }}
     >
       <header className="scan-heading">
         <h1 title={root.name}>{search ? 'Largest files' : root.name}</h1>
@@ -121,8 +124,8 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       </header>
       {!search && <section className="map-panel">
         <div className="map-toolbar">
+          <MapViewToggle />
           <Breadcrumbs />
-          <span className="map-hint">Double-click a folder to open</span>
           <div className="segmented" role="group" aria-label={strings.colorModeLabel}>
             <button type="button" aria-pressed={colorMode === 'depth'}
               onClick={() => setTreemapColorMode('depth')}>{strings.colorModeFolders}</button>
@@ -162,6 +165,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
             onOpen={(id) => void openResult(id)} />
         </div>
       </section>
+      {!search && !mapOnly && <Splitter horizontal value={treeShare} min={0.25} max={0.8} onChange={setTreeShare} />}
       {!search && !mapOnly && <aside className="inspector">
         <h2>{selected !== null ? 'Selection details' : focusId === root.id ? 'Scan details' : 'Folder details'}</h2>
         <NodeDetailsPanel key={`${selected ?? focusId ?? root.id}:${generation}`} scanId={scanId} id={selected ?? focusId ?? root.id} scanSize={root.size} />
