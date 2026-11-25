@@ -93,7 +93,7 @@ interface AppState {
   /** Finished scans, newest first (persisted). */
   recentScans: RecentScan[];
   /** Disk map shown in the explorer (persisted). */
-  resultView: 'map' | 'files' | 'cleanup';
+  resultView: 'map' | 'files' | 'cleanup' | 'history';
   mapView: MapView;
   /** Location picked in the sidebar: a drive letter ("C") or a folder path. */
   target: string | null;

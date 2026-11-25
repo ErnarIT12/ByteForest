@@ -14,27 +14,36 @@ import {
   formatRelativeTime,
   formatUnixMsFull,
   limitSnapshotRows,
-  type SnapshotGroup,
+  groupSnapshots,
 } from '../snapshotsModel';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { ContextMenu } from './ContextMenu';
 import { ConfirmDialog } from './FileActionsHost';
+import { useAutoSnapshots } from '../autoSnapshots';
+import { runScan } from '../scanController';
+import { locationOf } from '../scanTargets';
 import { Clock, Ellipsis, History, Icon } from './Icon';
 
 /** Snapshot rows shown before "Show all". */
 export const VISIBLE_SNAPSHOT_ROWS = 10;
 
 interface Props {
-  groups: readonly SnapshotGroup[];
   /** Icon rail: only the recent scans, no snapshot rows. */
   rail: boolean;
   /** Scans `target` again. */
-  onScan(target: string): void;
+  detailed?: boolean;
 }
 
 /** Sidebar section: recent scans (one click rescans) with their saved snapshots below. */
-export function RecentScans({ groups, rail, onScan }: Props) {
+export function RecentScans({ rail, detailed }: Props) {
+  const recent = useAppStore((s) => s.recentScans);
+  const snapshots = useAutoSnapshots((s) => s.list);
+  const groups = groupSnapshots(recent, snapshots);
+  const onScan = (target: string) => {
+    useAppStore.getState().setTarget(locationOf(target));
+    void runScan(target);
+  };
   const [showAll, setShowAll] = useState(false);
   // Relative dates ('2 h ago') are refreshed once a minute.
   const [now, setNow] = useState(() => Date.now());
@@ -62,7 +71,7 @@ export function RecentScans({ groups, rail, onScan }: Props) {
 
   return (
     <section className="sidebar-section" aria-labelledby="sidebar-recent">
-      <h2 id="sidebar-recent" className="sidebar-heading">{strings.recentTitle}</h2>
+      <h2 id="sidebar-recent" className="sidebar-heading">{detailed ? 'Saved scans by location' : strings.recentTitle}</h2>
       {shown.length === 0 ? (
         <p className="sidebar-note">{strings.recentEmpty}</p>
       ) : (
@@ -98,9 +107,12 @@ export function RecentScans({ groups, rail, onScan }: Props) {
                           title={`${when}\n${group.target}\n${formatInt(snap.node_count)} items`}
                           aria-label={strings.snapshotOpenAria(group.label, when)}
                           onClick={() => void openAutoSnapshot(snap.id)}>
-                          <span className="snapshot-when">{formatRelativeTime(snap.created_unix_ms, now)}</span>
+                          <span className="snapshot-when">{detailed ? when : formatRelativeTime(snap.created_unix_ms, now)}</span>
                           <span className="snapshot-size">{formatBytes(snap.bytes_on_disk)}</span>
                         </button>
+                        {detailed && <button type="button" className="btn" disabled={compareReason(snap) !== null}
+                          title={compareReason(snap) ?? 'Compare with the current scan'}
+                          onClick={() => void compareWithAutoSnapshotId(snap.id)}>Compare</button>}
                         <button type="button" className="icon-btn snapshot-more" aria-haspopup="menu"
                           aria-label={strings.snapshotMoreActions} title={strings.snapshotMoreActions}
                           onClick={(e) => {

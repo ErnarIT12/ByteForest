@@ -7,6 +7,8 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { ChangesList } from './ChangesList';
 import { CompareBanner } from './CompareBanner';
 import { SnapshotBanner } from './SnapshotBanner';
+import { RecentScans } from './RecentScans';
+import { SnapshotsMenu } from './SnapshotsMenu';
 import { CleanupQueue } from './DiscardPileDock';
 import { FileSearch } from './FileSearch';
 import { NodeDetailsPanel } from './NodeDetailsPanel';
@@ -108,6 +110,19 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       if (isCurrent()) setOpening(false);
     }
   };
+  if (view === 'history') return (
+    <main className="explorer cleanup-view">
+      <header className="scan-heading"><h1>Scan history</h1><SnapshotsMenu /></header>
+      <section className="cleanup-content history-content">
+        <RecentScans rail={false} detailed />
+        {comparing && <>
+          <CompareBanner />
+          <ChangesList scanId={scanId} active opening={opening} navigationError={error}
+            onOpen={(id) => void openResult(id)} />
+        </>}
+      </section>
+    </main>
+  );
   if (view === 'cleanup') return (
     <main className="explorer cleanup-view">
       <header className="scan-heading"><h1>Cleanup</h1></header>

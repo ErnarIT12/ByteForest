@@ -6,7 +6,7 @@ export const strings = {
   loadingDrives: 'Loading drives…',
   noDrives: 'No drives found',
   scan: 'Scan',
-  rescan: 'Rescan',
+  rescan: 'Refresh scan',
   cancel: 'Cancel',
   scanAria: 'Scan the selected drive',
   cancelAria: 'Cancel the running scan',

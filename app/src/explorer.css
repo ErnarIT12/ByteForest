@@ -493,3 +493,10 @@ button.type-row:hover { background: var(--hover); }
 .cleanup-content p { color: var(--text-2); }
 .cleanup-content .discard-dock { margin-top: 24px; }
 .cleanup-content .discard-list { max-height: none; }
+
+.history-content .sidebar-list { max-width: 60rem; }
+.history-content .snapshot-row { padding: 4px; border-bottom: 1px solid var(--border); }
+.history-content .file-search { margin-top: 16px; }
+.changes-table { min-width: 340px; }
+.changes-table th:first-child { width: 42%; }
+.changes-table :is(td, th):not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
