@@ -57,7 +57,7 @@ docs: explain admin tests
 
 ## Pull request checklist
 
-CI runs the same checks. Please run them locally before you open a pull request:
+CI checks the changed paths first. README, changelog, contributor guide and screenshot-only changes finish there. Other PRs run the UI, dependency and Rust checks on all supported runners. Scanner-related changes also exercise the real Windows volume. Desktop packaging, workflow and dependency changes exercise the universal DMG and both macOS launch tests. Pushes to main with code changes run the full suite. Use **Actions → CI → Run workflow** for a full run on any branch. Please run them locally before you open a pull request:
 
 ```powershell
 cargo fmt --all --check
