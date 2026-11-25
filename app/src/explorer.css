@@ -457,3 +457,24 @@ button.type-row:hover { background: var(--hover); }
 .explorer.files-expanded { grid-template-rows: auto minmax(0, 1fr); }
 .files-expanded > .explorer-sidebar { grid-area: 2 / 1; margin-top: 0; }
 .sidebar-item[aria-current="page"] { background: var(--selected); color: var(--text); }
+
+.files-expanded .file-filters {
+  grid-template-columns: minmax(150px, 2fr) repeat(3, minmax(100px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+.files-expanded .file-filters :is(input, select) { height: 34px; padding-inline: 8px; }
+.quick-searches { padding: 0 16px 8px; }
+.quick-searches summary { cursor: pointer; color: var(--text-2); width: fit-content; }
+.files-expanded .file-result-summary { padding: 8px 16px; }
+.matches-scroll { flex: 1; min-height: 0; overflow: auto; }
+.matches { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.matches :is(th, td) { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+.matches th { position: sticky; top: 0; background: var(--surface-raised); font-size: 12px; }
+.matches th:last-child { width: 100px; }
+.matches :is(th, td):last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.matches td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.matches td:nth-last-child(2) { color: var(--text-2); }
+.matches tr:hover td { background: var(--hover); }
+.match-name { padding: 3px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.match-name:hover { text-decoration: underline; }

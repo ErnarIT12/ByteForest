@@ -22,6 +22,7 @@ const MIN_SIZES = [
 ];
 
 interface RequestResult {
+  generation: number;
   filter: FileFilter;
   results?: SearchResults;
   error?: string;
@@ -59,6 +60,7 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
     setActivePreset(null);
   }
   const [response, setResponse] = useState<RequestResult | null>(null);
+  const generation = useAppStore((s) => s.generation);
   const filter = useMemo<FileFilter>(
     () => ({
       name,
@@ -72,22 +74,22 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
     }),
     [name, extension, minSize, category, scope, kind, names, extensions],
   );
-  const current = response?.filter === filter ? response : null;
+  const current = response?.filter === filter && response.generation === generation ? response : null;
 
   useEffect(() => {
     if (!active || current) return;
     let alive = true;
     const timer = window.setTimeout(() => {
       searchFiles(scanId, filter).then(
-        (results) => { if (alive) setResponse({ filter, results }); },
-        (error: unknown) => { if (alive) setResponse({ filter, error: String(error) }); },
+        (results) => { if (alive) setResponse({ generation, filter, results }); },
+        (error: unknown) => { if (alive) setResponse({ generation, filter, error: String(error) }); },
       );
     }, 180);
     return () => {
       alive = false;
       window.clearTimeout(timer);
     };
-  }, [active, current, filter, scanId]);
+  }, [active, current, filter, scanId, generation]);
 
   const results = current?.results;
   const folders = kind === 'folders';
@@ -123,15 +125,6 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
           </button>
         </div>
       )}
-      <div className="chip-row" role="group" aria-label={strings.searchPresetsLabel}>
-        {SEARCH_PRESET_IDS.map((id) => (
-          <button key={id} type="button" className="chip" aria-pressed={activePreset === id}
-            onClick={() => togglePreset(id)}>
-            {activePreset === id && <Icon icon={Check} size={12} />}
-            {strings.searchPresetNames[id]}
-          </button>
-        ))}
-      </div>
       {folders && (
         <p className="file-result-summary">
           {strings.searchFoldersHint}{' '}
@@ -170,6 +163,18 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
           </select>
         </label>
       </div>
+      <details className="quick-searches">
+        <summary>Quick searches{activePreset ? ` · ${strings.searchPresetNames[activePreset]}` : ''}</summary>
+      <div className="chip-row" role="group" aria-label={strings.searchPresetsLabel}>
+        {SEARCH_PRESET_IDS.map((id) => (
+          <button key={id} type="button" className="chip" aria-pressed={activePreset === id}
+            onClick={() => togglePreset(id)}>
+            {activePreset === id && <Icon icon={Check} size={12} />}
+            {strings.searchPresetNames[id]}
+          </button>
+        ))}
+      </div>
+      </details>
       <p className="file-result-summary" role="status">
         {opening ? 'Locating file…' : !current ? 'Searching…' : results && (
           results.total === 0 ? strings.searchNone(folders) :
@@ -184,17 +189,19 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
       {(navigationError || current?.error) && (
         <p className="file-result-summary" role="alert">{navigationError || current?.error}</p>
       )}
-      <ul className="file-results">
-        {results?.files.map((file) => (
-          <li key={file.id}>
-            <button type="button" className="file-result" onClick={() => onOpen(file.id)} title={file.path}>
-              <span>{file.is_dir && <em className="result-kind">{strings.searchFolderMarker}</em>}{file.name}</span>
-              <strong>{formatBytes(file.size)}</strong>
-              <small>{file.path}</small>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div className="matches-scroll">
+        <table className="matches">
+          <thead><tr><th scope="col">Name</th><th scope="col">Path</th><th scope="col" aria-sort="descending">Size ↓</th></tr></thead>
+          <tbody>{results?.files.map((file) => (
+            <tr key={file.id}>
+              <td><button type="button" className="match-name" onClick={() => onOpen(file.id)}
+                title={`Show in disk map: ${file.name}`}>{file.name}</button></td>
+              <td title={file.path}>{file.path}</td>
+              <td>{formatBytes(file.size)}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
     </section>
   );
 }
