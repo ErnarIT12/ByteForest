@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
@@ -16,7 +17,56 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+      scanner: ${{ steps.scope.outputs.scanner }}
+      package: ${{ steps.scope.outputs.package }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: scope
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          code=true
+          scanner=true
+          package=true
+          # For PRs, HEAD is the trial merge and BASE its first parent.
+          # Manual runs and unavailable push bases get every check.
+          if [[ -n "$BASE" ]] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            git diff --no-renames --name-only -z "$BASE" HEAD > "$RUNNER_TEMP/changed-paths"
+            code=false
+            scanner=false
+            package=false
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                README.md|README.*.md|CHANGELOG.md|CONTRIBUTING.md|docs/screenshots/*.png) continue ;;
+              esac
+              code=true
+              case "$path" in
+                crates/bf-scan/*|crates/bf-core/*|crates/bf-ntfs/*|Cargo.*|rust-toolchain.toml|.cargo/*|.github/workflows/ci.yml) scanner=true ;;
+              esac
+              case "$path" in
+                app/src-tauri/*|app/package*.json|Cargo.*|rust-toolchain.toml|.cargo/*|.github/workflows/*) package=true ;;
+              esac
+            done < "$RUNNER_TEMP/changed-paths"
+            if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+              scanner=$code
+              package=$code
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "scanner=$scanner" >> "$GITHUB_OUTPUT"
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+
   rust:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -48,6 +98,8 @@ jobs:
   # GitHub's Windows runners run elevated. Only bf-scan and its crates are built,
   # so the frontend is not needed.
   admin-scan:
+    needs: changes
+    if: needs.changes.outputs.scanner == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     continue-on-error: true
@@ -61,6 +113,8 @@ jobs:
         run: cargo test -p bf-scan --release --test mft_vs_walk -- --include-ignored --nocapture
 
   ui:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
     defaults:
@@ -79,6 +133,8 @@ jobs:
       - run: npm test
 
   mac-rust:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -105,9 +161,13 @@ jobs:
       - run: cargo test --locked --workspace
 
   mac-package:
+    needs: changes
+    if: needs.changes.outputs.package == 'true'
     uses: ./.github/workflows/macos-package.yml
 
   deny:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
