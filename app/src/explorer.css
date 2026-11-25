@@ -459,7 +459,7 @@ button.type-row:hover { background: var(--hover); }
 .sidebar-item[aria-current="page"] { background: var(--selected); color: var(--text); }
 
 .files-expanded .file-filters {
-  grid-template-columns: minmax(150px, 2fr) repeat(3, minmax(100px, 1fr));
+  grid-template-columns: minmax(150px, 2fr) repeat(2, minmax(100px, 1fr));
   gap: 12px;
   padding: 16px;
 }
@@ -500,3 +500,6 @@ button.type-row:hover { background: var(--hover); }
 .changes-table { min-width: 340px; }
 .changes-table th:first-child { width: 42%; }
 .changes-table :is(td, th):not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+
+.category-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 16px 12px; }
+.category-strip small { color: var(--text-2); font-variant-numeric: tabular-nums; }

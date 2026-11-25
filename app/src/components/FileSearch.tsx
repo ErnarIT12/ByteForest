@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   searchFiles,
+  folderBreakdown,
+  type Breakdown,
   type FileCategory,
   type FileFilter,
   type SearchKind,
@@ -96,6 +98,21 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
     };
   }, [active, current, filter, scanId, generation]);
 
+  const rootId = useAppStore((s) => s.rootId);
+  const scopeId = scope?.id ?? rootId;
+  const [counts, setCounts] = useState<{ key: string; breakdown: Breakdown } | null>(null);
+  const countKey = `${scanId}:${scopeId}:${generation}`;
+  const showCounts = !name && !extension && !minSize && !extensions.length && kind === 'files';
+  useEffect(() => {
+    if (!active || !showCounts || scopeId === null || counts?.key === countKey) return;
+    let alive = true;
+    void folderBreakdown(scanId, scopeId, 1).then((breakdown) => {
+      if (alive) setCounts({ key: countKey, breakdown });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [active, showCounts, counts, countKey, scanId, scopeId]);
+  const breakdown = showCounts && counts?.key === countKey ? counts.breakdown : null;
+
   const results = current?.results;
   const folders = kind === 'folders';
 
@@ -154,20 +171,24 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
               onChange={(event) => { setExtension(event.target.value); setExtensions([]); edited(); }} />
           </label>
         )}
-        {!folders && (
-          <label>{strings.searchCategory}
-            <select value={category} onChange={(event) => { setCategory(event.target.value as FileCategory | ''); edited(); }}>
-              <option value="">{strings.searchAnyType}</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{strings.categoryNames[c]}</option>)}
-            </select>
-          </label>
-        )}
         <label>Minimum size
           <select value={minSize} onChange={(event) => { setMinSize(Number(event.target.value)); edited(); }}>
             {MIN_SIZES.map(({ label, value }) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
       </div>
+      {!folders && <div className="category-strip" role="group" aria-label={strings.searchCategory}>
+        <button type="button" className="chip" aria-pressed={!category} onClick={() => { setCategory(''); edited(); }}>
+          All types {breakdown && <small>{formatInt(breakdown.total_files)}</small>}
+        </button>
+        {CATEGORIES.map((type) => {
+          const count = breakdown?.categories.find((c) => c.category === type)?.files;
+          return <button key={type} type="button" className="chip" aria-pressed={category === type}
+            onClick={() => { setCategory(type); edited(); }}>
+            {strings.categoryNames[type]} {count !== undefined && <small>{formatInt(count)}</small>}
+          </button>;
+        })}
+      </div>}
       <details className="quick-searches">
         <summary>Quick searches{activePreset ? ` · ${strings.searchPresetNames[activePreset]}` : ''}</summary>
       <div className="chip-row" role="group" aria-label={strings.searchPresetsLabel}>
