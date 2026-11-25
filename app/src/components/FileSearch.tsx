@@ -202,7 +202,7 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
               {writable && <td><input type="checkbox" checked={queued.has(file.id)} disabled={busy}
                 aria-label={`Select ${file.path} for cleanup`} onChange={() => toggleQueued(file.id)} /></td>}
               <td><button type="button" className="match-name" onClick={() => onOpen(file.id)}
-                title={`Show in disk map: ${file.name}`}><FileKindIcon name={file.name} directory={file.is_dir} />{file.name}</button></td>
+                title={`Show in disk map: ${file.name}`}><FileKindIcon node={file.id} name={file.name} directory={file.is_dir} />{file.name}</button></td>
               <td title={file.path}>{file.path}</td>
               <td>{formatBytes(file.size)}</td>
             </tr>

@@ -1,3 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
+import { applicationIcon } from '../api';
+import { useAppStore } from '../store';
 import { AppWindow, CodeXml, File, FileArchive, FileImage, FileMusic, FileText, FileVideo, Folder } from 'lucide-react';
 import { Icon } from './Icon';
 
@@ -16,6 +19,29 @@ export function fileGlyph(name: string, directory: boolean) {
   }
 }
 
-export function FileKindIcon({ name, directory }: { name: string; directory: boolean }) {
+function ApplicationIcon({ node }: { node: number }) {
+  const scan = useAppStore((s) => !s.isMac && s.resultSource.kind === 'live' ? s.resultScanId : null);
+  const ref = useRef<HTMLSpanElement>(null);
+  const [src, setSrc] = useState('');
+  useEffect(() => {
+    if (scan === null || !ref.current) return;
+    let alive = true;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      observer.disconnect();
+      void applicationIcon(scan, node).then((bytes) => {
+        if (alive) setSrc('data:image/png;base64,' + btoa(Array.from(new Uint8Array(bytes), (n) => String.fromCharCode(n)).join('')));
+      }).catch(() => {});
+    });
+    observer.observe(ref.current);
+    return () => { alive = false; observer.disconnect(); };
+  }, [scan, node]);
+  return <span ref={ref} className="kind-icon" aria-hidden="true">{src
+    ? <img src={src} width="16" height="16" alt="" onError={() => setSrc('')} />
+    : <Icon icon={AppWindow} />}</span>;
+}
+
+export function FileKindIcon({ name, directory, node }: { name: string; directory: boolean; node: number }) {
+  if (!directory && name.toLowerCase().endsWith('.exe')) return <ApplicationIcon key={node} node={node} />;
   return <Icon icon={fileGlyph(name, directory)} className={`kind-icon ${directory ? 'folder' : 'file'}`} />;
 }

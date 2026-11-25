@@ -87,7 +87,7 @@ export const TreeRow = memo(function TreeRow({
         ) : (
           <span className="disclosure-spacer" />
         )}
-        <FileKindIcon name={node.name} directory={node.is_dir} />
+        <FileKindIcon node={node.id} name={node.name} directory={node.is_dir} />
         <span className="name-text" title={node.name}>
           {node.name}
         </span>
