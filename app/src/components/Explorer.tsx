@@ -7,6 +7,7 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { ChangesList } from './ChangesList';
 import { CompareBanner } from './CompareBanner';
 import { SnapshotBanner } from './SnapshotBanner';
+import { CleanupQueue } from './DiscardPileDock';
 import { FileSearch } from './FileSearch';
 import { NodeDetailsPanel } from './NodeDetailsPanel';
 import { strings } from '../strings';
@@ -26,7 +27,8 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
 }) {
   const [treeShare, setTreeShare] = useState(0.6);
   const [mapOnly, setMapOnly] = useState(false);
-  const search = useAppStore((s) => s.largeFilesOpen);
+  const view = useAppStore((s) => s.resultView);
+  const search = view === 'files';
   const [changesMode, setChangesMode] = useState(false);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,13 +72,13 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   // Drops a pending "locate file" request so it cannot switch the pane back.
   useEffect(() => {
     request.current += 1;
-  }, [presetSeq, search]);
+  }, [presetSeq, view]);
 
   const showSearch = (value: boolean) => {
     request.current += 1;
     setOpening(false);
     setError(null);
-    useAppStore.setState({ largeFilesOpen: value });
+    useAppStore.setState({ resultView: value ? 'files' : 'map' });
     setChangesMode(false);
   };
 
@@ -84,7 +86,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
     request.current += 1;
     setOpening(false);
     setError(null);
-    useAppStore.setState({ largeFilesOpen: false });
+    useAppStore.setState({ resultView: 'map' });
     setChangesMode(true);
   };
 
@@ -106,6 +108,19 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       if (isCurrent()) setOpening(false);
     }
   };
+  if (view === 'cleanup') return (
+    <main className="explorer cleanup-view">
+      <header className="scan-heading"><h1>Cleanup</h1></header>
+      <section className="cleanup-content">
+        <h2>Cache folders</h2>
+        <p>Find common cache folder names in this scan. Review their paths before choosing what to move.</p>
+        <button type="button" className="btn" onClick={() => useAppStore.getState().openSearch({
+          under: { id: root.id, name: root.name }, caches: true,
+        })}>Find cache folders</button>
+        <CleanupQueue />
+      </section>
+    </main>
+  );
   return (
     <main
       className={search ? "explorer files-expanded" : mapOnly ? "explorer map-expanded" : "explorer"}

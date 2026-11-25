@@ -6,6 +6,7 @@ import {
   type SearchKind,
   type SearchResults,
 } from '../api';
+import { toggleQueued, useDiscardPile } from '../discardPile';
 import { formatBytes, formatInt } from '../format';
 import { useAppStore } from '../store';
 import { SEARCH_PRESET_IDS, presetFilter, type SearchPresetId } from '../searchPresets';
@@ -45,8 +46,11 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
   const [names, setNames] = useState<string[]>([]);
   const [extensions, setExtensions] = useState<string[]>([]);
   const [activePreset, setActivePreset] = useState<SearchPresetId | null>(null);
+  const queued = useDiscardPile((s) => s.idSet);
+  const writable = useAppStore((s) => !s.scanning && s.resultSource.kind === 'live');
+  const busy = useDiscardPile((s) => s.busy);
   const preset = useAppStore((s) => s.searchPreset);
-  const [appliedSeq, setAppliedSeq] = useState(preset?.seq ?? 0);
+  const [appliedSeq, setAppliedSeq] = useState(0);
   // A new preset replaces the filters (adjusting state while rendering, not in an effect).
   if (preset && preset.seq !== appliedSeq) {
     setAppliedSeq(preset.seq);
@@ -55,10 +59,10 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
     setCategory(preset.category ?? '');
     setExtension(preset.extension ?? '');
     setScope(preset.under);
-    setKind('files');
-    setNames([]);
+    setKind(preset.caches ? 'folders' : 'files');
+    setNames(preset.caches ? presetFilter('caches').names : []);
     setExtensions([]);
-    setActivePreset(null);
+    setActivePreset(preset.caches ? 'caches' : null);
   }
   const [response, setResponse] = useState<RequestResult | null>(null);
   const generation = useAppStore((s) => s.generation);
@@ -192,9 +196,11 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
       )}
       <div className="matches-scroll">
         <table className="matches">
-          <thead><tr><th scope="col">Name</th><th scope="col">Path</th><th scope="col" aria-sort="descending">Size ↓</th></tr></thead>
+          <thead><tr>{writable && <th scope="col" className="queue-column">Select</th>}<th scope="col">Name</th><th scope="col">Path</th><th scope="col" aria-sort="descending">Size ↓</th></tr></thead>
           <tbody>{results?.files.map((file) => (
             <tr key={file.id}>
+              {writable && <td><input type="checkbox" checked={queued.has(file.id)} disabled={busy}
+                aria-label={`Select ${file.path} for cleanup`} onChange={() => toggleQueued(file.id)} /></td>}
               <td><button type="button" className="match-name" onClick={() => onOpen(file.id)}
                 title={`Show in disk map: ${file.name}`}><FileKindIcon name={file.name} directory={file.is_dir} />{file.name}</button></td>
               <td title={file.path}>{file.path}</td>
@@ -203,6 +209,10 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
           ))}</tbody>
         </table>
       </div>
+      {writable && queued.size > 0 && <footer className="selection-bar">
+        <span>{formatInt(queued.size)} selected for cleanup</span>
+        <button type="button" className="btn" onClick={() => useAppStore.setState({ resultView: 'cleanup' })}>Review selection</button>
+      </footer>}
     </section>
   );
 }

@@ -177,6 +177,7 @@ export const strings = {
   searchScopeLabel: 'Search scope',
   searchPresetsLabel: 'Quick searches',
   searchPresetNames: {
+    caches: 'Cache folders',
     node_modules: 'node_modules',
     target: 'target',
     venv: '.venv',
@@ -258,21 +259,21 @@ export const strings = {
   announceSnapshotOpened: (target: string) => `Opened the snapshot of ${target}. Read-only.`,
   statusSnapshot: (files: string, dirs: string) =>
     `Snapshot · ${files} files, ${dirs} folders`,
-  discardTitle: 'Discard Pile',
+  discardTitle: 'Selected for cleanup',
   discardEmpty: 'Queue files here to clean up in one go',
   discardEmptyHint: 'Add files or folders from the tree or the map, then move them all at once.',
-  addToDiscardPile: 'Add to Discard Pile',
-  removeFromDiscardPile: 'Remove from Discard Pile',
-  inDiscardPile: 'In Discard Pile',
+  addToDiscardPile: 'Add to cleanup',
+  removeFromDiscardPile: 'Remove from cleanup',
+  inDiscardPile: 'Selected for cleanup',
   discardSummary: (count: string, size: string, one: boolean) =>
     `${count} ${one ? 'item' : 'items'} · ${size}`,
-  discardListLabel: 'Items in the Discard Pile',
-  discardRemoveItem: (name: string) => `Remove ${name} from Discard Pile`,
+  discardListLabel: 'Items selected for cleanup',
+  discardRemoveItem: (name: string) => `Remove ${name} from cleanup`,
   discardShowItem: (name: string, path: string) => `Show ${name} in the folder tree. ${path}`,
   discardClear: 'Clear',
   discardMoveAll: (isMac: boolean) =>
     isMac ? 'Move All to Trash…' : 'Move All to Recycle Bin…',
-  discardBadge: (count: string) => `${count} in the Discard Pile`,
+  discardBadge: (count: string) => `${count} selected for cleanup`,
   discardConfirmTitle: (count: string, bin: string, one: boolean) =>
     `Move ${count} ${one ? 'item' : 'items'} to the ${bin}?`,
   discardConfirmBody: (bin: string) =>

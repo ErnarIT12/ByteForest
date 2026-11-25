@@ -7,6 +7,7 @@ describe('searchPresets', () => {
     expect(presetFilter('node_modules')).toMatchObject({ kind: 'folders', names: ['node_modules'] });
     expect(presetFilter('target')).toMatchObject({ kind: 'folders', names: ['target'] });
     expect(presetFilter('venv')).toMatchObject({ kind: 'folders', names: ['.venv', 'venv'] });
+    expect(presetFilter('caches')).toMatchObject({ kind: 'folders', names: ['.cache', '__pycache__', '.pytest_cache'] });
     expect(presetFilter('git')).toMatchObject({ kind: 'folders', names: ['.git'] });
   });
 
@@ -30,7 +31,7 @@ describe('searchPresets', () => {
   });
 
   it('covers every preset id', () => {
-    expect(SEARCH_PRESET_IDS).toHaveLength(6);
+    expect(SEARCH_PRESET_IDS).toHaveLength(7);
     for (const id of SEARCH_PRESET_IDS) expect(presetFilter(id)).toBeDefined();
   });
 });

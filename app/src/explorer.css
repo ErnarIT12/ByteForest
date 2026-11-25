@@ -484,3 +484,12 @@ button.type-row:hover { background: var(--hover); }
 .explorer > .row-splitter { grid-area: 3 / 3; width: auto; cursor: row-resize; }
 .row-splitter::after { inset: 3px calc(50% - 18px); }
 .row-splitter:hover::after, .row-splitter:focus-visible::after { inset: 2px calc(50% - 22px); }
+
+.matches .queue-column { width: 64px; }
+.selection-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-top: 1px solid var(--border); }
+.cleanup-view { grid-template-rows: auto minmax(0, 1fr); }
+.cleanup-content { padding: 20px; background: var(--surface); border-radius: 10px; overflow: auto; }
+.cleanup-content h2 { font-size: 16px; }
+.cleanup-content p { color: var(--text-2); }
+.cleanup-content .discard-dock { margin-top: 24px; }
+.cleanup-content .discard-list { max-height: none; }

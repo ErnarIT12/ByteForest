@@ -9,8 +9,9 @@ import { groupSnapshots } from '../snapshotsModel';
 import { folderLabel, locationOf, scanTargetFor } from '../scanTargets';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
-import { DiscardPileDock } from './DiscardPileDock';
+import { useDiscardSync } from './DiscardPileDock';
 import {
+  Trash2,
   LayoutGrid,
   Download,
   FileText,
@@ -109,7 +110,8 @@ function LocationList({ locations, target, onChoose }: {
 /** Left column in every state: where to scan, what was scanned recently and the Discard Pile. */
 export function Sidebar() {
   const hasScan = useAppStore((s) => s.root !== null);
-  const largeFiles = useAppStore((s) => s.largeFilesOpen);
+  useDiscardSync();
+  const view = useAppStore((s) => s.resultView);
   const drives = useAppStore((s) => s.drives);
   const userFolders = useAppStore((s) => s.userFolders);
   const recentScans = useAppStore((s) => s.recentScans);
@@ -160,10 +162,10 @@ export function Sidebar() {
       )}
       <div id="sidebar-body" className="sidebar-body">
         {hasScan && <section className="sidebar-section" aria-label="Scan views">
-          {[{ label: 'Disk map', icon: LayoutGrid, files: false }, { label: 'Largest files', icon: FileText, files: true }].map(({ label, icon, files }) => (
+          {([{ label: 'Disk map', icon: LayoutGrid, viewId: 'map' }, { label: 'Largest files', icon: FileText, viewId: 'files' }, { label: 'Cleanup', icon: Trash2, viewId: 'cleanup' }] as const).map(({ label, icon, viewId }) => (
             <button key={label} type="button" className="sidebar-item" title={label}
-              aria-current={largeFiles === files ? 'page' : undefined}
-              onClick={() => useAppStore.setState({ largeFilesOpen: files })}>
+              aria-current={view === viewId ? 'page' : undefined}
+              onClick={() => useAppStore.setState({ resultView: viewId })}>
               <Icon icon={icon} className="sidebar-icon" /><span className="sidebar-text">{label}</span>
             </button>
           ))}
@@ -189,7 +191,6 @@ export function Sidebar() {
         </section>
         <RecentScans groups={groups} rail={rail} onScan={(scanTarget) => choose(locationOf(scanTarget))} />
       </div>
-      <DiscardPileDock rail={rail} />
       <SettingsPopover />
     </nav>
   );
