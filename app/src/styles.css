@@ -263,8 +263,8 @@ select {
   display: flex;
   align-items: center;
   gap: 14px;
-  height: 48px;
-  padding: 0 0 0 18px;
+  height: 40px;
+  padding: 0 0 0 16px;
   position: relative;
   z-index: 2;
   background: var(--chrome-bg);
@@ -272,7 +272,7 @@ select {
 }
 .mac-caption { padding-inline: 84px 16px; }
 .caption-space { flex: 1; min-width: 16px; align-self: stretch; }
-.brand > * { pointer-events: none; }
+
 .caption-buttons { display: flex; align-self: stretch; }
 .caption-buttons button {
   display: grid;
@@ -302,20 +302,16 @@ select {
   .topbar-target { max-width: 110px; }
 }
 @media (max-width: 1000px) {
-  .topbar-target { display: none; }
+  .topbar-target { max-width: 160px; }
 }
 @media (max-width: 1080px) {
   .topbar { gap: 8px; }
   .topbar .progress-text { white-space: normal; line-height: 1.1; }
   .caption-buttons button { width: 36px; }
 }
-.brand {
-  color: var(--chrome-text);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font: 600 15px var(--font-display);
-}
+.caption-name { font-weight: 600; color: var(--chrome-text); }
+.refresh-scan { width: 32px; height: 32px; color: var(--chrome-text); }
+.refresh-scan:hover { background: var(--chrome-hover); }
 .topbar-controls {
   display: flex;
   align-items: center;

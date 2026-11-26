@@ -5,9 +5,8 @@ import { strings } from '../strings';
 import { FastScanButton } from './FastScanButton';
 import { ScanButton } from './ScanButton';
 import { ScanProgressText } from './ScanProgressText';
-import { TreeGlyph } from './TreeGlyph';
 
-/** App bar: name, current target with Scan / Fast scan, view switch, snapshots and settings. */
+/** Draggable window caption and actions for the current scan. */
 export function TopBar() {
   const hasResults = useAppStore((s) => s.root !== null);
   const scanning = useAppStore((s) => s.scanning);
@@ -23,10 +22,7 @@ export function TopBar() {
     : target === null ? null : scanTargetFor(target);
   return (
     <header className={isMac ? "topbar mac-caption" : "topbar"} data-tauri-drag-region>
-      <div className="brand" data-tauri-drag-region>
-        <TreeGlyph />
-        <span className="brand-name">{strings.appName}</span>
-      </div>
+      {!hasResults && <span className="caption-name" data-tauri-drag-region>{strings.appName}</span>}
       {hasResults && <div className="topbar-controls">
         {shownTarget && (
           <span className="topbar-target" title={shownTarget} aria-label={strings.topbarTargetLabel(shownTarget)}>
@@ -40,7 +36,7 @@ export function TopBar() {
             Scanned {new Date(lastScan.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </time>
         )}
-        <ScanButton />
+        <ScanButton compact />
         <FastScanButton />
         {scanning && <ScanProgressText />}
       </div>}
