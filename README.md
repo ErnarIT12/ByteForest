@@ -24,6 +24,12 @@
 
 ![First scan on Windows](docs/screenshots/windows-first-scan.png)
 
+## Largest files
+
+Open **Largest files** to filter the current scan by type or size. Select files, then open **Cleanup** to review their paths before moving them to the Recycle Bin or Trash.
+
+![Largest files](docs/screenshots/windows-largest-files.png)
+
 ![ByteForest on macOS with Treemap, folder tree, and inspector in Graphite](docs/screenshots/macos-treemap-graphite.png)
 
 *Captured on macOS with fictional demo data.*
@@ -52,16 +58,16 @@ These are single-machine numbers, not a formal benchmark; measure your own with 
 ## Interactive Treemap and Sunburst exploration
 
 - **Folder tree** with size, share of parent, file count and modification date.
-- **Squarified treemap** and a **Sunburst disk chart**, switched with **Treemap | Sunburst** in the top bar. Both support zoom into a folder, breadcrumbs, tooltips, keyboard navigation and the context menu.
+- **Squarified treemap** and a **Sunburst disk chart**, switched with **Treemap | Sunburst** above the map. Both support zoom into a folder, breadcrumbs, tooltips, keyboard navigation and the context menu.
 - **Synchronized selection** between the tree, the map and the status bar. A double click opens a folder; the breadcrumbs, the up arrow or the mouse wheel zoom back out.
 - **File-type breakdown** of the selected folder (categories and top extensions) and a **Folders / File types** color mode for the maps, with a legend.
 - **Right-click context menu** (also Shift+F10) on the tree and the maps: open, show in Explorer/Finder, copy the path, or move to the Recycle Bin/Trash after confirmation. Everything updates instantly, without a rescan.
 
 ![ByteForest on macOS with the Sunburst chart and inspector in Silver](docs/screenshots/macos-sunburst-silver.png)
 
-## Discard Pile, auto-snapshots and diff
+## Cleanup, auto-snapshots and diff
 
-- **Discard Pile**: queue files and folders from the tree, the maps or the inspector (Delete key or right-click), review the running total in the sidebar, then move everything to the Recycle Bin/Trash in one confirmed step. Nothing is deleted until you confirm, and items that cannot be moved stay queued with the reason.
+- **Cleanup**: queue files and folders from the tree, the maps or the inspector (Delete key or right-click), review the running total in Cleanup, then move everything to the Recycle Bin/Trash in one confirmed step. Nothing is deleted until you confirm, and items that cannot be moved stay queued with the reason.
 - **Snapshots**: save a scan to a small `.bfsnap` file and compare a later scan with it to see what grew, shrank or is new. A Changes view lists the biggest increases.
 - **Diff highlights on both maps**: while comparing, grown, new and shrunk items are outlined in the treemap and the sunburst (solid, dotted and dashed, with the size change as a label).
 - **Automatic snapshots**: every finished scan is saved in the background (the last 10 are kept by default; 0 to 50 or Off in Settings). Reopen one from the sidebar instantly and read-only, without rescanning, or compare it with the current scan.
@@ -69,7 +75,7 @@ These are single-machine numbers, not a formal benchmark; measure your own with 
 
 ## Minimalist UI and 100% offline privacy
 
-- **Radix-inspired, minimalist interface** with a unified left sidebar: your drives, Desktop, Downloads and Documents, recent scans and the Discard Pile, collapsing to an icon rail.
+- **Radix-inspired, minimalist interface** with a unified left sidebar: your drives, Desktop, Downloads and Documents, recent scans and the Cleanup, collapsing to an icon rail.
 - **Graphite (dark, the default) and Silver (light) themes**, or follow the system, with WCAG AA contrast. Hover effects respect the reduced-motion setting.
 - **Works fully offline.** There is no telemetry, no account and no update check, and the code makes no network requests. The app window may only talk to the local Rust backend; the Content Security Policy allows nothing else.
 - **Your data stays on your machine.** Settings are stored in `%APPDATA%\ByteForest\settings.json` and logs in `%LOCALAPPDATA%\ByteForest\logs`. Automatic snapshots (names and sizes of scanned items) are stored in `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` on macOS) and can be turned off or limited in Settings.
