@@ -24,6 +24,12 @@
 
 ![Windows 上的首次扫描](docs/screenshots/windows-first-scan.png)
 
+## 大文件
+
+打开 **Largest files**，按类型或大小筛选本次扫描的结果。勾选文件后，在 **Cleanup** 中核对路径，再将文件移至回收站。
+
+![大文件](docs/screenshots/windows-largest-files.png)
+
 ![macOS 上的 ByteForest，显示 Treemap、文件夹树和详情面板（Graphite 主题）](docs/screenshots/macos-treemap-graphite.png)
 
 *截图在 macOS 上使用虚构的演示数据拍摄。*
@@ -52,16 +58,16 @@
 ## 用 Treemap 和 Sunburst 交互式探索
 
 - **文件夹树**，显示大小、占父文件夹的比例、文件数和修改日期。
-- **Squarified treemap** 与 **Sunburst 磁盘图**，通过顶部栏的 **Treemap | Sunburst** 切换。两者都支持放大进入文件夹、面包屑、悬停提示、键盘操作和右键菜单。
+- **Squarified treemap** 与 **Sunburst 磁盘图**，通过地图上方的 **Treemap | Sunburst** 切换。两者都支持放大进入文件夹、面包屑、悬停提示、键盘操作和右键菜单。
 - 树、地图和状态栏之间**选择保持同步**。双击打开文件夹；用面包屑、向上箭头或鼠标滚轮返回。
 - 所选文件夹的**文件类型分布**（类别和主要扩展名），以及带图例的地图着色模式 **Folders / File types**。
 - 树和地图上的**右键菜单**（也可用 Shift+F10）：打开、在 Explorer/Finder 中显示、复制路径，或确认后移到回收站。所有内容立即更新，无需重新扫描。
 
 ![macOS 上的 ByteForest，显示 Sunburst 图和详情面板（Silver 主题）](docs/screenshots/macos-sunburst-silver.png)
 
-## Discard Pile、自动快照与差异对比
+## Cleanup、自动快照与差异对比
 
-- **Discard Pile（待丢弃清单）**：从树、地图或检查器中把文件和文件夹加入清单（Delete 键或右键），在侧边栏查看累计大小，然后一步确认，全部移到回收站。确认之前不会删除任何内容，无法移动的项目会连同原因一起留在清单中。
+- **Cleanup（待丢弃清单）**：从树、地图或检查器中把文件和文件夹加入清单（Delete 键或右键），在 Cleanup 中查看累计大小，然后一步确认，全部移到回收站。确认之前不会删除任何内容，无法移动的项目会连同原因一起留在清单中。
 - **快照**：把一次扫描保存为小巧的 `.bfsnap` 文件，之后用新的扫描与它对比，查看哪些增大、缩小或是新增。Changes 视图会列出增幅最大的项目。
 - **两种地图上的差异高亮**：对比时，增大、新增和缩小的项目会在 treemap 和 sunburst 中用轮廓标出（实线、点线和虚线，并用标签显示大小变化）。
 - **自动快照**：每次扫描完成后都会在后台保存（默认保留最近 10 个；在设置中可选 0 到 50 个，或关闭）。可从侧边栏即时以只读方式重新打开，无需重新扫描，也可与当前扫描对比。
@@ -69,7 +75,7 @@
 
 ## 极简界面与 100% 离线隐私
 
-- 受 Radix 启发的**极简界面**，配有统一的左侧边栏：磁盘、桌面、下载和文档、最近的扫描以及 Discard Pile，并可折叠为图标栏。
+- 受 Radix 启发的**极简界面**，配有统一的左侧边栏：磁盘、桌面、下载和文档、最近的扫描以及 Cleanup，并可折叠为图标栏。
 - **Graphite（深色，默认）和 Silver（浅色）主题**，也可跟随系统，对比度符合 WCAG AA。悬停效果会遵循“减少动态效果”设置。
 - **完全离线运行。** 没有遥测、没有账号、没有更新检查，代码也不发起任何网络请求。应用窗口只能与本地 Rust 后端通信，内容安全策略（CSP）不允许其他访问。
 - **你的数据留在你的电脑上。** 设置保存在 `%APPDATA%\ByteForest\settings.json`，日志保存在 `%LOCALAPPDATA%\ByteForest\logs`。自动快照（已扫描项目的名称和大小）保存在 `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto`（macOS 上为 `~/Library/Application Support/dev.byteforest.app/snapshots/auto`），可在设置中关闭或限制数量。

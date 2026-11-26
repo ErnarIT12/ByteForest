@@ -50,23 +50,18 @@ export function ChangesList({ scanId, active, onOpen, opening, navigationError }
           {navigationError || `${strings.changesFailed}: ${current?.error}`}
         </p>
       )}
-      <ul className="file-results">
-        {changes?.map((change) => {
+      <div className="matches-scroll"><table className="matches changes-table">
+        <thead><tr><th>Name</th><th>Before</th><th>Now</th><th>Change</th></tr></thead>
+        <tbody>{changes?.map((change) => {
           const cell = deltaCell({ status: change.status, base: change.base, delta: change.delta, removed: null });
-          return (
-            <li key={change.id}>
-              <button type="button" className="file-result" onClick={() => onOpen(change.id)} title={change.path}>
-                <span>{change.name}</span>
-                <strong>
-                  {cell && <em className={`delta ${cell.tone}`}>{cell.text}</em>}
-                  {cell?.tone === 'added' && ` ${formatBytes(change.current)}`}
-                </strong>
-                <small>{change.path}</small>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+          return <tr key={change.id}>
+            <td><button type="button" className="match-name" onClick={() => onOpen(change.id)} title={change.path}>{change.name}</button></td>
+            <td>{change.base === null ? '—' : formatBytes(change.base)}</td>
+            <td>{formatBytes(change.current)}</td>
+            <td>{cell && <span className={`delta ${cell.tone}`}>{cell.text}</span>}</td>
+          </tr>;
+        })}</tbody>
+      </table></div>
     </section>
   );
 }

@@ -24,6 +24,12 @@
 
 ![Primer escaneo en Windows](docs/screenshots/windows-first-scan.png)
 
+## Archivos grandes
+
+Abre **Largest files** para filtrar por tipo o tamaño. Marca los archivos y revisa sus rutas en **Cleanup** antes de moverlos a la Papelera.
+
+![Archivos grandes](docs/screenshots/windows-largest-files.png)
+
 ![ByteForest en macOS con treemap, árbol de carpetas y panel de detalles en el tema Graphite](docs/screenshots/macos-treemap-graphite.png)
 
 *Capturas tomadas en macOS con datos de demostración ficticios.*
@@ -52,16 +58,16 @@ Son cifras de máquinas concretas, no un benchmark formal; mide las tuyas con `b
 ## Exploración interactiva con Treemap y Sunburst
 
 - **Árbol de carpetas** con tamaño, porcentaje respecto a la carpeta superior, número de archivos y fecha de modificación.
-- **Treemap squarified** y **gráfico Sunburst**, que se alternan con **Treemap | Sunburst** en la barra superior. Ambos permiten hacer zoom en una carpeta y ofrecen migas de pan, información emergente, navegación con teclado y menú contextual.
+- **Treemap squarified** y **gráfico Sunburst**, que se alternan con **Treemap | Sunburst** encima del mapa. Ambos permiten hacer zoom en una carpeta y ofrecen migas de pan, información emergente, navegación con teclado y menú contextual.
 - **Selección sincronizada** entre el árbol, el mapa y la barra de estado. Un doble clic abre una carpeta; para volver atrás usa las migas de pan, la flecha hacia arriba o la rueda del ratón.
 - **Desglose por tipo de archivo** de la carpeta seleccionada (categorías y extensiones principales) y modo de color **Folders / File types** para los mapas, con leyenda.
 - **Menú contextual** con clic derecho (también Mayús+F10) en el árbol y en los mapas: abrir, mostrar en el Explorador/Finder, copiar la ruta o mover a la Papelera tras confirmar. Todo se actualiza al instante, sin volver a analizar.
 
 ![ByteForest en macOS con el gráfico Sunburst y el panel de detalles en el tema Silver](docs/screenshots/macos-sunburst-silver.png)
 
-## Discard Pile, instantáneas automáticas y comparación
+## Cleanup, instantáneas automáticas y comparación
 
-- **Discard Pile (pila de descarte)**: pon en cola archivos y carpetas desde el árbol, los mapas o el inspector (tecla Supr o clic derecho), consulta el total acumulado en la barra lateral y mueve todo a la Papelera en un solo paso confirmado. No se borra nada hasta que confirmes, y lo que no se pueda mover permanece en la cola con el motivo.
+- **Cleanup (pila de descarte)**: pon en cola archivos y carpetas desde el árbol, los mapas o el inspector (tecla Supr o clic derecho), consulta el total acumulado en Cleanup y mueve todo a la Papelera en un solo paso confirmado. No se borra nada hasta que confirmes, y lo que no se pueda mover permanece en la cola con el motivo.
 - **Instantáneas**: guarda un análisis en un archivo `.bfsnap` pequeño y compara con él un análisis posterior para ver qué ha crecido, disminuido o es nuevo. La vista Changes enumera los mayores aumentos.
 - **Resaltado de diferencias en ambos mapas**: al comparar, los elementos que han crecido, los nuevos y los que han disminuido se perfilan en el treemap y en el sunburst (trazo continuo, punteado y discontinuo, con el cambio de tamaño como etiqueta).
 - **Instantáneas automáticas**: cada análisis terminado se guarda en segundo plano (se conservan las últimas 10 por defecto; de 0 a 50 u Off en Ajustes). Reabre una desde la barra lateral al instante y en solo lectura, sin volver a analizar, o compárala con el análisis actual.
@@ -69,7 +75,7 @@ Son cifras de máquinas concretas, no un benchmark formal; mide las tuyas con `b
 
 ## Interfaz minimalista y privacidad 100 % sin conexión
 
-- **Interfaz minimalista inspirada en Radix** con una barra lateral izquierda unificada: tus unidades, Escritorio, Descargas y Documentos, análisis recientes y la Discard Pile; se contrae en una columna de iconos.
+- **Interfaz minimalista inspirada en Radix** con una barra lateral izquierda unificada: tus unidades, Escritorio, Descargas y Documentos, análisis recientes y la Cleanup; se contrae en una columna de iconos.
 - Temas **Graphite (oscuro, el predeterminado) y Silver (claro)**, o seguir el del sistema, con contraste WCAG AA. Los efectos al pasar el cursor respetan el ajuste de movimiento reducido.
 - **Funciona totalmente sin conexión.** No hay telemetría, ni cuenta, ni comprobación de actualizaciones, y el código no hace peticiones de red. La ventana de la aplicación solo puede comunicarse con el backend local de Rust; la Content Security Policy no permite nada más.
 - **Tus datos se quedan en tu equipo.** Los ajustes se guardan en `%APPDATA%\ByteForest\settings.json` y los registros en `%LOCALAPPDATA%\ByteForest\logs`. Las instantáneas automáticas (nombres y tamaños de los elementos analizados) se guardan en `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` en macOS) y se pueden desactivar o limitar en Ajustes.

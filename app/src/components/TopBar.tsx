@@ -3,11 +3,8 @@ import { scanTargetFor } from '../scanTargets';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { FastScanButton } from './FastScanButton';
-import { MapViewToggle } from './MapViewToggle';
 import { ScanButton } from './ScanButton';
 import { ScanProgressText } from './ScanProgressText';
-import { SettingsPopover } from './SettingsPopover';
-import { SnapshotsMenu } from './SnapshotsMenu';
 import { TreeGlyph } from './TreeGlyph';
 
 /** App bar: name, current target with Scan / Fast scan, view switch, snapshots and settings. */
@@ -18,6 +15,7 @@ export function TopBar() {
   const target = useAppStore((s) => s.target);
   const source = useAppStore((s) => s.resultSource);
   const resultTarget = useAppStore((s) => s.resultTarget);
+  const lastScan = useAppStore((s) => s.recentScans.find((entry) => entry.target === s.resultTarget));
   const isSnapshot = source.kind === 'snapshot';
   // A snapshot view shows what the snapshot holds, not the sidebar selection.
   const shownTarget = isSnapshot && resultTarget !== null
@@ -36,14 +34,17 @@ export function TopBar() {
           </span>
         )}
         {isSnapshot && <span className="badge snapshot-badge">{strings.snapshotBadge}</span>}
+        {!isSnapshot && !scanning && lastScan && shownTarget === resultTarget && (
+          <time className="last-scan" dateTime={new Date(lastScan.finishedAt).toISOString()}
+            title={new Date(lastScan.finishedAt).toLocaleString()}>
+            Scanned {new Date(lastScan.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </time>
+        )}
         <ScanButton />
         <FastScanButton />
         {scanning && <ScanProgressText />}
-        <MapViewToggle />
-        <SnapshotsMenu />
       </div>}
       <div className="caption-space" data-tauri-drag-region />
-      <SettingsPopover />
       {!isMac && <WindowControls />}
     </header>
   );

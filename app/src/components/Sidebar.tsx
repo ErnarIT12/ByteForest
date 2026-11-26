@@ -3,14 +3,16 @@ import { type UserFolder, type VolumeSummary } from '../api';
 import { formatBytes } from '../format';
 import { setSidebarCollapsed, useSidebarCollapsed } from '../hooks/useSidebarCollapsed';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { useAutoSnapshots, watchAutoSnapshots } from '../autoSnapshots';
+import { watchAutoSnapshots } from '../autoSnapshots';
 import { chooseFolderAndScan, runScan } from '../scanController';
-import { groupSnapshots } from '../snapshotsModel';
-import { folderLabel, locationOf, scanTargetFor } from '../scanTargets';
+import { folderLabel, scanTargetFor } from '../scanTargets';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
-import { DiscardPileDock } from './DiscardPileDock';
+import { useDiscardSync } from './DiscardPileDock';
 import {
+  Trash2,
+  History,
+  LayoutGrid,
   Download,
   FileText,
   Folder,
@@ -23,10 +25,18 @@ import {
   PanelLeftOpen,
   type LucideIcon,
 } from './Icon';
+import { SettingsPopover } from './SettingsPopover';
 import { RecentScans } from './RecentScans';
 
 /** Windows narrower than this always show the icon rail so the explorer keeps its room. */
 export const SIDEBAR_NARROW_QUERY = '(max-width: 999px)';
+
+const VIEWS = [
+  { label: 'Disk map', icon: LayoutGrid, viewId: 'map' },
+  { label: 'Largest files', icon: FileText, viewId: 'files' },
+  { label: 'Scan history', icon: History, viewId: 'history' },
+  { label: 'Cleanup', icon: Trash2, viewId: 'cleanup' },
+] as const;
 
 interface Location {
   /** Value stored as the target: a drive letter or a folder path. */
@@ -106,10 +116,11 @@ function LocationList({ locations, target, onChoose }: {
 
 /** Left column in every state: where to scan, what was scanned recently and the Discard Pile. */
 export function Sidebar() {
+  const hasScan = useAppStore((s) => s.root !== null);
+  useDiscardSync();
+  const view = useAppStore((s) => s.resultView);
   const drives = useAppStore((s) => s.drives);
   const userFolders = useAppStore((s) => s.userFolders);
-  const recentScans = useAppStore((s) => s.recentScans);
-  const snapshots = useAutoSnapshots((s) => s.list);
   const target = useAppStore((s) => s.target);
   const setTarget = useAppStore((s) => s.setTarget);
   const isMac = useAppStore((s) => s.isMac);
@@ -139,7 +150,6 @@ export function Sidebar() {
     });
   }
 
-  const groups = groupSnapshots(recentScans, snapshots);
 
   return (
     <nav className="sidebar" aria-label={strings.sidebarLabel} data-rail={rail ? 'true' : undefined}>
@@ -155,6 +165,15 @@ export function Sidebar() {
         </div>
       )}
       <div id="sidebar-body" className="sidebar-body">
+        {hasScan && <section className="sidebar-section" aria-label="Scan views">
+          {VIEWS.map(({ label, icon, viewId }) => (
+            <button key={label} type="button" className="sidebar-item" title={label}
+              aria-current={view === viewId ? 'page' : undefined}
+              onClick={() => useAppStore.setState({ resultView: viewId })}>
+              <Icon icon={icon} className="sidebar-icon" /><span className="sidebar-text">{label}</span>
+            </button>
+          ))}
+        </section>}
         <section className="sidebar-section" aria-labelledby="sidebar-locations">
           <h2 id="sidebar-locations" className="sidebar-heading">{strings.locationsTitle}</h2>
           {drives === null ? (
@@ -174,9 +193,9 @@ export function Sidebar() {
             </button>
           )}
         </section>
-        <RecentScans groups={groups} rail={rail} onScan={(scanTarget) => choose(locationOf(scanTarget))} />
+        {!hasScan && <RecentScans rail={rail} />}
       </div>
-      <DiscardPileDock rail={rail} />
+      <SettingsPopover />
     </nav>
   );
 }

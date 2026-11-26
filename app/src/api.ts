@@ -438,3 +438,6 @@ export const onScanDone = (cb: (d: ScanDone) => void): Promise<UnlistenFn> =>
   listen<ScanDone>('scan://done', (e) => cb(e.payload));
 export const onScanError = (cb: (e: ScanErrorEvent) => void): Promise<UnlistenFn> =>
   listen<ScanErrorEvent>('scan://error', (e) => cb(e.payload));
+
+export const applicationIcon = (scanId: number, node: number) =>
+  invoke<ArrayBuffer>('application_icon', { scanId, node });

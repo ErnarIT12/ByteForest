@@ -38,6 +38,7 @@ fn main() {
             commands::folder_breakdown,
             commands::locate_node,
             commands::node_details,
+            commands::application_icon,
             commands::copy_node_path,
             commands::move_node_to_trash,
             commands::move_nodes_to_trash,

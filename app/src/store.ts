@@ -78,6 +78,7 @@ export interface RevealRequest {
 export interface SearchPreset {
   /** Bumped for every request so the same preset can be applied again. */
   seq: number;
+  caches?: boolean;
   category?: FileCategory;
   extension?: string;
   /** Folder the search is limited to. */
@@ -92,6 +93,7 @@ interface AppState {
   /** Finished scans, newest first (persisted). */
   recentScans: RecentScan[];
   /** Disk map shown in the explorer (persisted). */
+  resultView: 'map' | 'files' | 'cleanup' | 'history';
   mapView: MapView;
   /** Location picked in the sidebar: a drive letter ("C") or a folder path. */
   target: string | null;
@@ -225,6 +227,7 @@ const initialState: AppState = {
   selectedId: null,
   reveal: null,
   invalidation: null,
+  resultView: 'map',
   searchPreset: null,
   error: null,
   errorTitle: null,
@@ -369,6 +372,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       selectedId: null,
       reveal: null,
       invalidation: null,
+      resultView: 'map',
       searchPreset: null,
     });
   },
@@ -423,6 +427,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       selectedId: null,
       reveal: null,
       invalidation: null,
+      resultView: 'map',
       searchPreset: null,
     });
   },
@@ -469,6 +474,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     const file = steps[steps.length - 1];
     const focusPath = steps.slice(0, -1).map(({ id, name }) => ({ id, name }));
     set({
+      resultView: 'map',
       selectedId: file.id,
       focusId: focusPath[focusPath.length - 1].id,
       focusPath,
@@ -517,7 +523,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     set((s) => ({ baseline: info, baselineSeq: s.baselineSeq + 1, generation: s.generation + 1 })),
 
   openSearch: (preset) =>
-    set((s) => ({ searchPreset: { ...preset, seq: (s.searchPreset?.seq ?? 0) + 1 } })),
+    set((s) => ({ resultView: 'files', searchPreset: { ...preset, seq: (s.searchPreset?.seq ?? 0) + 1 } })),
   dismissError: () => set({ error: null, errorTitle: null }),
   setElevating: (elevating) => set({ elevating }),
   elevationFailed: (message) =>

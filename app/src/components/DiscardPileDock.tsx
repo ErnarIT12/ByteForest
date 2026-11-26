@@ -11,7 +11,7 @@ function summaryLine(count: number, bytes: number): string {
 }
 
 /** Keeps the pile tied to the shown scan result and pruned after every change of the tree. */
-function useDiscardSync(): void {
+export function useDiscardSync(): void {
   const resultScanId = useAppStore((s) => s.resultScanId);
   const scanning = useAppStore((s) => s.scanning);
   const generation = useAppStore((s) => s.generation);
@@ -24,8 +24,7 @@ function useDiscardSync(): void {
 }
 
 /** Bottom dock of the sidebar: the queue of items to move to the Recycle Bin / Trash in one go. */
-export function DiscardPileDock({ rail }: { rail: boolean }) {
-  useDiscardSync();
+export function CleanupQueue() {
   const summary = useDiscardPile((s) => s.summary);
   const busy = useDiscardPile((s) => s.busy);
   const outcome = useDiscardPile((s) => s.outcome);
@@ -49,21 +48,6 @@ export function DiscardPileDock({ rail }: { rail: boolean }) {
     </>
   );
 
-  if (rail) {
-    // The icon rail has no room for the list; the button still starts the batch.
-    return (
-      <section className="discard-dock" aria-label={strings.discardTitle}>
-        <button type="button" className="sidebar-item discard-rail-btn"
-          disabled={count === 0 || busy}
-          title={count > 0 ? `${line} · ${moveAll}` : strings.discardEmpty}
-          aria-label={count > 0 ? `${strings.discardTitle}: ${line}. ${moveAll}` : `${strings.discardTitle}: ${strings.discardEmpty}`}
-          onClick={() => useDiscardPile.getState().requestMoveAll()}>
-          {heading}
-        </button>
-      </section>
-    );
-  }
-
   return (
     <section className="discard-dock" aria-labelledby="sidebar-discard" aria-busy={busy}>
       <h2 id="sidebar-discard" className="sidebar-heading discard-heading">{heading}</h2>
@@ -80,7 +64,7 @@ export function DiscardPileDock({ rail }: { rail: boolean }) {
                   onClick={() => void revealQueued(item.id)}>
                   <Icon icon={item.is_dir ? Folder : File}
                     className={`kind-icon ${item.is_dir ? 'folder' : 'file'}`} />
-                  <span className="discard-name">{item.name}</span>
+                  <span className="discard-name">{item.path}</span>
                   <span className="discard-size">{formatBytes(item.size)}</span>
                 </button>
                 <button type="button" className="icon-btn discard-remove" disabled={busy}

@@ -12,7 +12,7 @@ import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { Icon, Settings as SettingsGlyph, X } from './Icon';
 
-/** Gear button with a small popover holding the app settings. */
+/** Sidebar settings button and its modal dialog. */
 export function SettingsPopover() {
   const [open, setOpen] = useState(false);
   // The settings as last loaded or saved; null until loaded. `set_settings` replaces the whole
@@ -26,9 +26,8 @@ export function SettingsPopover() {
   const [draft, setDraft] = useState('');
   const [draftError, setDraftError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const root = useRef<HTMLDivElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
-  const appearance = useRef<HTMLSelectElement>(null);
   const isMac = useAppStore((s) => s.isMac);
   const panelId = useId();
 
@@ -54,28 +53,8 @@ export function SettingsPopover() {
     };
   }, [open]);
 
-  // Put keyboard focus on the appearance control when the panel opens.
   useEffect(() => {
-    if (open) appearance.current?.focus();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        gear.current?.focus();
-      }
-    };
-    const onDown = (e: MouseEvent) => {
-      if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onDown);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onDown);
-    };
+    if (open) dialog.current?.showModal();
   }, [open]);
 
   /** Saves the settings with `patch` applied; the other fields are sent unchanged. */
@@ -108,24 +87,28 @@ export function SettingsPopover() {
   };
 
   return (
-    <div className="settings" ref={root}>
+    <div className="settings">
       <button
         ref={gear}
         type="button"
-        className="icon-btn"
+        className="sidebar-item"
+        title={strings.settings}
         aria-label={strings.settings}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((o) => !o)}
       >
-        <Icon icon={SettingsGlyph} />
+        <Icon icon={SettingsGlyph} /><span className="sidebar-text">{strings.settings}</span>
       </button>
       {open && (
-        <div className="popover" id={panelId} role="dialog" aria-label={strings.settings}>
+        <dialog className="settings-dialog" ref={dialog} id={panelId} aria-label={strings.settings}
+          onClose={() => { setOpen(false); gear.current?.focus(); }}>
+          <button className="icon-btn dialog-close" type="button" aria-label="Close settings"
+            onClick={() => dialog.current?.close()}><Icon icon={X} /></button>
           <h2>Settings</h2>
           <label className="appearance-setting">Appearance
-            <select ref={appearance} defaultValue={getAppearance()}
+            <select defaultValue={getAppearance()}
               onChange={(e) => setAppearance(e.target.value as Appearance)}>
               <option value="dark">Graphite</option>
               <option value="light">Silver</option>
@@ -218,7 +201,7 @@ export function SettingsPopover() {
               {error}
             </p>
           )}
-        </div>
+        </dialog>
       )}
     </div>
   );

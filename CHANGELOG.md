@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Explore largest files in a full-width table with type counts, size filters, file icons and a reviewed cleanup selection. Windows can display executable icons from the shell.
+- Switch among Disk map, Largest files, Scan history and Cleanup in the sidebar. Resize the tree beside the map, compare saved scans and open Settings over the current view.
+
 - Center the desktop window on launch and constrain its initial size to the work area. Choose a folder directly from the welcome screen, with reduced-motion-aware transitions into scanning and results.
 
 ## [0.4.0] - 2026-11-24

@@ -94,6 +94,8 @@ async function runStartupScan(): Promise<void> {
   const store = useAppStore.getState();
   if (letter !== null && store.drives?.some((d) => d.letter?.toUpperCase() === letter)) {
     store.setTarget(letter);
+  } else if (letter === null) {
+    store.setTarget(requested.trim());
   }
   // Events of the scan must not be missed, so wait until the listeners are registered.
   await listenersReady.catch(() => {});

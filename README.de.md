@@ -24,6 +24,12 @@
 
 ![Erster Scan unter Windows](docs/screenshots/windows-first-scan.png)
 
+## Große Dateien
+
+Öffnen Sie **Largest files**, um nach Typ oder Größe zu filtern. Markieren Sie Dateien und prüfen Sie unter **Cleanup** die Pfade, bevor Sie die Auswahl in den Papierkorb verschieben.
+
+![Große Dateien](docs/screenshots/windows-largest-files.png)
+
 ![ByteForest unter macOS mit Treemap, Ordnerbaum und Detailbereich im Graphite-Design](docs/screenshots/macos-treemap-graphite.png)
 
 *Die Screenshots wurden unter macOS mit fiktiven Demodaten aufgenommen.*
@@ -52,16 +58,16 @@ Das sind Messwerte einzelner Rechner, kein formaler Benchmark; messen Sie Ihren 
 ## Interaktive Erkundung mit Treemap und Sunburst
 
 - **Ordnerbaum** mit Größe, Anteil am übergeordneten Ordner, Dateianzahl und Änderungsdatum.
-- **Squarified Treemap** und **Sunburst-Diagramm**, umschaltbar über **Treemap | Sunburst** in der oberen Leiste. Beide bieten Zoom in Ordner, Brotkrumennavigation, Tooltips, Tastaturbedienung und das Kontextmenü.
+- **Squarified Treemap** und **Sunburst-Diagramm**, umschaltbar über **Treemap | Sunburst** über der Karte. Beide bieten Zoom in Ordner, Brotkrumennavigation, Tooltips, Tastaturbedienung und das Kontextmenü.
 - **Synchronisierte Auswahl** zwischen Baum, Karte und Statusleiste. Ein Doppelklick öffnet einen Ordner; zurück geht es über die Brotkrumen, den Aufwärtspfeil oder das Mausrad.
 - **Aufschlüsselung nach Dateityp** für den gewählten Ordner (Kategorien und häufigste Erweiterungen) und der Farbmodus **Folders / File types** für die Karten, mit Legende.
 - **Kontextmenü** per Rechtsklick (auch Umschalt+F10) im Baum und auf den Karten: öffnen, im Explorer/Finder anzeigen, Pfad kopieren oder nach Bestätigung in den Papierkorb verschieben. Alles aktualisiert sich sofort, ohne neuen Scan.
 
 ![ByteForest unter macOS mit Sunburst-Diagramm und Detailbereich im Silver-Design](docs/screenshots/macos-sunburst-silver.png)
 
-## Discard Pile, automatische Snapshots und Vergleich
+## Cleanup, automatische Snapshots und Vergleich
 
-- **Discard Pile (Ablagestapel)**: Dateien und Ordner aus Baum, Karten oder Inspektor vormerken (Entf-Taste oder Rechtsklick), die laufende Summe in der Seitenleiste prüfen und alles in einem bestätigten Schritt in den Papierkorb verschieben. Bis zur Bestätigung wird nichts gelöscht; Elemente, die sich nicht verschieben lassen, bleiben mit Begründung vorgemerkt.
+- **Cleanup (Ablagestapel)**: Dateien und Ordner aus Baum, Karten oder Inspektor vormerken (Entf-Taste oder Rechtsklick), die laufende Summe unter Cleanup prüfen und alles in einem bestätigten Schritt in den Papierkorb verschieben. Bis zur Bestätigung wird nichts gelöscht; Elemente, die sich nicht verschieben lassen, bleiben mit Begründung vorgemerkt.
 - **Snapshots**: Speichern Sie einen Scan in einer kleinen `.bfsnap`-Datei und vergleichen Sie einen späteren Scan damit, um zu sehen, was gewachsen, geschrumpft oder neu ist. Die Ansicht Changes listet die größten Zuwächse auf.
 - **Vergleichshervorhebung auf beiden Karten**: Beim Vergleich werden gewachsene, neue und geschrumpfte Elemente in Treemap und Sunburst umrandet (durchgezogen, gepunktet bzw. gestrichelt, mit der Größenänderung als Beschriftung).
 - **Automatische Snapshots**: Jeder abgeschlossene Scan wird im Hintergrund gespeichert (standardmäßig die letzten 10; in den Einstellungen 0 bis 50 oder aus). Öffnen Sie einen in der Seitenleiste sofort und schreibgeschützt, ohne neu zu scannen, oder vergleichen Sie ihn mit dem aktuellen Scan.
@@ -69,7 +75,7 @@ Das sind Messwerte einzelner Rechner, kein formaler Benchmark; messen Sie Ihren 
 
 ## Minimalistische Oberfläche und 100 % Datenschutz offline
 
-- **Minimalistische, von Radix inspirierte Oberfläche** mit einer einheitlichen linken Seitenleiste: Laufwerke, Desktop, Downloads und Dokumente, zuletzt gescannte Orte und der Discard Pile; sie lässt sich zu einer Symbolleiste einklappen.
+- **Minimalistische, von Radix inspirierte Oberfläche** mit einer einheitlichen linken Seitenleiste: Laufwerke, Desktop, Downloads und Dokumente, zuletzt gescannte Orte und der Cleanup; sie lässt sich zu einer Symbolleiste einklappen.
 - Designs **Graphite (dunkel, Standard) und Silver (hell)** oder Anpassung an das System, mit WCAG-AA-Kontrast. Hover-Effekte beachten die Einstellung für reduzierte Bewegung.
 - **Arbeitet vollständig offline.** Es gibt keine Telemetrie, kein Konto und keine Update-Prüfung, und der Code stellt keine Netzwerkanfragen. Das App-Fenster darf nur mit dem lokalen Rust-Backend kommunizieren; die Content Security Policy erlaubt nichts anderes.
 - **Ihre Daten bleiben auf Ihrem Rechner.** Einstellungen liegen in `%APPDATA%\ByteForest\settings.json`, Logs in `%LOCALAPPDATA%\ByteForest\logs`. Automatische Snapshots (Namen und Größen gescannter Elemente) liegen unter `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` unter macOS) und lassen sich in den Einstellungen abschalten oder begrenzen.

@@ -70,7 +70,7 @@ describe('buildMenuEntries', () => {
     const entries = buildMenuEntries(details(false), { isMac: false, isRoot: false, queued: true });
     expect(actions(entries)).toEqual(['reveal', 'copy', '-', 'discardRemove', 'trash']);
     expect(entries.find((e) => e.type === 'item' && e.action === 'discardRemove')).toMatchObject({
-      label: 'Remove from Discard Pile',
+      label: 'Remove from cleanup',
       disabled: false,
       danger: false,
     });

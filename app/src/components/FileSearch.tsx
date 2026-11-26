@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   searchFiles,
+  folderBreakdown,
+  type Breakdown,
   type FileCategory,
   type FileFilter,
   type SearchKind,
   type SearchResults,
 } from '../api';
+import { toggleQueued, useDiscardPile } from '../discardPile';
 import { formatBytes, formatInt } from '../format';
 import { useAppStore } from '../store';
 import { SEARCH_PRESET_IDS, presetFilter, type SearchPresetId } from '../searchPresets';
 import { strings } from '../strings';
+import { FileKindIcon } from './FileKindIcon';
 import { Check, Icon } from './Icon';
 import { CATEGORIES } from '../treemapPaint';
 
@@ -22,6 +26,7 @@ const MIN_SIZES = [
 ];
 
 interface RequestResult {
+  generation: number;
   filter: FileFilter;
   results?: SearchResults;
   error?: string;
@@ -43,8 +48,11 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
   const [names, setNames] = useState<string[]>([]);
   const [extensions, setExtensions] = useState<string[]>([]);
   const [activePreset, setActivePreset] = useState<SearchPresetId | null>(null);
+  const queued = useDiscardPile((s) => s.idSet);
+  const writable = useAppStore((s) => !s.scanning && s.resultSource.kind === 'live');
+  const busy = useDiscardPile((s) => s.busy);
   const preset = useAppStore((s) => s.searchPreset);
-  const [appliedSeq, setAppliedSeq] = useState(preset?.seq ?? 0);
+  const [appliedSeq, setAppliedSeq] = useState(0);
   // A new preset replaces the filters (adjusting state while rendering, not in an effect).
   if (preset && preset.seq !== appliedSeq) {
     setAppliedSeq(preset.seq);
@@ -53,12 +61,13 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
     setCategory(preset.category ?? '');
     setExtension(preset.extension ?? '');
     setScope(preset.under);
-    setKind('files');
-    setNames([]);
+    setKind(preset.caches ? 'folders' : 'files');
+    setNames(preset.caches ? presetFilter('caches').names : []);
     setExtensions([]);
-    setActivePreset(null);
+    setActivePreset(preset.caches ? 'caches' : null);
   }
   const [response, setResponse] = useState<RequestResult | null>(null);
+  const generation = useAppStore((s) => s.generation);
   const filter = useMemo<FileFilter>(
     () => ({
       name,
@@ -72,22 +81,37 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
     }),
     [name, extension, minSize, category, scope, kind, names, extensions],
   );
-  const current = response?.filter === filter ? response : null;
+  const current = response?.filter === filter && response.generation === generation ? response : null;
 
   useEffect(() => {
     if (!active || current) return;
     let alive = true;
     const timer = window.setTimeout(() => {
       searchFiles(scanId, filter).then(
-        (results) => { if (alive) setResponse({ filter, results }); },
-        (error: unknown) => { if (alive) setResponse({ filter, error: String(error) }); },
+        (results) => { if (alive) setResponse({ generation, filter, results }); },
+        (error: unknown) => { if (alive) setResponse({ generation, filter, error: String(error) }); },
       );
     }, 180);
     return () => {
       alive = false;
       window.clearTimeout(timer);
     };
-  }, [active, current, filter, scanId]);
+  }, [active, current, filter, scanId, generation]);
+
+  const rootId = useAppStore((s) => s.rootId);
+  const scopeId = scope?.id ?? rootId;
+  const [counts, setCounts] = useState<{ key: string; breakdown: Breakdown } | null>(null);
+  const countKey = `${scanId}:${scopeId}:${generation}`;
+  const showCounts = !name && !extension && !minSize && !extensions.length && kind === 'files';
+  useEffect(() => {
+    if (!active || !showCounts || scopeId === null || counts?.key === countKey) return;
+    let alive = true;
+    void folderBreakdown(scanId, scopeId, 1).then((breakdown) => {
+      if (alive) setCounts({ key: countKey, breakdown });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [active, showCounts, counts, countKey, scanId, scopeId]);
+  const breakdown = showCounts && counts?.key === countKey ? counts.breakdown : null;
 
   const results = current?.results;
   const folders = kind === 'folders';
@@ -123,15 +147,6 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
           </button>
         </div>
       )}
-      <div className="chip-row" role="group" aria-label={strings.searchPresetsLabel}>
-        {SEARCH_PRESET_IDS.map((id) => (
-          <button key={id} type="button" className="chip" aria-pressed={activePreset === id}
-            onClick={() => togglePreset(id)}>
-            {activePreset === id && <Icon icon={Check} size={12} />}
-            {strings.searchPresetNames[id]}
-          </button>
-        ))}
-      </div>
       {folders && (
         <p className="file-result-summary">
           {strings.searchFoldersHint}{' '}
@@ -156,20 +171,36 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
               onChange={(event) => { setExtension(event.target.value); setExtensions([]); edited(); }} />
           </label>
         )}
-        {!folders && (
-          <label>{strings.searchCategory}
-            <select value={category} onChange={(event) => { setCategory(event.target.value as FileCategory | ''); edited(); }}>
-              <option value="">{strings.searchAnyType}</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{strings.categoryNames[c]}</option>)}
-            </select>
-          </label>
-        )}
         <label>Minimum size
           <select value={minSize} onChange={(event) => { setMinSize(Number(event.target.value)); edited(); }}>
             {MIN_SIZES.map(({ label, value }) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
       </div>
+      {!folders && <div className="category-strip" role="group" aria-label={strings.searchCategory}>
+        <button type="button" className="chip" aria-pressed={!category} onClick={() => { setCategory(''); edited(); }}>
+          All types {breakdown && <small>{formatInt(breakdown.total_files)}</small>}
+        </button>
+        {CATEGORIES.map((type) => {
+          const count = breakdown?.categories.find((c) => c.category === type)?.files;
+          return <button key={type} type="button" className="chip" aria-pressed={category === type}
+            onClick={() => { setCategory(type); edited(); }}>
+            {strings.categoryNames[type]} {count !== undefined && <small>{formatInt(count)}</small>}
+          </button>;
+        })}
+      </div>}
+      <details className="quick-searches">
+        <summary>Quick searches{activePreset ? ` · ${strings.searchPresetNames[activePreset]}` : ''}</summary>
+      <div className="chip-row" role="group" aria-label={strings.searchPresetsLabel}>
+        {SEARCH_PRESET_IDS.map((id) => (
+          <button key={id} type="button" className="chip" aria-pressed={activePreset === id}
+            onClick={() => togglePreset(id)}>
+            {activePreset === id && <Icon icon={Check} size={12} />}
+            {strings.searchPresetNames[id]}
+          </button>
+        ))}
+      </div>
+      </details>
       <p className="file-result-summary" role="status">
         {opening ? 'Locating file…' : !current ? 'Searching…' : results && (
           results.total === 0 ? strings.searchNone(folders) :
@@ -184,17 +215,25 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
       {(navigationError || current?.error) && (
         <p className="file-result-summary" role="alert">{navigationError || current?.error}</p>
       )}
-      <ul className="file-results">
-        {results?.files.map((file) => (
-          <li key={file.id}>
-            <button type="button" className="file-result" onClick={() => onOpen(file.id)} title={file.path}>
-              <span>{file.is_dir && <em className="result-kind">{strings.searchFolderMarker}</em>}{file.name}</span>
-              <strong>{formatBytes(file.size)}</strong>
-              <small>{file.path}</small>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div className="matches-scroll">
+        <table className="matches">
+          <thead><tr>{writable && <th scope="col" className="queue-column">Select</th>}<th scope="col">Name</th><th scope="col">Path</th><th scope="col" aria-sort="descending">Size ↓</th></tr></thead>
+          <tbody>{results?.files.map((file) => (
+            <tr key={file.id}>
+              {writable && <td><input type="checkbox" checked={queued.has(file.id)} disabled={busy}
+                aria-label={`Select ${file.path} for cleanup`} onChange={() => toggleQueued(file.id)} /></td>}
+              <td><button type="button" className="match-name" onClick={() => onOpen(file.id)}
+                title={`Show in disk map: ${file.name}`}><FileKindIcon node={file.id} name={file.name} directory={file.is_dir} />{file.name}</button></td>
+              <td title={file.path}>{file.path}</td>
+              <td>{formatBytes(file.size)}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      {writable && queued.size > 0 && <footer className="selection-bar">
+        <span>{formatInt(queued.size)} selected for cleanup</span>
+        <button type="button" className="btn" onClick={() => useAppStore.setState({ resultView: 'cleanup' })}>Review selection</button>
+      </footer>}
     </section>
   );
 }

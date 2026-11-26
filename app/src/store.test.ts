@@ -260,6 +260,7 @@ describe('search preset', () => {
     const preset = { category: 'video' as const, under: { id: 3, name: 'Movies' } };
     useAppStore.getState().openSearch(preset);
     useAppStore.getState().openSearch(preset);
+    expect(useAppStore.getState().resultView).toBe('files');
     expect(useAppStore.getState().searchPreset).toEqual({ ...preset, seq: 2 });
   });
 });
