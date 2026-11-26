@@ -61,11 +61,9 @@ export const strings = {
   badgeRestartHint: 'Click to restart with administrator rights for fast scanning',
 
   // Empty and scanning states
-  emptyTitle: 'What’s taking up space?',
+  emptyTitle: 'Choose a location',
   emptyBody: 'Scan the selected location or choose a folder to explore.',
   emptyChooseLocation: 'Choose a folder below or select a drive in the sidebar.',
-  emptySelected: 'Selected location',
-  volumeUsed: 'Used',
   volumeAvailable: 'Available',
   scanningTitle: (drive: string) => `Scanning ${drive}`,
 

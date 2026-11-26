@@ -6,7 +6,7 @@ import { useAppStore } from '../store';
 import { strings } from '../strings';
 
 /** Primary "Scan" button, or "Cancel" while a scan runs. */
-export function ScanButton({ compact = false }: { compact?: boolean }) {
+export function ScanButton({ compact = false, label }: { compact?: boolean; label?: string }) {
   const scanning = useAppStore((s) => s.scanning);
   const target = useAppStore((s) => s.target);
   const shownTarget = useAppStore((s) => s.resultTarget);
@@ -25,12 +25,12 @@ export function ScanButton({ compact = false }: { compact?: boolean }) {
     <button
       type="button"
       className={iconOnly ? 'icon-btn refresh-scan' : 'btn primary'}
-      aria-label={refresh ? strings.rescan : strings.scanAria}
+      aria-label={refresh ? strings.rescan : label ?? strings.scanAria}
       title={iconOnly ? strings.rescan : undefined}
       disabled={!scanTarget}
       onClick={() => scanTarget && void runScan(scanTarget)}
     >
-      {iconOnly ? <Icon icon={RefreshCw} /> : refresh ? strings.rescan : strings.scan}
+      {iconOnly ? <Icon icon={RefreshCw} /> : refresh ? strings.rescan : label ?? strings.scan}
     </button>
   );
 }
