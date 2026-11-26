@@ -11,7 +11,7 @@ import { ScanProgressText } from './ScanProgressText';
 import { TreeGlyph } from './TreeGlyph';
 import { FastScanButton } from './FastScanButton';
 
-function VolumeUsage({ drive }: { drive: VolumeSummary }) {
+export function VolumeUsage({ drive }: { drive: VolumeSummary }) {
   const free = Math.max(0, Math.min(drive.total, drive.free));
   const used = drive.total - free;
   const percent = Math.round(100 * used / drive.total);

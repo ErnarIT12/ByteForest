@@ -267,6 +267,7 @@ export function TreemapCanvas() {
     <div
       ref={wrapRef}
       className="treemap"
+      data-ready={layout ? true : undefined}
       role="group"
       aria-roledescription={strings.treemapRoleDescription}
       aria-label={strings.treemapLabel}
