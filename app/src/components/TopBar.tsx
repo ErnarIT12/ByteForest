@@ -22,7 +22,7 @@ export function TopBar() {
     : target === null ? null : scanTargetFor(target);
   return (
     <header className={isMac ? "topbar mac-caption" : "topbar"} data-tauri-drag-region>
-      {!hasResults && <span className="caption-name" data-tauri-drag-region>{strings.appName}</span>}
+      <span className="caption-name" data-tauri-drag-region>{strings.appName}</span>
       {hasResults && <div className="topbar-controls">
         {shownTarget && (
           <span className="topbar-target" title={shownTarget} aria-label={strings.topbarTargetLabel(shownTarget)}>
