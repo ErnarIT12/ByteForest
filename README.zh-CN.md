@@ -19,7 +19,7 @@
 ## 首次扫描
 
 1. [下载 ByteForest](https://github.com/ErnarIT12/ByteForest/releases).
-2. 点击 **Choose folder…** 扫描单个文件夹，或点击 **Scan** 扫描所选驱动器。
+2. 点击 **Choose folder…** 扫描单个文件夹，或点击 **Scan drive** 扫描所选驱动器。
 3. 双击图中的文件夹即可查看其内容。点击图上方的路径可返回上级目录。
 
 ![Windows 上的首次扫描](docs/screenshots/windows-first-scan.png)

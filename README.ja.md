@@ -19,7 +19,7 @@
 ## 初めてのスキャン
 
 1. [ByteForest をダウンロード](https://github.com/ErnarIT12/ByteForest/releases).
-2. **Choose folder…** でフォルダーを選ぶか、**Scan** で選択中のドライブをスキャンします。
+2. **Choose folder…** でフォルダーを選ぶか、**Scan drive** で選択中のドライブをスキャンします。
 3. マップ上のフォルダーをダブルクリックして開きます。上の階層に戻るには、マップの上にあるパスをクリックします。
 
 ![Windows の初回スキャン画面](docs/screenshots/windows-first-scan.png)

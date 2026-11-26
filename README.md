@@ -19,7 +19,7 @@
 ## Your first scan
 
 1. [Download ByteForest](https://github.com/ErnarIT12/ByteForest/releases).
-2. Choose **Choose folder…** to scan one folder, or **Scan** to explore the selected drive.
+2. Choose **Choose folder…** to scan one folder, or **Scan drive** to explore the selected drive.
 3. Double-click a folder on the map to explore it. Use the breadcrumbs to return.
 
 ![First scan on Windows](docs/screenshots/windows-first-scan.png)

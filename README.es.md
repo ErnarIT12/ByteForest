@@ -19,7 +19,7 @@
 ## Primer escaneo
 
 1. [Descargar ByteForest](https://github.com/ErnarIT12/ByteForest/releases).
-2. Pulsa **Choose folder…** para analizar una carpeta o **Scan** para analizar la unidad seleccionada.
+2. Pulsa **Choose folder…** para analizar una carpeta o **Scan drive** para analizar la unidad seleccionada.
 3. Haz doble clic en una carpeta del mapa para abrirla. Usa la ruta sobre el mapa para volver.
 
 ![Primer escaneo en Windows](docs/screenshots/windows-first-scan.png)

@@ -299,6 +299,7 @@ export function SunburstCanvas() {
     <div
       ref={wrapRef}
       className="treemap"
+      data-ready={layout ? true : undefined}
       role="group"
       aria-roledescription={strings.sunburstRoleDescription}
       aria-label={strings.sunburstLabel}

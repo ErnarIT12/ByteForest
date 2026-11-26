@@ -1,10 +1,11 @@
+import { Icon, ShieldCheck } from './Icon';
 import { canOfferFastScan } from '../elevation';
 import { requestElevation } from '../scanController';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
 
 /** "Fast scan (admin)": restarts elevated and scans the selected NTFS drive. */
-export function FastScanButton() {
+export function FastScanButton({ subtle = false }: { subtle?: boolean }) {
   const elevated = useAppStore((s) => s.elevated);
   const target = useAppStore((s) => s.target);
   const drives = useAppStore((s) => s.drives);
@@ -16,12 +17,13 @@ export function FastScanButton() {
   return (
     <button
       type="button"
-      className="btn"
+      className={subtle ? 'fast-scan-link' : 'btn'}
       aria-label={strings.fastScanAria}
       disabled={scanning || elevating}
       onClick={() => void requestElevation(`${target}:`)}
     >
-      {elevating ? strings.waitingForPermission : strings.fastScan}
+      {subtle && <Icon icon={ShieldCheck} size={15} />}
+      {elevating ? strings.waitingForPermission : subtle ? 'Fast scan as administrator' : strings.fastScan}
     </button>
   );
 }

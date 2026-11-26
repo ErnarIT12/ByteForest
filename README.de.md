@@ -19,7 +19,7 @@
 ## Der erste Scan
 
 1. [ByteForest herunterladen](https://github.com/ErnarIT12/ByteForest/releases).
-2. Mit **Choose folder…** analysierst du einen Ordner, mit **Scan** das ausgewählte Laufwerk.
+2. Mit **Choose folder…** analysierst du einen Ordner, mit **Scan drive** das ausgewählte Laufwerk.
 3. Öffne einen Ordner in der Karte per Doppelklick. Über die Pfadleiste gelangst du zurück.
 
 ![Erster Scan unter Windows](docs/screenshots/windows-first-scan.png)

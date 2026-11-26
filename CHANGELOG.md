@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Show available space on the scan start screen, with a compact refresh control in the results toolbar. The capacity ring and disk maps appear with short transitions that follow system motion preferences.
+
 - Explore largest files in a full-width table with type counts, size filters, file icons and a reviewed cleanup selection. Windows can display executable icons from the shell.
 - Switch among Disk map, Largest files, Scan history and Cleanup in the sidebar. Resize the tree beside the map, compare saved scans and open Settings over the current view.
 
