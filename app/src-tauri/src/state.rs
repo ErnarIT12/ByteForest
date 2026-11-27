@@ -5,6 +5,8 @@ use std::sync::{Arc, Mutex, RwLock};
 use bf_core::{DuplicateFilter, SnapshotDiff, Tree};
 use bf_scan::{CancelToken, DuplicateOutcome};
 
+use crate::system_overview::SystemOverviewSampler;
+
 /// Which scan is current. Guarded by one mutex so that "is my scan still current?",
 /// storing the tree and emitting the result happen atomically with respect to `start_scan`.
 #[derive(Default)]
@@ -85,4 +87,6 @@ pub struct AppState {
     pub dupes_cache: RwLock<Option<DupesCache>>,
     /// Folder or drive from the `--scan` startup argument, until the front end takes it.
     pub startup_scan: Mutex<Option<String>>,
+    /// Reusable `sysinfo::System` sampler for the on-demand Overview dashboard.
+    pub system: Arc<Mutex<SystemOverviewSampler>>,
 }

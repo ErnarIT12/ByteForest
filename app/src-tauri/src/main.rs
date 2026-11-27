@@ -9,6 +9,7 @@ mod elevation;
 mod logging;
 mod settings;
 mod state;
+mod system_overview;
 
 fn main() {
     let _log_guard = logging::init();
@@ -66,6 +67,7 @@ fn main() {
             autosnap::open_snapshot,
             autosnap::compare_with_auto_snapshot,
             autosnap::delete_auto_snapshot,
+            system_overview::get_system_overview,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

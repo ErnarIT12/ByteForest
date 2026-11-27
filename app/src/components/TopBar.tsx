@@ -5,9 +5,8 @@ import { strings } from '../strings';
 import { FastScanButton } from './FastScanButton';
 import { ScanButton } from './ScanButton';
 import { ScanProgressText } from './ScanProgressText';
-import { TreeGlyph } from './TreeGlyph';
 
-/** Draggable window caption and actions for the current scan. */
+/** Minimal right-pane top bar: current scan target, timestamp, rescan button and window controls. */
 export function TopBar() {
   const hasResults = useAppStore((s) => s.root !== null);
   const scanning = useAppStore((s) => s.scanning);
@@ -22,28 +21,26 @@ export function TopBar() {
     ? resultTarget
     : target === null ? null : scanTargetFor(target);
   return (
-    <header className={isMac ? "topbar mac-caption" : "topbar"} data-tauri-drag-region>
-      <span className="brand-mark" data-tauri-drag-region>
-        <TreeGlyph size={20} />
-        <span className="caption-name" data-tauri-drag-region>{strings.appName}</span>
-      </span>
-      {hasResults && <div className="topbar-controls">
-        {shownTarget && (
-          <span className="topbar-target" title={shownTarget} aria-label={strings.topbarTargetLabel(shownTarget)}>
-            {shownTarget}
-          </span>
-        )}
-        {isSnapshot && <span className="badge snapshot-badge">{strings.snapshotBadge}</span>}
-        {!isSnapshot && !scanning && lastScan && shownTarget === resultTarget && (
-          <time className="last-scan" dateTime={new Date(lastScan.finishedAt).toISOString()}
-            title={new Date(lastScan.finishedAt).toLocaleString()}>
-            Scanned {new Date(lastScan.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </time>
-        )}
-        <ScanButton compact />
-        <FastScanButton />
-        {scanning && <ScanProgressText />}
-      </div>}
+    <header className="topbar" data-tauri-drag-region>
+      {hasResults && (
+        <div className="topbar-controls">
+          {shownTarget && (
+            <span className="topbar-target" title={shownTarget} aria-label={strings.topbarTargetLabel(shownTarget)}>
+              {shownTarget}
+            </span>
+          )}
+          {isSnapshot && <span className="badge snapshot-badge">{strings.snapshotBadge}</span>}
+          {!isSnapshot && !scanning && lastScan && shownTarget === resultTarget && (
+            <time className="last-scan" dateTime={new Date(lastScan.finishedAt).toISOString()}
+              title={new Date(lastScan.finishedAt).toLocaleString()}>
+              Scanned {new Date(lastScan.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </time>
+          )}
+          <ScanButton compact />
+          <FastScanButton />
+          {scanning && <ScanProgressText />}
+        </div>
+      )}
       <div className="caption-space" data-tauri-drag-region />
       {!isMac && <WindowControls />}
     </header>

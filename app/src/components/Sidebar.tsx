@@ -10,6 +10,7 @@ import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { useDiscardSync } from './DiscardPileDock';
 import {
+  Activity,
   Copy,
   Trash2,
   History,
@@ -28,11 +29,12 @@ import {
 } from './Icon';
 import { SettingsPopover } from './SettingsPopover';
 import { RecentScans } from './RecentScans';
+import { TreeGlyph } from './TreeGlyph';
 
 /** Windows narrower than this always show the icon rail so the explorer keeps its room. */
 export const SIDEBAR_NARROW_QUERY = '(max-width: 999px)';
 
-const VIEWS = [
+const SCAN_VIEWS = [
   { label: 'Disk map', icon: LayoutGrid, viewId: 'map' },
   { label: 'Largest files', icon: FileText, viewId: 'files' },
   { label: strings.dupesTitle, icon: Copy, viewId: 'dupes' },
@@ -92,16 +94,33 @@ function DiscardSync() {
 function ScanViews() {
   const hasScan = useAppStore((s) => s.root !== null);
   const view = useAppStore((s) => s.resultView);
-  if (!hasScan) return null;
+  const onOverview = view === 'overview' || !hasScan;
   return (
-    <section className="sidebar-section" aria-label="Scan views">
-      {VIEWS.map(({ label, icon, viewId }) => (
-        <button key={label} type="button" className="sidebar-item" title={label}
-          aria-current={view === viewId ? 'page' : undefined}
-          onClick={() => useAppStore.setState({ resultView: viewId })}>
-          <Icon icon={icon} className="sidebar-icon" /><span className="sidebar-text">{label}</span>
-        </button>
-      ))}
+    <section className="sidebar-section" aria-label="Workspace views">
+      <button
+        type="button"
+        className="sidebar-item"
+        title={strings.overviewTitle}
+        aria-current={onOverview ? 'page' : undefined}
+        onClick={() => useAppStore.setState({ resultView: 'overview' })}
+      >
+        <Icon icon={Activity} className="sidebar-icon" />
+        <span className="sidebar-text">{strings.overviewTitle}</span>
+      </button>
+      {hasScan &&
+        SCAN_VIEWS.map(({ label, icon, viewId }) => (
+          <button
+            key={label}
+            type="button"
+            className="sidebar-item"
+            title={label}
+            aria-current={view === viewId ? 'page' : undefined}
+            onClick={() => useAppStore.setState({ resultView: viewId })}
+          >
+            <Icon icon={icon} className="sidebar-icon" />
+            <span className="sidebar-text">{label}</span>
+          </button>
+        ))}
     </section>
   );
 }
@@ -138,7 +157,7 @@ function LocationList({ locations, target, onChoose }: {
   );
 }
 
-/** Left column in every state: where to scan, what was scanned recently and the Discard Pile. */
+/** Full-height left sidebar: brand header, workspace views, locations, recent scans and Settings. */
 export function Sidebar() {
   const hasScan = useAppStore((s) => s.root !== null);
   const drives = useAppStore((s) => s.drives);
@@ -175,19 +194,34 @@ export function Sidebar() {
   }, [drives, userFolders, target]);
 
   return (
-    <nav className="sidebar" aria-label={strings.sidebarLabel} data-rail={rail ? 'true' : undefined}>
+    <nav
+      className="sidebar"
+      aria-label={strings.sidebarLabel}
+      data-rail={rail ? 'true' : undefined}
+      data-mac={isMac ? 'true' : undefined}
+    >
       <DiscardSync />
-      {!narrow && (
-        <div className="sidebar-head">
-          <button type="button" className="icon-btn" aria-expanded={!collapsed}
+      <header className="sidebar-head" data-tauri-drag-region>
+        {(!rail || narrow) && (
+          <span className="brand-mark" data-tauri-drag-region>
+            <TreeGlyph size={20} />
+            <span className="caption-name" data-tauri-drag-region>{strings.appName}</span>
+          </span>
+        )}
+        {!narrow && (
+          <button
+            type="button"
+            className="icon-btn sidebar-toggle"
+            aria-expanded={!collapsed}
             aria-controls="sidebar-body"
             aria-label={collapsed ? strings.sidebarExpand : strings.sidebarCollapse}
             title={collapsed ? strings.sidebarExpand : strings.sidebarCollapse}
-            onClick={() => setSidebarCollapsed(!collapsed)}>
+            onClick={() => setSidebarCollapsed(!collapsed)}
+          >
             <Icon icon={collapsed ? PanelLeftOpen : PanelLeftClose} />
           </button>
-        </div>
-      )}
+        )}
+      </header>
       <div id="sidebar-body" className="sidebar-body">
         <ScanViews />
         <section className="sidebar-section" aria-labelledby="sidebar-locations">
