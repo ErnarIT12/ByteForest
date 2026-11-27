@@ -2,8 +2,8 @@
 
 use std::sync::{Arc, Mutex, RwLock};
 
-use bf_core::{SnapshotDiff, Tree};
-use bf_scan::CancelToken;
+use bf_core::{DuplicateFilter, SnapshotDiff, Tree};
+use bf_scan::{CancelToken, DuplicateOutcome};
 
 /// Which scan is current. Guarded by one mutex so that "is my scan still current?",
 /// storing the tree and emitting the result happen atomically with respect to `start_scan`.
@@ -15,6 +15,24 @@ pub struct ScanSlot {
     pub token: Option<CancelToken>,
     /// A scan was started and has not reported its outcome yet.
     pub running: bool,
+}
+
+/// Which duplicate search is current.
+#[derive(Default)]
+pub struct DupesSlot {
+    /// Id of the most recently started duplicate search (`0` before the first).
+    pub job_id: u64,
+    /// Cancel token of that search, if it has started.
+    pub token: Option<CancelToken>,
+    /// A duplicate search was started and has not reported its outcome yet.
+    pub running: bool,
+}
+
+/// Cached duplicate-hashing result for a specific `(scan_id, filter)` pair.
+pub struct DupesCache {
+    pub scan_id: u64,
+    pub filter: DuplicateFilter,
+    pub outcome: DuplicateOutcome,
 }
 
 /// Where the tree of a [`CompletedScan`] came from.
@@ -57,6 +75,14 @@ pub struct AppState {
     pub baseline: RwLock<Option<Baseline>>,
     /// Current scan id and cancel token.
     pub scan: Mutex<ScanSlot>,
+    /// Current duplicate search job id and cancel token.
+    /// Lock order: `scan`, then `tree`, then `dupes_job`, then `dupes_cache`; never hold
+    /// `dupes_job` or `dupes_cache` while acquiring `scan` or `tree`.
+    pub dupes_job: Mutex<DupesSlot>,
+    /// Last confirmed duplicate search outcome for the current scan.
+    /// Lock order: `scan`, then `tree`, then `dupes_job`, then `dupes_cache`; never hold
+    /// `dupes_cache` while acquiring any of the others.
+    pub dupes_cache: RwLock<Option<DupesCache>>,
     /// Folder or drive from the `--scan` startup argument, until the front end takes it.
     pub startup_scan: Mutex<Option<String>>,
 }

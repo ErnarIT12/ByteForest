@@ -417,3 +417,48 @@ describe('opened snapshots', () => {
     expect(useAppStore.getState().resultSource).toEqual({ kind: 'live' });
   });
 });
+
+describe('openDupes', () => {
+  beforeEach(() => useAppStore.getState().reset());
+
+  it('switches to dupes view with bumped preset or clears preset when omitted', () => {
+    scanned();
+    useAppStore.getState().openDupes({ id: 5, name: 'Downloads' });
+    expect(useAppStore.getState().resultView).toBe('dupes');
+    expect(useAppStore.getState().dupesPreset).toEqual({
+      seq: 1,
+      under: { id: 5, name: 'Downloads' },
+    });
+
+    useAppStore.getState().openDupes({ id: 5, name: 'Downloads' });
+    expect(useAppStore.getState().dupesPreset?.seq).toBe(2);
+
+    useAppStore.getState().openDupes();
+    expect(useAppStore.getState().resultView).toBe('dupes');
+    expect(useAppStore.getState().dupesPreset).toBeNull();
+  });
+
+  it('clears dupesPreset on handleDone and handleOpened', () => {
+    scanned();
+    useAppStore.getState().openDupes({ id: 5, name: 'Downloads' });
+    const s = useAppStore.getState();
+    s.beginScan('C:');
+    s.scanResolved(2);
+    s.handleDone(done(2));
+    expect(useAppStore.getState().dupesPreset).toBeNull();
+    expect(useAppStore.getState().resultView).toBe('map');
+
+    useAppStore.getState().openDupes({ id: 9, name: 'Docs' });
+    useAppStore.getState().handleOpened({
+      scan_id: 3,
+      target: 'C:',
+      files: 1,
+      dirs: 0,
+      bytes: 10,
+      root: node(0, 'C:'),
+      source: { kind: 'snapshot', created_unix_ms: 100 },
+    });
+    expect(useAppStore.getState().dupesPreset).toBeNull();
+    expect(useAppStore.getState().resultView).toBe('map');
+  });
+});

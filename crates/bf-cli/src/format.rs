@@ -48,6 +48,127 @@ pub fn utc_minute(unix_ms: i64) -> String {
     )
 }
 
+/// Parses a byte size string with an optional base-1024 unit suffix (`B`, `K`/`KB`/`KiB`,
+/// `M`/`MB`/`MiB`, `G`/`GB`/`GiB`, `T`/`TB`/`TiB`, ASCII case-insensitive).
+pub fn parse_size(input: &str) -> Result<u64, String> {
+    if input.is_empty() {
+        return Err("size must not be empty".to_string());
+    }
+    let digit_end = input
+        .bytes()
+        .position(|b| !b.is_ascii_digit())
+        .unwrap_or(input.len());
+    if digit_end == 0 {
+        return Err(format!(
+            "invalid size `{input}`: expected a non-negative integer"
+        ));
+    }
+    let (num_str, unit_str) = input.split_at(digit_end);
+    let value: u64 = num_str
+        .parse()
+        .map_err(|_| format!("size `{input}` overflows 64-bit byte count"))?;
+    let multiplier: u64 = match unit_str.to_ascii_uppercase().as_str() {
+        "" | "B" => 1,
+        "K" | "KB" | "KIB" => 1024,
+        "M" | "MB" | "MIB" => 1024_u64.pow(2),
+        "G" | "GB" | "GIB" => 1024_u64.pow(3),
+        "T" | "TB" | "TIB" => 1024_u64.pow(4),
+        _ => {
+            return Err(format!(
+                "invalid size unit `{unit_str}` in `{input}` (expected B, K/KB/KiB, M/MB/MiB, G/GB/GiB, or T/TB/TiB)"
+            ));
+        }
+    };
+    value
+        .checked_mul(multiplier)
+        .ok_or_else(|| format!("size `{input}` overflows 64-bit byte count"))
+}
+
+/// Encodes bytes as lowercase hexadecimal.
+pub fn hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 0x0f) as usize] as char);
+    }
+    out
+}
+
+/// Summary of a duplicate search across all confirmed groups.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DupesSummary {
+    pub groups: u64,
+    pub files: u64,
+    pub reclaimable_bytes: u64,
+    pub skipped: u64,
+    pub bytes_read: u64,
+    pub min_size: u64,
+    pub candidates_files: u64,
+    pub candidates_bytes: u64,
+}
+
+/// One confirmed duplicate group ready for text or JSON output.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DupesGroupOutput {
+    pub size: u64,
+    pub reclaimable: u64,
+    pub hash: String,
+    pub files: Vec<String>,
+}
+
+/// Renders the one-line duplicate summary below the scan header.
+pub fn dupes_summary_line(summary: &DupesSummary) -> String {
+    let skipped = if summary.skipped > 0 {
+        format!(", {} skipped", summary.skipped)
+    } else {
+        String::new()
+    };
+    format!(
+        "duplicates: {} groups, {} files, {} reclaimable{skipped} (min size: {}, read: {})\n",
+        summary.groups,
+        summary.files,
+        human_size(summary.reclaimable_bytes),
+        human_size(summary.min_size),
+        human_size(summary.bytes_read),
+    )
+}
+
+/// Renders the duplicate groups list, or a clear message if no duplicates were found.
+pub fn dupes_groups_text(groups: &[DupesGroupOutput], summary: &DupesSummary) -> String {
+    if groups.is_empty() {
+        return format!(
+            "no duplicate files found (min size: {})\n",
+            human_size(summary.min_size)
+        );
+    }
+    let mut out = String::new();
+    for (i, group) in groups.iter().enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        let short_hash = &group.hash[..group.hash.len().min(12)];
+        out.push_str(&format!(
+            "{}. {} x {}  ({} reclaimable)  [{short_hash}]\n",
+            i + 1,
+            human_size(group.size),
+            group.files.len(),
+            human_size(group.reclaimable),
+        ));
+        for file in &group.files {
+            out.push_str(&format!("   {file}\n"));
+        }
+    }
+    if (groups.len() as u64) < summary.groups {
+        out.push_str(&format!(
+            "\nshowing {} of {} duplicate groups (raise --top to see more)\n",
+            groups.len(),
+            summary.groups,
+        ));
+    }
+    out
+}
+
 /// Renders the top-children table: size, percent of root, files, name.
 pub fn top_table(rows: &[NodeView], root_size: u64) -> String {
     let mut out = format!("{:>10}  {:>6}  {:>10}  NAME\n", "SIZE", "%", "FILES");
@@ -104,5 +225,99 @@ mod tests {
     fn huge_sizes_stay_in_petabytes() {
         assert_eq!(human_size(1 << 50), "1.0 PB");
         assert!(human_size(u64::MAX).ends_with(" PB"));
+    }
+
+    #[test]
+    fn parse_size_handles_bytes_and_base_1024_units() {
+        assert_eq!(parse_size("0"), Ok(0));
+        assert_eq!(parse_size("0M"), Ok(0));
+        assert_eq!(parse_size("512"), Ok(512));
+        assert_eq!(parse_size("512B"), Ok(512));
+        assert_eq!(parse_size("512b"), Ok(512));
+        assert_eq!(parse_size("10K"), Ok(10 * 1024));
+        assert_eq!(parse_size("500K"), Ok(512_000));
+        assert_eq!(parse_size("10kb"), Ok(10 * 1024));
+        assert_eq!(parse_size("10KiB"), Ok(10 * 1024));
+        assert_eq!(parse_size("1M"), Ok(bf_core::DEFAULT_DUPLICATE_MIN_SIZE));
+        assert_eq!(parse_size("1m"), Ok(1_048_576));
+        assert_eq!(parse_size("3MB"), Ok(3 * 1_048_576));
+        assert_eq!(parse_size("3mib"), Ok(3 * 1_048_576));
+        assert_eq!(parse_size("2GiB"), Ok(2 * (1 << 30)));
+        assert_eq!(parse_size("2g"), Ok(2 * (1 << 30)));
+        assert_eq!(parse_size("2GB"), Ok(2 * (1 << 30)));
+        assert_eq!(parse_size("1T"), Ok(1 << 40));
+        assert_eq!(parse_size("1tb"), Ok(1 << 40));
+        assert_eq!(parse_size("1TiB"), Ok(1 << 40));
+    }
+
+    #[test]
+    fn parse_size_rejects_whitespace_invalid_and_overflow() {
+        for bad in [
+            "",
+            " ",
+            " 1M",
+            "1M ",
+            "1 M",
+            "-1",
+            "-1M",
+            "M",
+            "1.5M",
+            "10X",
+            "10PB",
+            "99999999999999999999999999",
+            "16777216T",
+        ] {
+            assert!(parse_size(bad).is_err(), "expected error for `{bad}`");
+        }
+    }
+
+    #[test]
+    fn hex_encode_formats_lowercase_hex() {
+        assert_eq!(hex_encode(&[]), "");
+        assert_eq!(hex_encode(&[0x00, 0x0a, 0xff, 0x1b]), "000aff1b");
+        assert_eq!(hex_encode(&[0xab; 32]).len(), 64);
+    }
+
+    #[test]
+    fn dupes_text_formats_summary_groups_and_empty_state() {
+        let empty = DupesSummary {
+            groups: 0,
+            files: 0,
+            reclaimable_bytes: 0,
+            skipped: 0,
+            bytes_read: 0,
+            min_size: 1_048_576,
+            candidates_files: 0,
+            candidates_bytes: 0,
+        };
+        let empty_summary = dupes_summary_line(&empty);
+        assert!(empty_summary.contains("0 groups, 0 files, 0 B reclaimable"));
+        assert!(!empty_summary.contains("skipped"));
+        assert!(dupes_groups_text(&[], &empty).contains("no duplicate files found"));
+
+        let summary = DupesSummary {
+            groups: 2,
+            files: 5,
+            reclaimable_bytes: 3 * 1024,
+            skipped: 1,
+            bytes_read: 5 * 1024,
+            min_size: 1024,
+            candidates_files: 6,
+            candidates_bytes: 6 * 1024,
+        };
+        let line = dupes_summary_line(&summary);
+        assert!(line.contains("2 groups, 5 files, 3.0 KB reclaimable, 1 skipped"));
+
+        let shown = vec![DupesGroupOutput {
+            size: 2048,
+            reclaimable: 2048,
+            hash: "0123456789abcdef".repeat(4),
+            files: vec!["/a/one.bin".to_string(), "/b/two.bin".to_string()],
+        }];
+        let body = dupes_groups_text(&shown, &summary);
+        assert!(body.contains("1. 2.0 KB x 2  (2.0 KB reclaimable)  [0123456789ab]"));
+        assert!(body.contains("   /a/one.bin\n"));
+        assert!(body.contains("   /b/two.bin\n"));
+        assert!(body.contains("showing 1 of 2 duplicate groups"));
     }
 }

@@ -441,3 +441,98 @@ export const onScanError = (cb: (e: ScanErrorEvent) => void): Promise<UnlistenFn
 
 export const applicationIcon = (scanId: number, node: number) =>
   invoke<ArrayBuffer>('application_icon', { scanId, node });
+
+/** Filter passed to duplicate candidate estimation, cache lookup, and hashing. */
+export interface DuplicateFilter {
+  /** Smallest file size in bytes (empty files are never matched). */
+  min_size: number;
+  /** Restrict search to files inside this directory node's subtree. */
+  under?: number;
+  /** Restrict search to files of this category. */
+  category?: FileCategory;
+  /** Case-insensitive substring matched against file names; empty matches any. */
+  name: string;
+  /** Include hidden, system, and dot-prefixed files and folders. */
+  include_hidden: boolean;
+}
+
+/** Instant size-grouping estimate before reading file contents from disk. */
+export interface DuplicateCandidatesInfo {
+  groups: number;
+  files: number;
+  bytes: number;
+  cached: boolean;
+}
+
+/** One copy inside a confirmed duplicate group. */
+export interface DuplicateCopy {
+  id: number;
+  name: string;
+  path: string;
+  /** Windows FILETIME (100-ns ticks since 1601-01-01). */
+  mtime: number;
+  category: FileCategory;
+}
+
+/** One confirmed group of identical files. */
+export interface DuplicateGroup {
+  size: number;
+  reclaimable: number;
+  /** 64-character lowercase hex BLAKE3 content hash. */
+  hash: string;
+  copies: DuplicateCopy[];
+}
+
+/** Confirmed duplicate search result. */
+export interface DuplicateResult {
+  groups: DuplicateGroup[];
+  total_groups: number;
+  total_files: number;
+  reclaimable_bytes: number;
+  skipped: number;
+  bytes_read: number;
+}
+
+/** Step of a duplicate hashing job (serde names of the Rust enum). */
+export type HashPhase = 'Partial' | 'Full';
+
+export interface HashProgress {
+  phase: HashPhase;
+  files_done: number;
+  files_total: number;
+  bytes_done: number;
+  bytes_total: number;
+}
+
+export interface DupesProgressEvent {
+  job_id: number;
+  scan_id: number;
+  progress: HashProgress;
+}
+
+export interface DupesDoneEvent {
+  job_id: number;
+  scan_id: number;
+  result: DuplicateResult;
+}
+
+export interface DupesErrorEvent {
+  job_id: number;
+  scan_id: number;
+  message: string;
+}
+
+export const duplicateCandidates = (scanId: number, filter: DuplicateFilter) =>
+  invoke<DuplicateCandidatesInfo>('duplicate_candidates', { scanId, filter });
+export const getCachedDuplicates = (scanId: number, filter: DuplicateFilter) =>
+  invoke<DuplicateResult | null>('get_cached_duplicates', { scanId, filter });
+export const startDuplicates = (scanId: number, filter: DuplicateFilter) =>
+  invoke<number>('start_duplicates', { scanId, filter });
+export const cancelDuplicates = () => invoke<void>('cancel_duplicates');
+
+export const onDupesProgress = (cb: (e: DupesProgressEvent) => void): Promise<UnlistenFn> =>
+  listen<DupesProgressEvent>('dupes://progress', (e) => cb(e.payload));
+export const onDupesDone = (cb: (e: DupesDoneEvent) => void): Promise<UnlistenFn> =>
+  listen<DupesDoneEvent>('dupes://done', (e) => cb(e.payload));
+export const onDupesError = (cb: (e: DupesErrorEvent) => void): Promise<UnlistenFn> =>
+  listen<DupesErrorEvent>('dupes://error', (e) => cb(e.payload));

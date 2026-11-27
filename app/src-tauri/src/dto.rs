@@ -3,8 +3,8 @@
 //! Every event carries the `scan_id` returned by `start_scan`; the UI must ignore events
 //! whose id is not the latest one it started.
 
-use bf_core::{DiffStatus, Gone, NodeId, NodeView, SnapshotDiff, Tree};
-use bf_scan::{ScanProgress, ScanStats};
+use bf_core::{DiffStatus, FileCategory, Gone, NodeId, NodeView, SnapshotDiff, Tree};
+use bf_scan::{HashProgress, ScanProgress, ScanStats};
 use serde::Serialize;
 
 /// Payload of `scan://progress`: the counters plus the scan id.
@@ -203,4 +203,81 @@ pub struct ChangeDto {
     pub base: Option<u64>,
     pub current: u64,
     pub delta: i64,
+}
+
+/// Instant size-grouping estimate before reading file contents from disk.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DuplicateCandidatesDto {
+    /// Number of size groups with at least two candidate files.
+    pub groups: usize,
+    /// Total candidate files that would be checked.
+    pub files: u64,
+    /// Summed size of all candidate files.
+    pub bytes: u64,
+    /// Whether a cached duplicate result already exists for this `(scan_id, filter)`.
+    pub cached: bool,
+}
+
+/// One copy inside a confirmed duplicate group.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+pub struct DuplicateCopyDto {
+    pub id: u32,
+    pub name: String,
+    pub path: String,
+    /// Windows FILETIME (100-ns ticks since 1601-01-01).
+    pub mtime: i64,
+    pub category: FileCategory,
+}
+
+/// One confirmed group of identical files.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+pub struct DuplicateGroupDto {
+    /// Logical size of each copy, in bytes.
+    pub size: u64,
+    /// Bytes freed by keeping one copy and removing the rest.
+    pub reclaimable: u64,
+    /// 64-character lowercase hex BLAKE3 content hash.
+    pub hash: String,
+    pub copies: Vec<DuplicateCopyDto>,
+}
+
+/// Confirmed duplicate search result sent to the UI.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+pub struct DuplicateResultDto {
+    /// Up to 500 groups ordered by reclaimable space descending.
+    pub groups: Vec<DuplicateGroupDto>,
+    /// Total surviving duplicate groups across the whole result.
+    pub total_groups: usize,
+    /// Total surviving files across all duplicate groups.
+    pub total_files: u64,
+    /// Total reclaimable bytes across all surviving duplicate groups.
+    pub reclaimable_bytes: u64,
+    /// Candidate files that were skipped during hashing (unreadable, changed, links, placeholders).
+    pub skipped: u64,
+    /// Bytes read from disk during hashing.
+    pub bytes_read: u64,
+}
+
+/// Payload of `dupes://progress`.
+#[derive(Serialize, Clone, Debug)]
+pub struct DupesProgressEvent {
+    pub job_id: u64,
+    pub scan_id: u64,
+    pub progress: HashProgress,
+}
+
+/// Payload of `dupes://done`.
+#[derive(Serialize, Clone, Debug)]
+pub struct DupesDoneEvent {
+    pub job_id: u64,
+    pub scan_id: u64,
+    pub result: DuplicateResultDto,
+}
+
+/// Payload of `dupes://error` (also used for a cancelled duplicate search).
+#[derive(Serialize, Clone, Debug)]
+pub struct DupesErrorEvent {
+    pub job_id: u64,
+    pub scan_id: u64,
+    pub message: String,
 }

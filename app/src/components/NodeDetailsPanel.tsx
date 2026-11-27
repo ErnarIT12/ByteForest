@@ -93,6 +93,11 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
             <div className="details-actions">
               <button type="button" className="btn" disabled={busy}
                 onClick={() => void exportFolderReport()}>{strings.exportReport}</button>
+              <button type="button" className="btn" disabled={busy || readOnly}
+                title={readOnly ? strings.snapshotReadOnly : undefined}
+                onClick={() => useAppStore.getState().openDupes({ id, name: details.node.name })}>
+                {strings.findDupesHere}
+              </button>
             </div>
           )}
           {details.has_native_path ? (

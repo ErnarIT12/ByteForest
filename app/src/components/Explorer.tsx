@@ -10,6 +10,7 @@ import { SnapshotBanner } from './SnapshotBanner';
 import { RecentScans } from './RecentScans';
 import { SnapshotsMenu } from './SnapshotsMenu';
 import { CleanupQueue } from './DiscardPileDock';
+import { DuplicatesView } from './DuplicatesView';
 import { FileSearch } from './FileSearch';
 import { NodeDetailsPanel } from './NodeDetailsPanel';
 import { strings } from '../strings';
@@ -117,6 +118,10 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       if (isCurrent()) setOpening(false);
     }
   };
+  if (view === 'dupes') return (
+    <DuplicatesView scanId={scanId} root={root} onOpen={(id) => void openResult(id)}
+      opening={opening} navigationError={error} />
+  );
   if (view === 'history') return (
     <main className="explorer cleanup-view">
       <header className="scan-heading"><h1>Scan history</h1><SnapshotsMenu /></header>

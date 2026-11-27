@@ -7,6 +7,7 @@
 mod builder;
 mod category;
 mod diff;
+mod dupes;
 mod exclude;
 mod flags;
 mod record;
@@ -24,6 +25,10 @@ pub use category::{
     extension_of,
 };
 pub use diff::{DiffEntry, DiffStatus, DiffSummary, Gone, SnapshotDiff, diff};
+pub use dupes::{
+    DEFAULT_DUPLICATE_MIN_SIZE, DuplicateCandidates, DuplicateFilter, DuplicateGroup, SizeGroup,
+    sort_duplicate_groups,
+};
 pub use exclude::{
     Excluded, ExclusionSet, MAX_EXCLUSION_PATTERN_LEN, MAX_EXCLUSION_PATTERNS, NamePattern,
     normalize_patterns,

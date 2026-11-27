@@ -115,6 +115,16 @@ describe('Discard Pile queue', () => {
     useDiscardPile.getState().add([4]);
     expect(useDiscardPile.getState().ids).toEqual([]);
   });
+
+  it('updates additions and removals in a single batch refresh', async () => {
+    useDiscardPile.getState().add([4, 5]);
+    await settle();
+    api.discardSummary.mockClear();
+    useDiscardPile.getState().updateBatch([6, 7], [4]);
+    await settle();
+    expect(useDiscardPile.getState().ids).toEqual([5, 6, 7]);
+    expect(api.discardSummary).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('Discard Pile batch move', () => {

@@ -12,6 +12,7 @@ authors = ["Ernar"]
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 bitflags = "2"
+blake3 = "1"
 thiserror = "2"
 flate2 = "1"
 crc32fast = "1"

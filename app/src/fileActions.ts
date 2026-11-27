@@ -104,6 +104,15 @@ export const useFileActions = create<FileActionsState>()((set, get) => {
             (error: unknown) => set({ notice: message(error) }),
           );
           break;
+        case 'findDupes':
+          if (!canChangeDisk(useAppStore.getState().resultSource)) {
+            set({ notice: strings.snapshotReadOnly });
+            break;
+          }
+          if (useAppStore.getState().resultScanId === scanId) {
+            useAppStore.getState().openDupes({ id, name: details.node.name });
+          }
+          break;
         case 'reveal':
           void perform(scanId, id, revealNodeInFileManager);
           break;

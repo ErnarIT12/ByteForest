@@ -1,6 +1,6 @@
 use std::fs::ReadDir;
 use std::io;
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
@@ -204,7 +204,7 @@ fn process_dir<'s>(
                 meta.last_write_time() as i64,
             )
         };
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         let (flags, size, alloc, mtime) = unix_entry(&meta);
 
         let is_dir = flags.contains(NodeFlags::DIR);
@@ -301,7 +301,7 @@ fn round_up(size: u64, cluster: u64) -> u64 {
     size.div_ceil(cluster).saturating_mul(cluster)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn unix_entry(meta: &std::fs::Metadata) -> (NodeFlags, u64, u64, i64) {
     let flags = if meta.is_dir() {
         NodeFlags::DIR
