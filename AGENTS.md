@@ -23,7 +23,7 @@ Run `cargo test --workspace`, `npm --prefix app test`, and `cargo deny check`. N
 
 ## Commits and Pull Requests
 
-Use the repository’s documented Conventional Commits style, such as `fix(scan): handle unreadable folders`. Keep pull requests focused. Explain what changed and why, link relevant issues with `Closes #123`, and report checks run. Update `CHANGELOG.md` under `[Unreleased]` for user-visible changes. Report security issues privately via [SECURITY.md](SECURITY.md).
+Use the repository’s documented Conventional Commits style, such as `fix(scan): handle unreadable folders`. Keep pull requests focused. Explain what changed and why, link relevant issues with `Closes #123`, and report checks run. Update `CHANGELOG.md` under `[Unreleased]` for user-visible changes. Whenever a noticeable UI redesign or new visual feature lands, keep `README.md` and `docs/screenshots/` clean and up to date incrementally for the affected screens. Report security issues privately via [SECURITY.md](SECURITY.md).
 
 ## Performance & Simplicity Guardrails
 

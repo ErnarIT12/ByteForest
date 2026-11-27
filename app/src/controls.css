@@ -1,4 +1,4 @@
-/* Buttons, SwiftUI toolbar inputs, chips, toast and settings dialog. */
+/* Buttons, toolbar inputs, chips, toast and settings dialog. */
 
 /* Controls */
 
@@ -20,27 +20,29 @@ input[type="checkbox"]:disabled {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 32px;
-  min-width: 76px;
+  height: 30px;
+  min-width: 72px;
   padding: 0 12px;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--control);
   box-shadow: var(--control-shadow);
   color: var(--text);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: default;
   transition:
     background-color var(--ease-ui),
+    border-color var(--ease-ui),
     color var(--ease-ui),
     box-shadow var(--ease-ui),
     transform var(--ease-ui);
 }
 .btn:hover:not(:disabled) {
   background: var(--control-hover);
+  border-color: var(--border-strong);
 }
 .btn:active:not(:disabled) {
   background: var(--pressed);
@@ -51,7 +53,7 @@ input[type="checkbox"]:disabled {
   border-color: transparent;
   color: var(--on-btn);
   font-weight: 600;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 16%), inset 0 1px 0 rgb(255 255 255 / 22%);
+  box-shadow: var(--btn-shadow);
 }
 .btn.primary:hover:not(:disabled) {
   background: var(--btn-grad-hover);
@@ -61,7 +63,7 @@ input[type="checkbox"]:disabled {
 .btn.primary:active:not(:disabled) {
   background: var(--btn-grad);
   color: var(--on-btn);
-  filter: brightness(0.94);
+  filter: brightness(0.95);
   box-shadow: none;
   transform: none;
 }
@@ -71,19 +73,20 @@ input[type="checkbox"]:disabled {
 }
 .btn.danger {
   background: color-mix(in srgb, var(--danger) 10%, var(--control-solid));
-  border-color: transparent;
+  border-color: color-mix(in srgb, var(--danger) 28%, transparent);
   box-shadow: none;
   color: var(--danger);
 }
 .btn.danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger) 16%, var(--control-solid));
+  border-color: color-mix(in srgb, var(--danger) 42%, transparent);
 }
 .btn:disabled {
   opacity: 0.45;
   box-shadow: none;
 }
 
-/* SwiftUI 32px search & inline toolbar controls */
+/* Unified 30-32px search & inline toolbar controls */
 
 .swift-search {
   position: relative;
@@ -91,16 +94,18 @@ input[type="checkbox"]:disabled {
   align-items: center;
   flex: 1 1 220px;
   min-width: 160px;
-  height: 32px;
+  height: 30px;
   padding: 0 8px 0 10px;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--control-solid);
-  box-shadow: inset 0 1px 2px rgb(0 0 0 / 6%);
-  transition: background-color var(--ease-ui), box-shadow var(--ease-ui);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 8%);
+  transition: background-color var(--ease-ui), border-color var(--ease-ui), box-shadow var(--ease-ui);
 }
 .swift-search:focus-within {
   background: var(--surface-raised);
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 32%, transparent);
 }
 .swift-search-icon {
   flex: none;
@@ -129,8 +134,8 @@ input[type="checkbox"]:disabled {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -146,18 +151,20 @@ input[type="checkbox"]:disabled {
 .swift-ext-field {
   display: inline-flex;
   align-items: center;
-  flex: 0 1 124px;
-  min-width: 96px;
-  height: 32px;
+  flex: 0 1 116px;
+  min-width: 88px;
+  height: 30px;
   padding: 0 6px 0 10px;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--control-solid);
-  box-shadow: inset 0 1px 2px rgb(0 0 0 / 6%);
-  transition: background-color var(--ease-ui), box-shadow var(--ease-ui);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 8%);
+  transition: background-color var(--ease-ui), border-color var(--ease-ui), box-shadow var(--ease-ui);
 }
 .swift-ext-field:focus-within {
   background: var(--surface-raised);
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 32%, transparent);
 }
 .swift-ext-prefix {
   flex: none;
@@ -183,19 +190,20 @@ input[type="checkbox"]:disabled {
 }
 
 .swift-select {
-  height: 32px;
+  height: 30px;
   padding: 0 10px;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--control-solid);
   box-shadow: var(--control-shadow);
   color: var(--text);
-  font-size: 13px;
+  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
-  transition: background-color var(--ease-ui), box-shadow var(--ease-ui);
+  transition: background-color var(--ease-ui), border-color var(--ease-ui), box-shadow var(--ease-ui);
 }
 .swift-select:hover {
   background: var(--control-hover);
+  border-color: var(--border-strong);
 }
 .swift-select:focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -214,12 +222,12 @@ input[type="checkbox"]:disabled {
   gap: 6px;
   height: 28px;
   padding: 0 10px;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--control);
   color: var(--text-2);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   cursor: default;
@@ -231,10 +239,11 @@ input[type="checkbox"]:disabled {
 }
 .chip:hover {
   background: var(--control-hover);
+  border-color: var(--border-strong);
   color: var(--text);
 }
 .chip[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 44%, transparent);
   background: var(--selected);
   color: var(--text);
   font-weight: 600;
@@ -309,19 +318,22 @@ optgroup {
   white-space: nowrap;
 }
 
-/* Error toast */
+/* Error toast (frosted floating overlay) */
 
 .toast {
   position: fixed;
   right: 16px;
-  bottom: 48px;
+  bottom: 44px;
   display: flex;
   align-items: flex-start;
   gap: 10px;
   max-width: 420px;
   padding: 12px 10px 12px 14px;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  background: var(--surface-raised);
+  background: var(--glass-floating);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--elev-2);
 }
 .toast-icon {
@@ -337,7 +349,7 @@ optgroup {
   overflow-wrap: anywhere;
 }
 
-/* Elevation hint bar, mode badge button and settings popover */
+/* Elevation hint bar, mode badge button and settings dialog */
 
 .elevation-bar {
   display: flex;
@@ -345,6 +357,7 @@ optgroup {
   gap: 12px;
   padding: 8px 16px;
   background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
   color: var(--text);
   box-shadow: var(--bar-shadow);
 }
@@ -363,15 +376,17 @@ optgroup {
   max-height: 85vh;
   margin: auto;
   padding: 24px;
-  border: 0;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  background: var(--surface-raised);
+  background: var(--glass-floating);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: var(--text);
   box-shadow: var(--elev-2);
 }
 .settings-dialog::backdrop {
-  background: rgb(0 0 0 / 45%);
-  backdrop-filter: blur(4px);
+  background: rgb(0 0 0 / 48%);
+  backdrop-filter: blur(6px);
 }
 .dialog-close { float: right; }
 .settings-dialog p { margin: 8px 0 16px; }
@@ -387,9 +402,9 @@ optgroup {
 .settings-dialog h2 { margin: 2px 0 16px; font-size: 16px; }
 .appearance-setting { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .appearance-setting select {
-  height: 32px;
+  height: 30px;
   padding: 0 10px;
-  border: 0;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--control-solid);
   box-shadow: var(--control-shadow);
@@ -432,12 +447,12 @@ optgroup {
 .exclusion-add input {
   flex: 1;
   min-width: 0;
-  height: 32px;
+  height: 30px;
   padding: 0 10px;
-  border: 0;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--control-solid);
-  box-shadow: inset 0 1px 2px rgb(0 0 0 / 6%);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 8%);
   color: var(--text);
   font: inherit;
 }

@@ -10,14 +10,14 @@ import {
   type Theme,
 } from './treemapPaint';
 
-// Representative token pairs from styles.css, including the raised inspector surface.
+// Representative Obsidian-Graphite (dark) & Frosted-Silver (light) token pairs from styles.css.
 const surfaces = {
-  light: ['#edf0f3', '#e8eaee', '#ffffff', '#f6f7f9'],
-  dark: ['#17181b', '#141518', '#202226', '#292c32'],
+  light: ['#f5f6f8', '#eff1f5', '#ffffff', '#eef0f4'],
+  dark: ['#111317', '#0d0f13', '#17191e', '#1e2128', '#232730'],
 };
 const inks = {
-  light: ['#191c22', '#424954', '#57606d', '#475569'],
-  dark: ['#f3f4f6', '#c6cad2', '#a0a7b2', '#c7d0df'],
+  light: ['#14171c', '#3d4450', '#565f6e', '#2563eb'],
+  dark: ['#eef1f6', '#b9c0cc', '#959eab', '#60a5fa'],
 };
 
 describe('brand theme contrast', () => {
@@ -32,20 +32,20 @@ describe('brand theme contrast', () => {
   }
 });
 
-// Text on gradient buttons, accent fills and the title bar, checked against every gradient stop.
+// Text on primary CTA buttons, accent fills and the title bar, checked against every stop.
 const labelPairs: Record<string, [label: string, backgrounds: string[]][]> = {
   silver: [
-    ['#ffffff', ['#505967', '#323842', '#424b59', '#272b33']], // --on-btn on --btn-grad(-hover)
-    ['#ffffff', ['#475569']], // --on-accent on --accent
-    ['#191c22', ['#f8f9fb', '#edf0f3', '#e8eaee']], // --chrome-text on --chrome-bg
-    ['#191c22', ['#e2e5eb']], // --chrome-text on --chrome-hover
+    ['#ffffff', ['#242831', '#181b20', '#2e333e', '#1f232b']], // --on-btn on --btn-grad(-hover)
+    ['#ffffff', ['#2563eb']], // --on-accent on --accent
+    ['#14171c', ['#fbfcfe', '#f3f5f8', '#f5f6f8']], // --chrome-text on --chrome-bg
+    ['#14171c', ['#e3e7ee']], // --chrome-text on hover
     ['#ffffff', ['#ac2632']], // --on-close-hover on --close-hover
   ],
   graphite: [
-    ['#141518', ['#f3f4f6', '#b8bec9', '#ffffff', '#d4dae3']], // --on-btn on --btn-grad(-hover)
-    ['#141518', ['#c7d0df']], // --on-accent on --accent
-    ['#f3f4f6', ['#353941', '#22252a', '#18191c']], // --chrome-text on --chrome-bg
-    ['#f3f4f6', ['#474c55']], // --chrome-text on --chrome-hover
+    ['#111317', ['#f4f6fa', '#e1e6ef', '#ffffff', '#eceff4']], // --on-btn on --btn-grad(-hover)
+    ['#0d1117', ['#60a5fa']], // --on-accent on --accent
+    ['#eef1f6', ['#1c1f27', '#13161c', '#111317']], // --chrome-text on --chrome-bg
+    ['#eef1f6', ['#2c313c']], // --chrome-text on hover
     ['#ffffff', ['#ac2632']], // --on-close-hover on --close-hover
   ],
 };
@@ -104,8 +104,8 @@ const deltaInks = {
   dark: ['#ffb27a', '#7fd6a0'],
 };
 const deltaSurfaces = {
-  light: ['#ffffff', '#f6f7f9', '#edf0f3', '#e8eaee', '#e0e2e6', '#eeeff0', '#ecedef'],
-  dark: ['#202226', '#292c32', '#17181b', '#3c4046', '#2f3238', '#31343a'],
+  light: ['#ffffff', '#f5f6f8', '#eff1f5', '#eef0f4', mixSrgb('#2563eb', '#ffffff', 9), mixSrgb('#14171c', '#ffffff', 6)],
+  dark: ['#17191e', '#1e2128', '#111317', '#232730', mixSrgb('#3b82f6', '#17191e', 16), mixSrgb('#eef1f6', '#17191e', 6)],
 };
 
 describe('snapshot change colour contrast', () => {
@@ -122,21 +122,21 @@ describe('snapshot change colour contrast', () => {
 
 // Destructive text: `.context-menu-item.danger` (on the raised menu surface, and on a 14% tint
 // of --danger over it when hovered or focused) and `.btn.danger` (on --surface, --control and
-// the 14% tint over --surface when hovered), see contextMenu.css.
+// the 14% tint over --surface when hovered), see contextMenu.css & controls.css.
 const danger = {
   light: {
     ink: '#a62839',
     surface: '#ffffff',
-    raised: '#f6f7f9',
-    control: '#f0f1f4',
-    controlHover: '#e2e5eb',
+    raised: '#f5f6f8',
+    control: '#eef0f4',
+    controlHover: '#e3e7ee',
   },
   dark: {
     ink: '#ff9ea9',
-    surface: '#202226',
-    raised: '#292c32',
-    control: '#30333a',
-    controlHover: '#3a3e46',
+    surface: '#17191e',
+    raised: '#1e2128',
+    control: '#232730',
+    controlHover: '#2c313c',
   },
 };
 
@@ -159,40 +159,43 @@ describe('danger colour contrast', () => {
   }
 });
 
-// Sidebar, segmented switch, badges and the empty-state card (v0.4): text on the selected
-// row (accent mixed into the surface), on hover tints over the page background, on the
-// raised strips that replaced bordered toolbars, and on the control track of the switch.
-const v04 = {
+// Sidebar, segmented switch, badges and translucent cards: text on the selected row, on hover
+// tints over the page background, on raised strips, and on the control track of the switch.
+const tokens = {
   light: {
-    text: '#191c22',
-    text2: '#424954',
-    text3: '#57606d',
-    accent: '#475569',
+    text: '#14171c',
+    text2: '#3d4450',
+    text3: '#565f6e',
+    accent: '#2563eb',
+    selectedTint: '#2563eb',
+    selectedPct: 9,
     surface: '#ffffff',
-    raised: '#f6f7f9',
-    control: '#f0f1f4',
-    pages: ['#f8f9fb', '#edf0f3', '#e8eaee'],
-    barFill: '#69788c',
-    barTrack: '#d5d8df',
+    raised: '#f5f6f8',
+    control: '#eef0f4',
+    pages: ['#f9fafb', '#f5f6f8', '#eff1f5'],
+    barFill: '#2563eb',
+    barTrack: '#d9dee7',
   },
   dark: {
-    text: '#f3f4f6',
-    text2: '#c6cad2',
-    text3: '#a0a7b2',
-    accent: '#c7d0df',
-    surface: '#202226',
-    raised: '#292c32',
-    control: '#30333a',
-    pages: ['#23252a', '#17181b', '#141518'],
-    barFill: '#929eaf',
-    barTrack: '#383b42',
+    text: '#eef1f6',
+    text2: '#b9c0cc',
+    text3: '#959eab',
+    accent: '#60a5fa',
+    selectedTint: '#3b82f6',
+    selectedPct: 16,
+    surface: '#17191e',
+    raised: '#1e2128',
+    control: '#232730',
+    pages: ['#15181e', '#111317', '#0d0f13'],
+    barFill: '#60a5fa',
+    barTrack: '#2b303b',
   },
 };
 
 describe('sidebar and flat panel contrast', () => {
   for (const theme of ['light', 'dark'] as const) {
-    const t = v04[theme];
-    const selected = mixSrgb(t.accent, t.surface, 17);
+    const t = tokens[theme];
+    const selected = mixSrgb(t.selectedTint, t.surface, t.selectedPct);
     it(`${theme} text on the selected row (${selected}) meets AA`, () => {
       for (const ink of [t.text, t.text2, t.accent]) {
         expect(contrastRatio(ink, selected)).toBeGreaterThanOrEqual(4.5);
@@ -200,7 +203,7 @@ describe('sidebar and flat panel contrast', () => {
     });
     it(`${theme} sidebar text on hovered rows over the page meets AA`, () => {
       for (const page of t.pages) {
-        const hover = mixSrgb(t.text, page, 7);
+        const hover = mixSrgb(t.text, page, 6);
         for (const ink of [t.text, t.text2]) {
           expect(contrastRatio(ink, hover), `${ink} on ${hover}`).toBeGreaterThanOrEqual(4.5);
         }
@@ -228,7 +231,7 @@ describe('sidebar and flat panel contrast', () => {
   }
 });
 
-// Discard Pile (v0.4): the treemap marker (--tm-discard) is a non-text graphic and must stand
+// Discard Pile: the treemap marker (--tm-discard) is a non-text graphic and must stand
 // out from every fill it can be drawn on, in both colour modes; the dock's list rows put text
 // on the hover and pressed tints over the dock surface.
 const discardMarker: Record<Theme, string> = { light: '#4a0d18', dark: '#ffe9bd' };
@@ -253,8 +256,8 @@ describe('Discard Pile marker contrast', () => {
     });
 
     it(`${theme} dock text on hovered and pressed rows meets AA`, () => {
-      const t = v04[theme];
-      for (const [tint, amount] of [['hover', 7], ['pressed', 12]] as const) {
+      const t = tokens[theme];
+      for (const [tint, amount] of [['hover', 6], ['pressed', 10]] as const) {
         const row = mixSrgb(t.text, t.surface, amount);
         for (const ink of [t.text, t.text2, t.text3]) {
           expect(contrastRatio(ink, row), `${tint} ${ink} on ${row}`).toBeGreaterThanOrEqual(4.5);
@@ -269,8 +272,8 @@ describe('Discard Pile marker contrast', () => {
 // below it; the pill label sits on the mark colour; the legend swatch on the raised strip; and
 // the mark against the map backdrop (--tm-bg) that shows between tiles.
 const marks = {
-  light: { grow: '#9a3412', shrink: '#17663a', halo: '#ffffff', backdrop: '#d8dce2', raised: '#f6f7f9' },
-  dark: { grow: '#ffb27a', shrink: '#7fd6a0', halo: '#141518', backdrop: '#181a1e', raised: '#292c32' },
+  light: { grow: '#9a3412', shrink: '#17663a', halo: '#ffffff', backdrop: '#dde1e8', raised: '#f5f6f8' },
+  dark: { grow: '#ffb27a', shrink: '#7fd6a0', halo: '#111317', backdrop: '#121418', raised: '#1e2128' },
 };
 
 describe('map change mark contrast', () => {
