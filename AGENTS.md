@@ -24,3 +24,12 @@ Run `cargo test --workspace`, `npm --prefix app test`, and `cargo deny check`. N
 ## Commits and Pull Requests
 
 Use the repository’s documented Conventional Commits style, such as `fix(scan): handle unreadable folders`. Keep pull requests focused. Explain what changed and why, link relevant issues with `Closes #123`, and report checks run. Update `CHANGELOG.md` under `[Unreleased]` for user-visible changes. Report security issues privately via [SECURITY.md](SECURITY.md).
+
+## Branch, Worktree, and Merge Workflow
+
+- Keep `main` clean at all times; never commit directly to `main`.
+- For every new feature or fix, create a dedicated `git worktree` from up-to-date `main` on a topic branch (`feat/...`, `fix/...`, etc.) and do all work strictly inside that worktree.
+- Before pushing, run the full local verification suite: `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app test`, `npm --prefix app run build`, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, and `cargo deny check`.
+- Push the branch and open a Pull Request via `gh pr create` with a clear summary of changes and checks run.
+- Watch CI checks (`gh pr checks --watch`); if any check fails or reports issues, fix them on the branch and push until all required checks pass.
+- Before merging, self-review the PR diff, then merge into `main`, verify that `main` is clean and green, and remove the temporary worktree and merged branch.
