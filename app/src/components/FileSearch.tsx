@@ -44,12 +44,12 @@ const MIN_SIZES = [
 
 const PRESET_META: Record<SearchPresetId, { icon: LucideIcon; hue: Record<Theme, string> }> = {
   caches: { icon: Layers, hue: { light: '#b45309', dark: '#f59e0b' } },
-  node_modules: { icon: Package, hue: { light: '#0b6e41', dark: '#22c55e' } },
+  node_modules: { icon: Package, hue: { light: '#2563eb', dark: '#60a5fa' } },
   target: { icon: Box, hue: { light: '#c2410c', dark: '#fb923c' } },
   venv: { icon: Database, hue: { light: '#0369a1', dark: '#38bdf8' } },
   git: { icon: GitBranch, hue: { light: '#be123c', dark: '#fb7185' } },
   diskImages: { icon: Disc, hue: { light: '#0f766e', dark: '#2dd4bf' } },
-  huge: { icon: HardDrive, hue: { light: '#15803d', dark: '#34d399' } },
+  huge: { icon: HardDrive, hue: { light: '#475569', dark: '#cbd5e1' } },
 };
 
 /** Parent directory of `fullPath` without repeating `name` at the end. */

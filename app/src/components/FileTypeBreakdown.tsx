@@ -37,7 +37,7 @@ export function FileTypeBreakdown({ scanId, id, name }: { scanId: number; id: nu
     breakdown && breakdown.total_bytes > 0 ? (100 * bytes) / breakdown.total_bytes : 0;
 
   return (
-    <section className="file-types" aria-label={strings.fileTypes}>
+    <section className="file-types inspector-card" aria-label={strings.fileTypes}>
       <h3>{strings.fileTypes}</h3>
       {!current && <p className="muted" role="status">{strings.fileTypesLoading}</p>}
       {current?.error && <p className="muted" role="alert">{strings.fileTypesFailed}</p>}

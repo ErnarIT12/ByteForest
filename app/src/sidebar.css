@@ -1,4 +1,4 @@
-/* Unified left sidebar: views, locations, recent scans and the Discard Pile dock. */
+/* Unified left sidebar: views, locations, recent scans and the Cleanup card. */
 
 .sidebar {
   display: flex;
@@ -62,20 +62,22 @@
   width: 100%;
   min-height: 32px;
   padding: 6px 8px;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: transparent;
   color: var(--text);
   font: inherit;
   font-size: 13px;
   text-align: left;
-  transition: background-color var(--ease-ui), color var(--ease-ui);
+  transition: background-color var(--ease-ui), border-color var(--ease-ui), color var(--ease-ui);
 }
 .sidebar-item:hover { background: var(--hover); }
 .sidebar-item:active { background: var(--pressed); }
 .sidebar-item[aria-current="true"],
 .sidebar-item[aria-current="page"] {
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
   background: var(--selected);
+  box-shadow: var(--specular-subtle);
   color: var(--text);
   font-weight: 600;
 }
@@ -108,23 +110,27 @@
 
 .discard-dock {
   flex: none;
-  padding: 12px 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  background: var(--glass-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--elev-1);
 }
 .discard-heading {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
+  gap: 14px;
+  margin-bottom: 6px;
+  padding: 0;
 }
-.discard-dock .sidebar-note { padding-left: 34px; }
+.discard-dock .sidebar-note { padding-left: 30px; }
 .discard-icon { position: relative; display: inline-flex; flex: none; }
 .discard-badge {
   position: absolute;
-  top: -7px;
-  right: -9px;
+  top: -6px;
+  right: -8px;
   min-width: 16px;
   padding: 0 4px;
   border-radius: 999px;
@@ -139,7 +145,7 @@
 }
 .discard-summary {
   margin: 0 0 8px;
-  padding: 0 8px;
+  padding: 0 2px;
   color: var(--text-2);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -148,7 +154,7 @@
   display: grid;
   gap: 2px;
   max-height: 168px;
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   padding: 0;
   overflow-y: auto;
   list-style: none;
@@ -176,7 +182,7 @@
 .discard-size { flex: none; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .discard-remove { flex: none; width: 24px; height: 24px; }
 .discard-actions { display: flex; justify-content: space-between; gap: 8px; padding: 0 2px; }
-.discard-outcome { margin-top: 8px; padding: 0 8px; color: var(--text-2); font-size: 12px; }
+.discard-outcome { margin-top: 8px; padding: 0 2px; color: var(--text-2); font-size: 12px; }
 .discard-outcome p { margin: 0 0 6px; overflow-wrap: anywhere; }
 .discard-outcome ul { margin: 4px 0 6px; padding-left: 16px; }
 .discard-outcome li { overflow-wrap: anywhere; }

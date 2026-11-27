@@ -57,7 +57,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   split: number;
   onSplitChange: (value: number) => void;
 }) {
-  const [treeShare, setTreeShare] = useState(0.6);
+  const [treeShare, setTreeShare] = useState(0.4);
   const view = useAppStore((s) => s.resultView);
   const search = view === 'files';
   const comparing = useAppStore((s) => s.baseline !== null);
@@ -149,11 +149,13 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
     <main className="explorer cleanup-view">
       <header className="scan-heading"><h1>Cleanup</h1></header>
       <section className="cleanup-content">
-        <h2>Cache folders</h2>
-        <p>Find common cache folder names in this scan. Review their paths before choosing what to move.</p>
-        <button type="button" className="btn" onClick={() => useAppStore.getState().openSearch({
-          under: { id: root.id, name: root.name }, caches: true,
-        })}>Find cache folders</button>
+        <section className="cleanup-card">
+          <h2>Cache folders</h2>
+          <p>Find common cache folder names in this scan. Review their paths before choosing what to move.</p>
+          <button type="button" className="btn" onClick={() => useAppStore.getState().openSearch({
+            under: { id: root.id, name: root.name }, caches: true,
+          })}>Find cache folders</button>
+        </section>
         <CleanupQueue />
       </section>
     </main>
