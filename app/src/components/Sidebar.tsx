@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { type UserFolder, type VolumeSummary } from '../api';
 import { formatBytes } from '../format';
 import { setSidebarCollapsed, useSidebarCollapsed } from '../hooks/useSidebarCollapsed';
@@ -84,6 +84,28 @@ function folderLocation(folder: UserFolder): Location {
   };
 }
 
+function DiscardSync() {
+  useDiscardSync();
+  return null;
+}
+
+function ScanViews() {
+  const hasScan = useAppStore((s) => s.root !== null);
+  const view = useAppStore((s) => s.resultView);
+  if (!hasScan) return null;
+  return (
+    <section className="sidebar-section" aria-label="Scan views">
+      {VIEWS.map(({ label, icon, viewId }) => (
+        <button key={label} type="button" className="sidebar-item" title={label}
+          aria-current={view === viewId ? 'page' : undefined}
+          onClick={() => useAppStore.setState({ resultView: viewId })}>
+          <Icon icon={icon} className="sidebar-icon" /><span className="sidebar-text">{label}</span>
+        </button>
+      ))}
+    </section>
+  );
+}
+
 function LocationList({ locations, target, onChoose }: {
   locations: Location[];
   target: string | null;
@@ -119,12 +141,9 @@ function LocationList({ locations, target, onChoose }: {
 /** Left column in every state: where to scan, what was scanned recently and the Discard Pile. */
 export function Sidebar() {
   const hasScan = useAppStore((s) => s.root !== null);
-  useDiscardSync();
-  const view = useAppStore((s) => s.resultView);
   const drives = useAppStore((s) => s.drives);
   const userFolders = useAppStore((s) => s.userFolders);
   const target = useAppStore((s) => s.target);
-  const setTarget = useAppStore((s) => s.setTarget);
   const isMac = useAppStore((s) => s.isMac);
   const collapsed = useSidebarCollapsed();
   const narrow = useMediaQuery(SIDEBAR_NARROW_QUERY);
@@ -133,28 +152,31 @@ export function Sidebar() {
   useEffect(() => watchAutoSnapshots(), []);
 
   const choose = (value: string) => {
-    setTarget(value);
+    useAppStore.getState().setTarget(value);
     void runScan(scanTargetFor(value));
   };
 
-  const locations: Location[] = [
-    ...(drives ?? []).map(driveLocation),
-    ...userFolders.map(folderLocation),
-  ];
-  if (target && !locations.some((location) => location.value === target)) {
-    locations.push({
-      value: target,
-      name: folderLabel(target),
-      detail: '',
-      title: target,
-      icon: FolderOpen,
-      used: null,
-    });
-  }
-
+  const locations = useMemo<Location[]>(() => {
+    const items: Location[] = [
+      ...(drives ?? []).map(driveLocation),
+      ...userFolders.map(folderLocation),
+    ];
+    if (target && !items.some((location) => location.value === target)) {
+      items.push({
+        value: target,
+        name: folderLabel(target),
+        detail: '',
+        title: target,
+        icon: FolderOpen,
+        used: null,
+      });
+    }
+    return items;
+  }, [drives, userFolders, target]);
 
   return (
     <nav className="sidebar" aria-label={strings.sidebarLabel} data-rail={rail ? 'true' : undefined}>
+      <DiscardSync />
       {!narrow && (
         <div className="sidebar-head">
           <button type="button" className="icon-btn" aria-expanded={!collapsed}
@@ -167,15 +189,7 @@ export function Sidebar() {
         </div>
       )}
       <div id="sidebar-body" className="sidebar-body">
-        {hasScan && <section className="sidebar-section" aria-label="Scan views">
-          {VIEWS.map(({ label, icon, viewId }) => (
-            <button key={label} type="button" className="sidebar-item" title={label}
-              aria-current={view === viewId ? 'page' : undefined}
-              onClick={() => useAppStore.setState({ resultView: viewId })}>
-              <Icon icon={icon} className="sidebar-icon" /><span className="sidebar-text">{label}</span>
-            </button>
-          ))}
-        </section>}
+        <ScanViews />
         <section className="sidebar-section" aria-labelledby="sidebar-locations">
           <h2 id="sidebar-locations" className="sidebar-heading">{strings.locationsTitle}</h2>
           {drives === null ? (

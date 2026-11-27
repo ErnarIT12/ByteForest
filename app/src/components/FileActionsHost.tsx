@@ -19,7 +19,7 @@ export function FileActionsHost() {
   const isMac = useAppStore((s) => s.isMac);
   const rootId = useAppStore((s) => s.rootId);
   const readOnly = useAppStore((s) => !canChangeDisk(s.resultSource));
-  const queued = useDiscardPile((s) => s.idSet);
+  const menuQueued = useDiscardPile((s) => (menu ? s.idSet.has(menu.details.node.id) : false));
   const confirmingBatch = useDiscardPile((s) => s.confirming);
   const outcome = useDiscardPile((s) => s.outcome);
 
@@ -54,7 +54,7 @@ export function FileActionsHost() {
           entries={buildMenuEntries(menu.details, {
             isMac,
             isRoot: menu.details.node.id === rootId,
-            queued: queued.has(menu.details.node.id),
+            queued: menuQueued,
             readOnly,
           })}
           onSelect={(action) => useFileActions.getState().runMenuAction(action)}
