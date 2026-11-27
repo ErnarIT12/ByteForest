@@ -100,8 +100,8 @@ interface AppState {
   userFolders: UserFolder[];
   /** Finished scans, newest first (persisted). */
   recentScans: RecentScan[];
-  /** Disk map shown in the explorer (persisted). */
-  resultView: 'map' | 'files' | 'dupes' | 'cleanup' | 'history';
+  /** Active screen in the main workspace (`overview` is the landing dashboard). */
+  resultView: 'overview' | 'map' | 'files' | 'dupes' | 'cleanup' | 'history';
   mapView: MapView;
   /** Location picked in the sidebar: a drive letter ("C") or a folder path. */
   target: string | null;
@@ -239,7 +239,7 @@ const initialState: AppState = {
   selectedId: null,
   reveal: null,
   invalidation: null,
-  resultView: 'map',
+  resultView: 'overview',
   searchPreset: null,
   dupesPreset: null,
   error: null,

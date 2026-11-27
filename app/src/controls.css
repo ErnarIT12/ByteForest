@@ -370,7 +370,7 @@ optgroup {
   background: var(--hover);
   color: var(--text);
 }
-.settings { padding: 8px 4px 0; border-top: 1px solid var(--border); }
+.settings { padding: 8px 10px 10px; border-top: 1px solid var(--border); }
 .settings-dialog {
   width: min(32rem, 90vw);
   max-height: 85vh;

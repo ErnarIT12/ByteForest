@@ -2,6 +2,7 @@ import type { LucideIcon, LucideProps } from 'lucide-react';
 
 /** The icons the app uses, re-exported so the bundle only contains these glyphs. */
 export {
+  Activity,
   ArrowUp,
   Box,
   Check,
@@ -9,6 +10,7 @@ export {
   CircleAlert,
   Clock,
   Copy,
+  Cpu,
   Database,
   Disc,
   Download,
@@ -23,6 +25,7 @@ export {
   House,
   Layers,
   LayoutGrid,
+  MemoryStick,
   Minus,
   Monitor,
   Package,

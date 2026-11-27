@@ -348,6 +348,26 @@ export const strings = {
   mapViewSunburst: 'Sunburst',
   topbarTargetLabel: (target: string) => `Scan target: ${target}`,
 
+  // Overview dashboard
+  overviewTitle: 'Overview',
+  overviewSubtitle: 'Live CPU, memory, and storage',
+  overviewResources: 'System resources',
+  overviewCpu: 'CPU',
+  overviewCpuUsage: 'CPU usage',
+  overviewCpuCores: (count: string) => `${count} cores`,
+  overviewMemory: 'Memory',
+  overviewMemoryUsage: 'Memory usage',
+  overviewMemoryOf: (used: string, total: string) => `${used} / ${total}`,
+  overviewDriveFree: (free: string) => `${free} free`,
+  overviewScanDrive: (name: string) => `Scan ${name}`,
+  overviewHistoryStart: '60s ago',
+  overviewHistoryNow: 'Now',
+  overviewTopProcesses: 'Top processes by memory',
+  overviewProcessesEmpty: 'Sampling active processes…',
+  overviewProcessesCount: (count: string) => `Top ${count}`,
+  overviewSampling: 'Sampling…',
+  overviewError: 'Could not read system metrics',
+
   // Errors
   scanFailed: 'Scan failed',
   elevateFailed: 'Could not restart as administrator',

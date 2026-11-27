@@ -536,3 +536,23 @@ export const onDupesDone = (cb: (e: DupesDoneEvent) => void): Promise<UnlistenFn
   listen<DupesDoneEvent>('dupes://done', (e) => cb(e.payload));
 export const onDupesError = (cb: (e: DupesErrorEvent) => void): Promise<UnlistenFn> =>
   listen<DupesErrorEvent>('dupes://error', (e) => cb(e.payload));
+
+/** One running process returned by `get_system_overview`. */
+export interface ProcessInfo {
+  name: string;
+  pid: number;
+  memory_bytes: number;
+  cpu_pct: number;
+}
+
+/** Snapshot of CPU, memory, and top processes by memory from `get_system_overview`. */
+export interface SystemOverview {
+  cpu_usage_pct: number;
+  cpu_brand: string;
+  cpu_cores: number;
+  mem_used_bytes: number;
+  mem_total_bytes: number;
+  top_processes: ProcessInfo[];
+}
+
+export const getSystemOverview = () => invoke<SystemOverview>('get_system_overview');

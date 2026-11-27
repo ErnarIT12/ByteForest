@@ -4,6 +4,7 @@ import { EmptyState } from './components/EmptyState';
 import { ErrorToast } from './components/ErrorToast';
 import { FileActionsHost } from './components/FileActionsHost';
 import { Explorer } from './components/Explorer';
+import { OverviewView } from './components/OverviewView';
 import { ScanAnnouncer } from './components/ScanAnnouncer';
 import { Sidebar } from './components/Sidebar';
 import { StatusBar } from './components/StatusBar';
@@ -19,10 +20,12 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
-/** Window shell: top bar, sidebar, the Explorer (or the empty state) and the status bar. */
+/** Window shell: full-height sidebar, minimal right-pane top bar, active view and status bar. */
 export default function App() {
   const root = useAppStore((s) => s.root);
   const scanId = useAppStore((s) => s.resultScanId);
+  const view = useAppStore((s) => s.resultView);
+  const scanning = useAppStore((s) => s.scanning);
   const [split, setSplit] = useState(0.55);
 
   useEffect(() => {
@@ -46,12 +49,21 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  const main =
+    scanning && !root ? (
+      <EmptyState />
+    ) : view === 'overview' || !root || scanId === null ? (
+      <OverviewView />
+    ) : (
+      <Explorer key={scanId} root={root} scanId={scanId} split={split} onSplitChange={setSplit} />
+    );
+
   return (
     <div className="app">
       <TopBar />
       <ElevationBar />
       <Sidebar />
-      {root && scanId !== null ? <Explorer key={scanId} root={root} scanId={scanId} split={split} onSplitChange={setSplit} /> : <EmptyState />}
+      {main}
       <StatusBar />
       <ErrorToast />
       <FileActionsHost />
