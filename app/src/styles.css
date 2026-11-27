@@ -153,7 +153,7 @@
   --glass-segmented: rgb(255 255 255 / 5%);
   --segmented-thumb: #2d323e;
   --specular: inset 0 1px 0 rgb(255 255 255 / 9%);
-  --specular-subtle: inset 0 1px 0 rgb(255 255 255 / 6%);
+  --specular-subtle: inset 0 1px 0 rgb(255 255 255 / 8%);
 
   /* Cool steel-blue for selection, checkboxes, active filters & focus rings (WCAG AA). */
   --accent: #60a5fa;
@@ -182,9 +182,9 @@
   --folder: #93a4bc;
   --folder-edge: #93a4bc;
 
-  /* Subtle top specular rim + deep shadow separates obsidian surfaces cleanly. */
+  /* Subtle top specular rim (8%) + deep shadow separates obsidian surfaces cleanly. */
   --elev-0: none;
-  --elev-1: 0 2px 10px rgb(0 0 0 / 36%), var(--specular-subtle);
+  --elev-1: 0 2px 10px rgb(0 0 0 / 36%), inset 0 1px 0 rgb(255 255 255 / 8%);
   --elev-2: 0 14px 36px rgb(0 0 0 / 58%), 0 2px 8px rgb(0 0 0 / 36%), var(--specular);
   --shadow: var(--elev-2);
 
@@ -343,10 +343,17 @@ input {
   min-width: 0;
 }
 .sidebar-head .bf-logo {
-  border-radius: 5px;
+  border-radius: 0;
 }
 .sidebar-head .bf-logo * {
   animation: none !important;
+}
+
+.topbar-title {
+  font: 600 13.5px/1.2 var(--font-display);
+  letter-spacing: -0.012em;
+  color: var(--chrome-text);
+  white-space: nowrap;
 }
 
 .caption-buttons { display: flex; align-self: stretch; }
@@ -390,10 +397,10 @@ input {
   .caption-buttons button { width: 36px; }
 }
 .caption-name {
-  font-weight: 600;
-  font-size: 13.5px;
-  letter-spacing: -0.012em;
-  color: var(--chrome-text);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: -0.008em;
+  color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -411,6 +418,9 @@ input {
   display: block;
   flex: none;
   border-radius: 8px;
+}
+.bf-logo-frameless {
+  border-radius: 0;
 }
 
 .progress-text {

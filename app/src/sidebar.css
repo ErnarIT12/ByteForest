@@ -31,11 +31,14 @@
   gap: 8px;
   height: 44px;
   padding: 0 10px 0 14px;
-  background: var(--chrome-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: transparent;
   border-bottom: 1px solid var(--border);
-  box-shadow: var(--specular);
+}
+.sidebar-head .sidebar-toggle {
+  color: var(--text-3);
+}
+.sidebar-head .sidebar-toggle:hover {
+  color: var(--text);
 }
 .sidebar[data-mac="true"]:not([data-rail]) .sidebar-head {
   padding-left: 74px;

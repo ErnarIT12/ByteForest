@@ -1,5 +1,5 @@
 import type { ProcessInfo } from '../api';
-import { formatBytes, formatInt } from '../format';
+import { formatBytes } from '../format';
 import { strings } from '../strings';
 
 /** Clean horizontal bar rows for the top 6–8 processes by memory usage. */
@@ -17,11 +17,6 @@ export function OverviewProcessesCard({
     <section className="overview-card overview-processes" aria-label={strings.overviewTopProcesses}>
       <header className="overview-card-head">
         <h2>{strings.overviewTopProcesses}</h2>
-        {processes.length > 0 && (
-          <span className="overview-card-meta">
-            {strings.overviewProcessesCount(formatInt(processes.length))}
-          </span>
-        )}
       </header>
 
       {processes.length === 0 ? (
@@ -31,15 +26,16 @@ export function OverviewProcessesCard({
           {processes.map((proc) => {
             const widthPct = Math.min(100, Math.max(2, (proc.memory_bytes * 100) / scaleDenom));
             return (
-              <li key={proc.pid} className="process-row">
-                <span className="process-name" title={`${proc.name} (PID ${proc.pid})`}>
-                  {proc.name}
-                </span>
+              <li
+                key={proc.pid}
+                className="process-row"
+                title={`${proc.name} · PID ${proc.pid} · ${proc.cpu_pct.toFixed(1)}% CPU`}
+              >
+                <span className="process-name">{proc.name}</span>
                 <span className="process-bar" aria-hidden="true">
                   <span style={{ width: `${widthPct}%` }} />
                 </span>
                 <span className="process-mem">{formatBytes(proc.memory_bytes)}</span>
-                <span className="process-cpu">{proc.cpu_pct.toFixed(1)}% CPU</span>
               </li>
             );
           })}

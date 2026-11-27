@@ -22,12 +22,12 @@ function MiniRing({
   const offset = RING_CIRCUMFERENCE * (1 - clamped / 100);
   return (
     <div className={`overview-ring tone-${tone}`} aria-hidden="true">
-      <svg viewBox="0 0 56 56">
-        <circle className="overview-ring-track" cx="28" cy="28" r={RING_RADIUS} />
+      <svg viewBox="0 0 60 60">
+        <circle className="overview-ring-track" cx="30" cy="30" r={RING_RADIUS} />
         <circle
           className="overview-ring-fill"
-          cx="28"
-          cy="28"
+          cx="30"
+          cy="30"
           r={RING_RADIUS}
           strokeDasharray={RING_CIRCUMFERENCE}
           strokeDashoffset={offset}
