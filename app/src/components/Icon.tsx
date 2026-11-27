@@ -7,6 +7,8 @@ export {
   Box,
   Check,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   CircleAlert,
   Clock,
   Copy,

@@ -22,4 +22,11 @@ describe('TreeGlyph', () => {
     expect(html).toContain('var(--logo-tile)');
     expect(html).not.toMatch(/stop-color="#/);
   });
+
+  it('omits the square tile when rendered frameless for the sidebar', () => {
+    const html = renderToStaticMarkup(<TreeGlyph size={18} frameless />);
+    expect(html).toContain('width="18"');
+    expect(html).toContain('bf-logo-frameless');
+    expect(html).not.toContain('var(--logo-tile)');
+  });
 });

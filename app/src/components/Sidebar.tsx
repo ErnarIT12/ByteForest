@@ -11,6 +11,8 @@ import { strings } from '../strings';
 import { useDiscardSync } from './DiscardPileDock';
 import {
   Activity,
+  ChevronsLeft,
+  ChevronsRight,
   Copy,
   Trash2,
   History,
@@ -23,8 +25,6 @@ import {
   House,
   Icon,
   Monitor,
-  PanelLeftClose,
-  PanelLeftOpen,
   type LucideIcon,
 } from './Icon';
 import { SettingsPopover } from './SettingsPopover';
@@ -204,7 +204,7 @@ export function Sidebar() {
       <header className="sidebar-head" data-tauri-drag-region>
         {(!rail || narrow) && (
           <span className="brand-mark" data-tauri-drag-region>
-            <TreeGlyph size={20} />
+            <TreeGlyph size={18} frameless />
             <span className="caption-name" data-tauri-drag-region>{strings.appName}</span>
           </span>
         )}
@@ -218,7 +218,7 @@ export function Sidebar() {
             title={collapsed ? strings.sidebarExpand : strings.sidebarCollapse}
             onClick={() => setSidebarCollapsed(!collapsed)}
           >
-            <Icon icon={collapsed ? PanelLeftOpen : PanelLeftClose} />
+            <Icon icon={collapsed ? ChevronsRight : ChevronsLeft} size={15} />
           </button>
         )}
       </header>
@@ -233,15 +233,13 @@ export function Sidebar() {
           ) : (
             <LocationList locations={locations} target={target} onChoose={choose} />
           )}
-          {isMac && (
-            <button type="button" className="sidebar-item sidebar-action" title={strings.chooseFolder}
-              onClick={chooseFolderAndScan}>
-              <Icon icon={FolderOpen} className="sidebar-icon" />
-              <span className="sidebar-text">
-                <span className="sidebar-name">{strings.chooseFolder}</span>
-              </span>
-            </button>
-          )}
+          <button type="button" className="sidebar-item sidebar-action" title={strings.chooseFolder}
+            onClick={chooseFolderAndScan}>
+            <Icon icon={FolderOpen} className="sidebar-icon" />
+            <span className="sidebar-text">
+              <span className="sidebar-name">{strings.chooseFolder}</span>
+            </span>
+          </button>
         </section>
         {!hasScan && <RecentScans rail={rail} />}
       </div>

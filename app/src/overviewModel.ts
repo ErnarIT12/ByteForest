@@ -43,56 +43,62 @@ export function formatWholePercent(value: number): string {
 export interface SparklineGeometry {
   /** Polyline `points` attribute (`x1,y1 x2,y2 ...`), empty when `samples` is empty. */
   linePoints: string;
-  /** Closed SVG `<path>` for the vertical gradient area fill beneath the line. */
+  /** Smooth cubic Bezier SVG `<path>` for the top stroke, empty when `samples` is empty. */
+  smoothLinePath: string;
+  /** Closed SVG `<path>` for the vertical gradient area fill beneath the smooth curve. */
   areaPath: string;
   /** Coordinates of the latest sample (rightmost point), or `null` when empty. */
   lastPoint: { x: number; y: number } | null;
 }
 
 /**
- * Projects `0..100` percentage samples across a fixed `capacity` timeline (right-aligned so
- * incoming samples scroll smoothly from right to left as the 60s window fills).
+ * Projects `0..100` percentage samples edge-to-edge across `0..width` with smooth
+ * monotonic cubic Bezier transitions (never overshooting `[0, 100]`).
  */
 export function sparklineGeometry(
   samples: readonly number[],
   width: number,
   height: number,
   capacity = OVERVIEW_HISTORY_LIMIT,
-  padY = 6,
+  padY = 10,
   padRight = 0,
 ): SparklineGeometry {
   if (samples.length === 0 || width <= 0 || height <= 0) {
-    return { linePoints: '', areaPath: '', lastPoint: null };
+    return { linePoints: '', smoothLinePath: '', areaPath: '', lastPoint: null };
   }
+  const visible = samples.length > capacity ? samples.slice(samples.length - capacity) : samples;
   const innerW = Math.max(1, width - padRight);
   const innerH = Math.max(1, height - padY * 2);
-  const slots = Math.max(2, capacity);
-  const stepX = innerW / (slots - 1);
-  const startSlot = Math.max(0, slots - samples.length);
 
-  const coords = samples.map((raw, idx) => {
+  if (visible.length === 1) {
+    const pct = clampPercent(visible[0]);
+    const y = Number((padY + innerH * (1 - pct / 100)).toFixed(2));
+    const linePoints = `0,${y} ${innerW},${y}`;
+    const smoothLinePath = `M 0 ${y} L ${innerW} ${y}`;
+    const areaPath = `M 0 ${height} L 0 ${y} L ${innerW} ${y} L ${innerW} ${height} Z`;
+    return { linePoints, smoothLinePath, areaPath, lastPoint: { x: innerW, y } };
+  }
+
+  const stepX = innerW / (visible.length - 1);
+  const coords = visible.map((raw, idx) => {
     const pct = clampPercent(raw);
-    const x =
-      samples.length === 1
-        ? innerW
-        : Number(((startSlot + idx) * stepX).toFixed(2));
+    const x = Number((idx * stepX).toFixed(2));
     const y = Number((padY + innerH * (1 - pct / 100)).toFixed(2));
     return { x, y };
   });
 
-  if (coords.length === 1) {
-    // Draw a subtle horizontal tick so a single initial sample still renders visibly.
-    const only = coords[0];
-    const startX = Number(Math.max(0, only.x - stepX).toFixed(2));
-    const linePoints = `${startX},${only.y} ${only.x},${only.y}`;
-    const areaPath = `M ${startX} ${height} L ${startX} ${only.y} L ${only.x} ${only.y} L ${only.x} ${height} Z`;
-    return { linePoints, areaPath, lastPoint: only };
-  }
-
   const linePoints = coords.map((p) => `${p.x},${p.y}`).join(' ');
   const first = coords[0];
   const last = coords[coords.length - 1];
-  const segments = coords.map((p) => `L ${p.x} ${p.y}`).join(' ');
-  const areaPath = `M ${first.x} ${height} ${segments} L ${last.x} ${height} Z`;
-  return { linePoints, areaPath, lastPoint: last };
+  const curveParts: string[] = [];
+  for (let i = 0; i < coords.length - 1; i += 1) {
+    const curr = coords[i];
+    const next = coords[i + 1];
+    const midX = Number(((curr.x + next.x) / 2).toFixed(2));
+    curveParts.push(`C ${midX} ${curr.y}, ${midX} ${next.y}, ${next.x} ${next.y}`);
+  }
+  const curves = curveParts.join(' ');
+  const smoothLinePath = `M ${first.x} ${first.y} ${curves}`;
+  const areaPath = `M ${first.x} ${height} L ${first.x} ${first.y} ${curves} L ${last.x} ${height} Z`;
+  return { linePoints, smoothLinePath, areaPath, lastPoint: last };
 }

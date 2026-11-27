@@ -44,27 +44,26 @@ describe('pushHistorySample', () => {
 });
 
 describe('sparklineGeometry', () => {
-  it('handles empty and single-sample histories without NaN', () => {
+  it('handles empty and single-sample histories cleanly full-width without NaN', () => {
     expect(sparklineGeometry([], 300, 100)).toEqual({
       linePoints: '',
+      smoothLinePath: '',
       areaPath: '',
       lastPoint: null,
     });
 
-    const single = sparklineGeometry([50], 290, 100, 30, 10);
-    expect(single.lastPoint).toEqual({ x: 290, y: 50 });
-    expect(single.linePoints).toContain('290,50');
-    expect(single.areaPath).toMatch(/^M .* Z$/);
+    const single = sparklineGeometry([50], 300, 100, 30, 10);
+    expect(single.lastPoint).toEqual({ x: 300, y: 50 });
+    expect(single.smoothLinePath).toBe('M 0 50 L 300 50');
+    expect(single.areaPath).toBe('M 0 100 L 0 50 L 300 50 L 300 100 Z');
   });
 
-  it('right-aligns partial histories and spans full width when full', () => {
-    const partial = sparklineGeometry([0, 100], 290, 100, 30, 10);
-    expect(partial.linePoints).toBe('280,90 290,10');
-    expect(partial.lastPoint).toEqual({ x: 290, y: 10 });
-
-    const full = sparklineGeometry(Array.from({ length: 30 }, () => 50), 290, 100, 30, 10);
-    expect(full.linePoints.startsWith('0,50 ')).toBe(true);
-    expect(full.lastPoint).toEqual({ x: 290, y: 50 });
+  it('spans full width with monotonic cubic Bezier curves and respects padRight', () => {
+    const pair = sparklineGeometry([0, 100], 300, 100, 30, 10);
+    expect(pair.linePoints).toBe('0,90 300,10');
+    expect(pair.smoothLinePath).toBe('M 0 90 C 150 90, 150 10, 300 10');
+    expect(pair.areaPath).toBe('M 0 100 L 0 90 C 150 90, 150 10, 300 10 L 300 100 Z');
+    expect(pair.lastPoint).toEqual({ x: 300, y: 10 });
 
     const inset = sparklineGeometry([25, 75], 300, 100, 30, 10, 10);
     expect(inset.lastPoint).toEqual({ x: 290, y: 30 });
