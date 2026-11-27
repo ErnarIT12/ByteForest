@@ -19,8 +19,8 @@
 ## System Overview and your first scan
 
 1. [Download ByteForest](https://github.com/ErnarIT12/ByteForest/releases).
-2. ByteForest opens on the lightweight **Overview** dashboard with live CPU, memory, clickable drive usage rings, 60-second CPU/RAM sparklines, and top processes by memory (sampled only while visible, with zero background CPU usage when inactive).
-3. Click any drive ring, press **Scan drive**, or choose **Choose folder…** to scan a folder.
+2. ByteForest opens on the minimalist **Overview** dashboard showing live radial rings for CPU, memory, and mounted drives, full-width 60-second CPU/RAM area sparklines, and top processes by memory (sampled every 2 seconds only while visible, with zero background CPU usage when inactive).
+3. Click any drive ring on Overview, or pick a drive or **Choose folder…** in the sidebar to start scanning.
 4. Double-click a folder on the map to explore it. Use the breadcrumbs to return.
 
 ![ByteForest Overview dashboard in Graphite](docs/screenshots/overview-graphite.png)
