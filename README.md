@@ -16,13 +16,14 @@
   <img alt="Platform: macOS 15+ beta" src="https://img.shields.io/badge/macOS-15%2B%20beta-444444">
 </p>
 
-## Your first scan
+## System Overview and your first scan
 
 1. [Download ByteForest](https://github.com/ErnarIT12/ByteForest/releases).
-2. Choose **Choose folder…** to scan one folder, or **Scan drive** to explore the selected drive.
-3. Double-click a folder on the map to explore it. Use the breadcrumbs to return.
+2. ByteForest opens on the lightweight **Overview** dashboard with live CPU, memory, clickable drive usage rings, 60-second CPU/RAM sparklines, and top processes by memory (sampled only while visible, with zero background CPU usage when inactive).
+3. Click any drive ring, press **Scan drive**, or choose **Choose folder…** to scan a folder.
+4. Double-click a folder on the map to explore it. Use the breadcrumbs to return.
 
-![First scan on Windows](docs/screenshots/windows-first-scan.png)
+![ByteForest Overview dashboard in Graphite](docs/screenshots/overview-graphite.png)
 
 ## Largest files
 
@@ -78,7 +79,7 @@ These are single-machine numbers, not a formal benchmark; measure your own with 
 
 ## Minimalist UI and 100% offline privacy
 
-- **Signature obsidian-graphite and frosted-silver interface** inspired by the ByteForest pine mark, with restrained translucent glass on floating chrome and inspector cards, opaque high-contrast tables and maps, and a collapsible left sidebar.
+- **Signature obsidian-graphite and frosted-silver interface** inspired by the ByteForest pine mark, with a unified full-height collapsible left sidebar, minimal top bar, restrained translucent glass on floating chrome and inspector cards, and opaque high-contrast tables and maps.
 - **Graphite (dark, the default) and Silver (light) themes**, or follow the system, with WCAG AA contrast. Hover effects and transitions respect the reduced-motion setting.
 - **Works fully offline.** There is no telemetry, no account and no update check, and the code makes no network requests. The app window may only talk to the local Rust backend; the Content Security Policy allows nothing else.
 - **Your data stays on your machine.** Settings are stored in `%APPDATA%\ByteForest\settings.json` and logs in `%LOCALAPPDATA%\ByteForest\logs`. Automatic snapshots (names and sizes of scanned items) are stored in `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` on macOS) and can be turned off or limited in Settings.
