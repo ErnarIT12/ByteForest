@@ -19,11 +19,12 @@ import {
 import { toggleQueued, useDiscardPile } from '../discardPile';
 import { allCopiesQueued, planAutoSelect, type KeepRule } from '../dupesModel';
 import { formatBytes, formatFiletime, formatInt } from '../format';
+import { useColorScheme } from '../hooks/useColorScheme';
 import { useAppStore } from '../store';
 import { strings } from '../strings';
-import { CATEGORIES } from '../treemapPaint';
+import { CATEGORIES, categoryColor } from '../treemapPaint';
 import { FileKindIcon } from './FileKindIcon';
-import { CircleAlert, Icon } from './Icon';
+import { CircleAlert, Icon, Search, X } from './Icon';
 
 const DEFAULT_MIN_SIZE = 1024 * 1024;
 
@@ -80,6 +81,7 @@ export function DuplicatesView({ scanId, root, onOpen, opening, navigationError 
   opening: boolean;
   navigationError: string | null;
 }) {
+  const theme = useColorScheme();
   const isLive = useAppStore((s) => s.resultSource.kind === 'live');
   const scanning = useAppStore((s) => s.scanning);
   const generation = useAppStore((s) => s.generation);
@@ -337,33 +339,48 @@ export function DuplicatesView({ scanId, root, onOpen, opening, navigationError 
         )}
 
         <div className="dupes-filters">
-          <label>
-            {strings.dupesFileName}
+          <div className="swift-search">
+            <Icon icon={Search} size={15} className="swift-search-icon" />
             <input
               type="search"
               value={name}
               maxLength={255}
+              aria-label={strings.dupesFileName}
               placeholder={strings.dupesFileNamePlaceholder}
               onChange={(event) => {
                 stopActiveJob();
                 setName(event.target.value);
               }}
             />
-          </label>
-          <label>
-            {strings.dupesMinSize}
-            <select
-              value={minSize}
-              onChange={(event) => {
-                stopActiveJob();
-                setMinSize(Number(event.target.value));
-              }}
-            >
-              {MIN_SIZES.map(({ label, value }) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </label>
+            {name.length > 0 && (
+              <button
+                type="button"
+                className="swift-clear"
+                aria-label="Clear search"
+                onClick={() => {
+                  stopActiveJob();
+                  setName('');
+                }}
+              >
+                <Icon icon={X} size={12} />
+              </button>
+            )}
+          </div>
+
+          <select
+            className="swift-select"
+            aria-label={strings.dupesMinSize}
+            value={minSize}
+            onChange={(event) => {
+              stopActiveJob();
+              setMinSize(Number(event.target.value));
+            }}
+          >
+            {MIN_SIZES.map(({ label, value }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+
           <label className="dupes-checkbox">
             <input
               type="checkbox"
@@ -397,9 +414,14 @@ export function DuplicatesView({ scanId, root, onOpen, opening, navigationError 
               aria-pressed={category === type}
               onClick={() => {
                 stopActiveJob();
-                setCategory(type);
+                setCategory(category === type ? '' : type);
               }}
             >
+              <span
+                className="category-dot"
+                aria-hidden="true"
+                style={{ background: categoryColor(theme, type, 'file') }}
+              />
               {strings.categoryNames[type]}
             </button>
           ))}
@@ -640,7 +662,7 @@ export function DuplicatesView({ scanId, root, onOpen, opening, navigationError 
             <span>{strings.dupesSelectedCount(formatInt(queued.size))}</span>
             <button
               type="button"
-              className="btn"
+              className="btn primary"
               onClick={() => useAppStore.setState({ resultView: 'cleanup' })}
             >
               {strings.dupesReviewSelection}
