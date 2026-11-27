@@ -8,11 +8,16 @@ interface AutoSnapshotsState {
   refresh(): Promise<void>;
 }
 
+/** Ensures out-of-order `listAutoSnapshots` responses cannot overwrite a newer list. */
+let refreshSeq = 0;
+
 export const useAutoSnapshots = create<AutoSnapshotsState>()((set) => ({
   list: [],
   refresh: async () => {
+    const seq = ++refreshSeq;
     try {
-      set({ list: await listAutoSnapshots() });
+      const list = await listAutoSnapshots();
+      if (seq === refreshSeq) set({ list });
     } catch {
       /* Keep what is shown. */
     }
@@ -21,10 +26,14 @@ export const useAutoSnapshots = create<AutoSnapshotsState>()((set) => ({
 
 /** Loads the list now and again whenever the back end says it changed; returns the cleanup. */
 export function watchAutoSnapshots(): () => void {
-  const refresh = () => void useAutoSnapshots.getState().refresh();
+  let active = true;
+  const refresh = () => {
+    if (active) void useAutoSnapshots.getState().refresh();
+  };
   refresh();
   const subscription = onSnapshotsChanged(refresh).catch(() => () => {});
   return () => {
+    active = false;
     void subscription.then((unlisten) => unlisten());
   };
 }

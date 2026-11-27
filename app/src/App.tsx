@@ -26,8 +26,10 @@ export default function App() {
   const [split, setSplit] = useState(0.55);
 
   useEffect(() => {
-    const ready = listenToScanEvents();
+    const signal = { cancelled: false };
+    const ready = listenToScanEvents(signal);
     return () => {
+      signal.cancelled = true;
       ready.then((unlisten) => unlisten()).catch(() => {});
     };
   }, []);

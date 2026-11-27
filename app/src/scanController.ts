@@ -13,7 +13,7 @@ import {
   startScan,
 } from './api';
 import { driveLetterOf, isAcceptableStartupTarget, isDeclined } from './elevation';
-import { useAppStore } from './store';
+import { acceptEvent, useAppStore } from './store';
 
 import { strings } from './strings';
 
@@ -112,23 +112,40 @@ export function loadEnvironment(): void {
 }
 
 /**
- * Subscribes to the scan events. The promise resolves, once every listener is registered, to
- * the function that unsubscribes them.
+ * Subscribes to the scan events. The promise resolves, once every listener settles, to an
+ * idempotent cleanup function. Passing `signal` suppresses callbacks immediately on unmount
+ * and unsubscribes as soon as pending registrations settle.
  */
-export function listenToScanEvents(): Promise<() => void> {
+export function listenToScanEvents(signal?: { cancelled: boolean }): Promise<() => void> {
   const store = useAppStore.getState();
-  const ready = Promise.all([
-    onScanProgress(store.handleProgress),
+  let active = true;
+  const isActive = () => active && !signal?.cancelled;
+  const ready = Promise.allSettled([
+    onScanProgress((p) => {
+      if (isActive()) store.handleProgress(p);
+    }),
     onScanDone((d) => {
+      if (!isActive()) return;
+      const accepted = acceptEvent(useAppStore.getState().gate, d.scan_id);
       store.handleDone(d);
       // Free space may have changed since start-up; keep "used of total" current.
-      void refreshDrives();
+      if (accepted) void refreshDrives();
     }),
-    onScanError(store.handleError),
-  ]).then((unlisteners): (() => void) => {
-    return () => {
+    onScanError((e) => {
+      if (isActive()) store.handleError(e);
+    }),
+  ]).then((settled): (() => void) => {
+    const unlisteners: (() => void)[] = [];
+    for (const item of settled) {
+      if (item.status === 'fulfilled') unlisteners.push(item.value);
+    }
+    const stop = () => {
+      active = false;
       for (const unlisten of unlisteners) unlisten();
+      unlisteners.length = 0;
     };
+    if (signal?.cancelled) stop();
+    return stop;
   });
   listenersReady = ready;
   return ready;
