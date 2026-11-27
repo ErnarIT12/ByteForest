@@ -9,6 +9,7 @@
 #[cfg(windows)]
 mod auto;
 mod cancel;
+mod dupes;
 #[cfg(windows)]
 mod elevation;
 #[cfg(windows)]
@@ -29,6 +30,24 @@ mod volumes;
 #[cfg(target_os = "macos")]
 #[path = "volumes_macos.rs"]
 mod volumes;
+#[cfg(all(unix, not(target_os = "macos")))]
+mod volumes {
+    use serde::Serialize;
+
+    /// One locally mounted volume.
+    #[derive(Serialize, Clone, Debug)]
+    pub struct VolumeSummary {
+        pub path: String,
+        pub label: String,
+        pub fs: String,
+        pub total: u64,
+        pub free: u64,
+    }
+
+    pub fn list_volumes() -> Vec<VolumeSummary> {
+        Vec::new()
+    }
+}
 mod walk;
 
 use std::path::PathBuf;
@@ -38,6 +57,10 @@ use serde::Serialize;
 #[cfg(windows)]
 pub use auto::scan_auto;
 pub use cancel::CancelToken;
+pub use dupes::{
+    DuplicateOutcome, HashOptions, HashPhase, HashProgress, HashProgressFn, MAX_HASH_THREADS,
+    MIN_HASH_THREADS, PARTIAL_CHUNK, default_hash_threads, find_duplicates, native_path_of,
+};
 #[cfg(windows)]
 pub use elevation::is_elevated;
 #[cfg(windows)]
@@ -49,13 +72,13 @@ pub use progress::{Phase, ScanProgress};
 pub use volumes::{VolumeSummary, list_volumes};
 pub use walk::WalkScanner;
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 pub fn is_elevated() -> bool {
     // The app follows the permissions of the user who launched it.
     false
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 pub fn scan_auto(
     root: &ScanRoot,
     progress: ProgressFn<'_>,
