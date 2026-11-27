@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- SwiftUI-inspired visual polish across Graphite and Silver: introduce the ByteForest emerald/forest accent (WCAG AA), replace heavy 1 px control outlines with layered surface elevation, unify 32 px toolbar controls and 8 px / 12 px radii, and redesign **Largest files** with a single inline search bar, visible space-hog/cache preset cards showing reclaimable space, Treemap-colored category dots without zero-count clutter, parent-folder-only locations and hover quick actions.
+
 - Duplicate Finder: find exact duplicate files from the **Duplicates** view in the sidebar or "Find duplicates here" on any folder. Estimates candidates instantly in memory, verifies matches in three steps (size → partial hash → full BLAKE3 on a bounded I/O thread pool) while skipping hardlinks, reparse points and cloud placeholders, and supports an optional hidden/system file toggle, category/size/name filters, auto-select presets (Keep oldest, Keep newest, Keep shortest path) with an all-copies-queued warning, cached results that prune automatically after cleanup, and direct Cleanup queue integration. The CLI gets `byteforest dupes <target>` with `--min-size`, `--top`, `--exclude`, `--include-hidden` and `--json`.
 
 - Show available space on the scan start screen, with a compact refresh control in the results toolbar. The capacity ring and disk maps appear with short transitions that follow system motion preferences.

@@ -1,15 +1,15 @@
-/* Unified left sidebar: locations, recent scans and the Discard Pile dock. */
+/* Unified left sidebar: views, locations, recent scans and the Discard Pile dock. */
 
 .sidebar {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 220px;
+  width: 224px;
   min-height: 0;
-  padding: 6px 8px 12px 12px;
+  padding: 8px 10px 12px 12px;
   overflow: hidden;
   font-variant-numeric: tabular-nums;
-  transition: width 0.15s ease;
+  transition: width var(--ease-ui);
 }
 /* Collapsed by the user, or forced below 1000 px: an icon rail. */
 .sidebar[data-rail] {
@@ -31,7 +31,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -42,9 +42,9 @@
   margin: 0 0 4px;
   padding: 0 8px;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .sidebar-note {
@@ -60,20 +60,33 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 7px 8px;
+  min-height: 32px;
+  padding: 6px 8px;
   border: 0;
   border-radius: var(--radius);
   background: transparent;
   color: var(--text);
   font: inherit;
+  font-size: 13px;
   text-align: left;
+  transition: background-color var(--ease-ui), color var(--ease-ui);
 }
 .sidebar-item:hover { background: var(--hover); }
 .sidebar-item:active { background: var(--pressed); }
-.sidebar-item[aria-current="true"] { background: var(--selected); }
+.sidebar-item[aria-current="true"],
+.sidebar-item[aria-current="page"] {
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 600;
+}
 .sidebar-item[aria-current="true"] .sidebar-name { font-weight: 600; }
-.sidebar-item[aria-current="true"] .sidebar-icon { color: var(--accent); }
-.sidebar-icon { flex: none; color: var(--text-2); }
+.sidebar-item[aria-current="true"] .sidebar-icon,
+.sidebar-item[aria-current="page"] .sidebar-icon { color: var(--accent); }
+.sidebar-icon {
+  flex: none;
+  color: var(--text-2);
+  transition: color var(--ease-ui);
+}
 .sidebar-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
 .sidebar-name,
 .sidebar-detail {
@@ -81,21 +94,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sidebar-detail { color: var(--text-2); font-size: 12px; }
+.sidebar-detail { color: var(--text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
 .sidebar-meter {
   display: block;
   height: 4px;
-  margin-top: 2px;
-  border-radius: 2px;
+  margin-top: 4px;
+  border-radius: 999px;
   background: var(--bar-track);
   overflow: hidden;
 }
-.sidebar-meter > span { display: block; height: 100%; background: var(--bar-fill); }
+.sidebar-meter > span { display: block; height: 100%; border-radius: 999px; background: var(--bar-fill); }
 .sidebar-action { margin-top: 4px; }
 
 .discard-dock {
   flex: none;
-  padding: 10px 8px;
+  padding: 12px 10px;
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--elev-1);
@@ -114,17 +127,18 @@
   right: -9px;
   min-width: 16px;
   padding: 0 4px;
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--accent);
   color: var(--on-accent);
   font-size: 10px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   line-height: 16px;
   text-align: center;
   letter-spacing: 0;
 }
 .discard-summary {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   padding: 0 8px;
   color: var(--text-2);
   font-size: 12px;
@@ -132,35 +146,36 @@
 }
 .discard-list {
   display: grid;
-  gap: 1px;
+  gap: 2px;
   max-height: 168px;
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   padding: 0;
   overflow-y: auto;
   list-style: none;
 }
-.discard-row { display: flex; align-items: center; gap: 2px; }
+.discard-row { display: flex; align-items: center; gap: 4px; }
 .discard-item {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
-  padding: 4px 6px;
+  padding: 5px 8px;
   border: 0;
   border-radius: var(--radius);
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: 12.5px;
   text-align: left;
+  transition: background-color var(--ease-ui);
 }
 .discard-item:hover { background: var(--hover); }
 .discard-item:active { background: var(--pressed); }
 .discard-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .discard-size { flex: none; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .discard-remove { flex: none; width: 24px; height: 24px; }
-.discard-actions { display: flex; justify-content: space-between; gap: 6px; padding: 0 2px; }
+.discard-actions { display: flex; justify-content: space-between; gap: 8px; padding: 0 2px; }
 .discard-outcome { margin-top: 8px; padding: 0 8px; color: var(--text-2); font-size: 12px; }
 .discard-outcome p { margin: 0 0 6px; overflow-wrap: anywhere; }
 .discard-outcome ul { margin: 4px 0 6px; padding-left: 16px; }
@@ -193,12 +208,12 @@
 .snapshot-head { cursor: default; }
 .snapshot-list {
   display: grid;
-  gap: 1px;
+  gap: 2px;
   margin: 0 0 4px 26px;
   padding: 0;
   list-style: none;
 }
-.snapshot-row { display: flex; align-items: center; gap: 2px; }
+.snapshot-row { display: flex; align-items: center; gap: 4px; }
 .snapshot-open {
   display: flex;
   flex: 1;
@@ -206,7 +221,7 @@
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  padding: 4px 6px;
+  padding: 4px 8px;
   border: 0;
   border-radius: var(--radius);
   background: transparent;
@@ -214,10 +229,20 @@
   font: inherit;
   font-size: 12px;
   text-align: left;
+  transition: background-color var(--ease-ui);
 }
 .snapshot-open:hover:not(:disabled) { background: var(--hover); }
 .snapshot-open:active:not(:disabled) { background: var(--pressed); }
 .snapshot-open:disabled { color: var(--text-3); }
 .snapshot-when { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.snapshot-size { flex: none; color: var(--text-2); }
+.snapshot-size { flex: none; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .snapshot-more { flex: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-item,
+  .sidebar-icon,
+  .discard-item,
+  .snapshot-open {
+    transition: none;
+  }
+}
