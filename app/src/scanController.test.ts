@@ -114,6 +114,68 @@ describe('listenToScanEvents', () => {
     stop();
     for (const u of unlisten) expect(u).toHaveBeenCalledTimes(1);
   });
+
+  it('unsubscribes and suppresses callbacks if cancelled before registration settles', async () => {
+    const unlisten = [vi.fn(), vi.fn(), vi.fn()];
+    let progressCb: ((p: api.ScanProgress) => void) | undefined;
+    let release: (f: () => void) => void = () => {};
+    vi.mocked(api.onScanProgress).mockImplementation((cb) => {
+      progressCb = cb;
+      return Promise.resolve(unlisten[0]);
+    });
+    vi.mocked(api.onScanDone).mockReturnValue(
+      new Promise((r) => {
+        release = r;
+      }),
+    );
+    vi.mocked(api.onScanError).mockReturnValue(Promise.resolve(unlisten[2]));
+
+    const signal = { cancelled: false };
+    const ready = listenToScanEvents(signal);
+    signal.cancelled = true;
+    useAppStore.getState().beginScan('C:');
+    progressCb?.({ scan_id: 1, files: 10, dirs: 1, bytes: 100, phase: 'Walking' });
+    expect(useAppStore.getState().progress).toBeNull();
+
+    release(unlisten[1]);
+    const stop = await ready;
+    for (const u of unlisten) expect(u).toHaveBeenCalledTimes(1);
+    // Calling stop again is idempotent.
+    stop();
+    for (const u of unlisten) expect(u).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans up registered listeners even when another listener fails to register', async () => {
+    const unlisten0 = vi.fn();
+    const unlisten2 = vi.fn();
+    vi.mocked(api.onScanProgress).mockResolvedValue(unlisten0);
+    vi.mocked(api.onScanDone).mockRejectedValue(new Error('ipc failed'));
+    vi.mocked(api.onScanError).mockResolvedValue(unlisten2);
+
+    const stop = await listenToScanEvents();
+    stop();
+    expect(unlisten0).toHaveBeenCalledTimes(1);
+    expect(unlisten2).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores stale scan://done events without refreshing drives', async () => {
+    let doneCb: ((d: api.ScanDone) => void) | undefined;
+    vi.mocked(api.onScanDone).mockImplementation((cb) => {
+      doneCb = cb;
+      return Promise.resolve(() => {});
+    });
+    await listenToScanEvents();
+    useAppStore.getState().beginScan('C:');
+    useAppStore.getState().scanResolved(2);
+    vi.mocked(api.listDrives).mockClear();
+
+    doneCb?.({
+      scan_id: 1,
+      stats: { files: 1, dirs: 0, bytes: 10, elapsed_ms: 1, method: 'Walk', fallback_reason: null, skipped_records: 0, errors: 0 },
+      root: { id: 0, name: 'C:', size: 10, alloc: 10, files: 1, dirs: 0, is_dir: true, has_children: false, mtime: 0, percent_of_parent: 0 },
+    });
+    expect(api.listDrives).not.toHaveBeenCalled();
+  });
 });
 
 describe('startup scan', () => {

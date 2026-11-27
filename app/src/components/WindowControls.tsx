@@ -15,14 +15,23 @@ export function WindowControls() {
     if (!isTauri()) return;
     const win = getCurrentWindow();
     let active = true;
-    const sync = () => win.isMaximized().then((value) => {
-      if (active) setMaximized(value);
+    let syncSeq = 0;
+    const reportIfActive = (error: unknown) => {
+      if (active) reportError(error);
+    };
+    const sync = () => {
+      const seq = ++syncSeq;
+      return win.isMaximized().then((value) => {
+        if (active && seq === syncSeq) setMaximized(value);
+      });
+    };
+    void sync().catch(reportIfActive);
+    const stop = win.onResized(() => {
+      if (active) void sync().catch(reportIfActive);
     });
-    void sync().catch(reportError);
-    const stop = win.onResized(() => { void sync().catch(reportError); });
     return () => {
       active = false;
-      void stop.then((unlisten) => unlisten()).catch(reportError);
+      void stop.then((unlisten) => unlisten()).catch(() => {});
     };
   }, []);
 

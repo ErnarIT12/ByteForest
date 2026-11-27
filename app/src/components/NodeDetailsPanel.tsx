@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { copyNodePath, exportReport, nodeDetails, revealNodeInFileManager, type NodeDetails } from '../api';
 import { deltaCell } from '../diffView';
 import { formatBytes, formatDelta, formatFiletime, formatInt, formatScanShare } from '../format';
@@ -13,6 +13,7 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
   const [details, setDetails] = useState<NodeDetails | null>(null);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const aliveRef = useRef(true);
   const isMac = useAppStore((s) => s.isMac);
   const rootId = useAppStore((s) => s.rootId);
   const comparing = useAppStore((s) => s.baseline !== null);
@@ -20,12 +21,16 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
   const queued = useDiscardPile((s) => s.idSet.has(id));
 
   useEffect(() => {
+    aliveRef.current = true;
     let alive = true;
     nodeDetails(scanId, id).then(
       (value) => { if (alive) setDetails(value); },
       (error: unknown) => { if (alive) setNotice(String(error)); },
     );
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+      aliveRef.current = false;
+    };
   }, [scanId, id]);
 
   const perform = async (action: (scan: number, node: number) => Promise<void>, success = '') => {
@@ -33,11 +38,11 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
     setBusy(true);
     try {
       await action(scanId, id);
-      setNotice(success);
+      if (aliveRef.current) setNotice(success);
     } catch (error) {
-      setNotice(String(error));
+      if (aliveRef.current) setNotice(String(error));
     } finally {
-      setBusy(false);
+      if (aliveRef.current) setBusy(false);
     }
   };
 
@@ -46,11 +51,11 @@ export function NodeDetailsPanel({ scanId, id, scanSize }: { scanId: number; id:
     setBusy(true);
     try {
       const path = await exportReport(scanId, id);
-      if (path) setNotice(strings.reportExported(path));
+      if (aliveRef.current && path) setNotice(strings.reportExported(path));
     } catch (error) {
-      setNotice(`${strings.reportExportFailed}: ${String(error)}`);
+      if (aliveRef.current) setNotice(`${strings.reportExportFailed}: ${String(error)}`);
     } finally {
-      setBusy(false);
+      if (aliveRef.current) setBusy(false);
     }
   };
 

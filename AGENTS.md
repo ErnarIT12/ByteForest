@@ -25,6 +25,13 @@ Run `cargo test --workspace`, `npm --prefix app test`, and `cargo deny check`. N
 
 Use the repository’s documented Conventional Commits style, such as `fix(scan): handle unreadable folders`. Keep pull requests focused. Explain what changed and why, link relevant issues with `Closes #123`, and report checks run. Update `CHANGELOG.md` under `[Unreleased]` for user-visible changes. Report security issues privately via [SECURITY.md](SECURITY.md).
 
+## Performance & Simplicity Guardrails
+
+- Keep React components concise (~300 lines max); extract state, effects, and IPC subscriptions into custom hooks (`app/src/hooks/`) and pure logic into `*.ts` model modules.
+- Never call `setState` synchronously during render; reset state via React `key`, derived values, or event handlers and effects.
+- Subscribe to Zustand stores with granular selectors (primitives or minimal slices); isolate fast-changing subscriptions (`selectedId`, `focusId`, `idSet`) in leaf components rather than top-level shells.
+- Paginate or virtualize lists that can exceed 100 rows (for example via `@tanstack/react-virtual` or incremental "Show more" batches).
+
 ## Branch, Worktree, and Merge Workflow
 
 - Keep `main` clean at all times; never commit directly to `main`.

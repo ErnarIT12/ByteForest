@@ -21,6 +21,35 @@ import { DiffLegend, TreemapLegend } from './TreemapLegend';
 import { SunburstCanvas } from './SunburstCanvas';
 import { TreePanel } from './TreePanel';
 
+/** Isolated map canvas subscriber so toggling Treemap/Sunburst does not re-render Explorer. */
+function DiskMapCanvas() {
+  const mapView = useAppStore((s) => s.mapView);
+  return mapView === 'sunburst' ? <SunburstCanvas /> : <TreemapCanvas />;
+}
+
+/** Isolated inspector subscriber so selection/focus changes do not re-render the whole workspace. */
+function InspectorPane({ scanId, rootId, scanSize }: {
+  scanId: number;
+  rootId: number;
+  scanSize: number;
+}) {
+  const focusId = useAppStore((s) => s.focusId);
+  const selected = useAppStore((s) => s.selectedId);
+  const generation = useAppStore((s) => s.generation);
+  const activeId = selected ?? focusId ?? rootId;
+  const heading = selected !== null
+    ? 'Selection details'
+    : focusId === rootId
+      ? 'Scan details'
+      : 'Folder details';
+  return (
+    <aside className="inspector">
+      <h2>{heading}</h2>
+      <NodeDetailsPanel key={`${scanId}:${activeId}:${generation}`} scanId={scanId} id={activeId} scanSize={scanSize} />
+    </aside>
+  );
+}
+
 /** The Explorer screen: disk map and file browser. */
 export function Explorer({ root, scanId, split, onSplitChange }: {
   root: NodeView;
@@ -29,54 +58,37 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
   onSplitChange: (value: number) => void;
 }) {
   const [treeShare, setTreeShare] = useState(0.6);
-  const [mapOnly, setMapOnly] = useState(false);
   const view = useAppStore((s) => s.resultView);
   const search = view === 'files';
-  const [seenView, setSeenView] = useState(view);
-  const [changesMode, setChangesMode] = useState(false);
-  const [opening, setOpening] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  if (seenView !== view) {
-    setSeenView(view);
-    setOpening(false);
-    setError(null);
-  }
-  const request = useRef(0);
-  const treeButton = useRef<HTMLButtonElement>(null);
-  const focusId = useAppStore((s) => s.focusId);
-  const selected = useAppStore((s) => s.selectedId);
-  const generation = useAppStore((s) => s.generation);
   const comparing = useAppStore((s) => s.baseline !== null);
-  const mapView = useAppStore((s) => s.mapView);
-  // The Changes view only exists while comparing.
-  const changes = changesMode && comparing;
   const colorMode = useTreemapColorMode();
   const presetSeq = useAppStore((s) => s.searchPreset?.seq ?? 0);
-  // A new search preset (from the file-type breakdown) opens the search pane. Adjusting state
-  // while rendering avoids an extra effect pass.
-  const [seenPreset, setSeenPreset] = useState(presetSeq);
-  if (presetSeq !== seenPreset) {
-    setSeenPreset(presetSeq);
-    if (presetSeq > 0) {
-      setOpening(false);
-      setError(null);
-      setChangesMode(false);
-      setMapOnly(false);
-    }
-  }
-
-  // A reveal that comes from outside the tree (the Discard Pile) brings the tree back.
   const revealSeq = useAppStore((s) => (s.reveal?.showTree ? s.reveal.seq : 0));
-  const [seenReveal, setSeenReveal] = useState(revealSeq);
-  if (revealSeq !== seenReveal) {
-    setSeenReveal(revealSeq);
-    if (revealSeq > 0) {
-      setOpening(false);
-      setError(null);
-      setChangesMode(false);
-      setMapOnly(false);
-    }
-  }
+
+  // Keyed local state resets cleanly when the view, search preset, or reveal request changes
+  // without calling `setState` synchronously during render.
+  const resetKey = `${presetSeq}:${revealSeq}`;
+  const navKey = `${view}:${resetKey}`;
+  const [mapOnlyState, setMapOnlyState] = useState({ key: resetKey, value: false });
+  const [changesState, setChangesState] = useState({ key: resetKey, value: false });
+  const [navState, setNavState] = useState<{ key: string; opening: boolean; error: string | null }>({
+    key: navKey,
+    opening: false,
+    error: null,
+  });
+
+  const mapOnly = mapOnlyState.key === resetKey ? mapOnlyState.value : false;
+  const changesMode = changesState.key === resetKey ? changesState.value : false;
+  const opening = navState.key === navKey ? navState.opening : false;
+  const error = navState.key === navKey ? navState.error : null;
+
+  const setMapOnly = (value: boolean) => setMapOnlyState({ key: resetKey, value });
+  const setChangesMode = (value: boolean) => setChangesState({ key: resetKey, value });
+
+  const request = useRef(0);
+  const treeButton = useRef<HTMLButtonElement>(null);
+  // The Changes view only exists while comparing.
+  const changes = changesMode && comparing;
 
   // Drops a pending "locate file" request so it cannot switch the pane back.
   useEffect(() => {
@@ -85,16 +97,14 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
 
   const showSearch = (value: boolean) => {
     request.current += 1;
-    setOpening(false);
-    setError(null);
+    setNavState({ key: navKey, opening: false, error: null });
     useAppStore.setState({ resultView: value ? 'files' : 'map' });
     setChangesMode(false);
   };
 
   const showChanges = () => {
     request.current += 1;
-    setOpening(false);
-    setError(null);
+    setNavState({ key: navKey, opening: false, error: null });
     useAppStore.setState({ resultView: 'map' });
     setChangesMode(true);
   };
@@ -103,8 +113,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
     const sequence = ++request.current;
     const isCurrent = () =>
       sequence === request.current && useAppStore.getState().resultScanId === scanId;
-    setOpening(true);
-    setError(null);
+    setNavState({ key: navKey, opening: true, error: null });
     try {
       const steps = await locateNode(scanId, id);
       if (!isCurrent()) return;
@@ -113,13 +122,14 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
       setMapOnly(false);
       requestAnimationFrame(() => treeButton.current?.focus());
     } catch (failure) {
-      if (isCurrent()) setError(String(failure));
-    } finally {
-      if (isCurrent()) setOpening(false);
+      if (isCurrent()) setNavState({ key: navKey, opening: false, error: String(failure) });
+      return;
     }
+    if (isCurrent()) setNavState((prev) => (prev.key === navKey ? { ...prev, opening: false } : prev));
   };
+
   if (view === 'dupes') return (
-    <DuplicatesView scanId={scanId} root={root} onOpen={(id) => void openResult(id)}
+    <DuplicatesView key={scanId} scanId={scanId} root={root} onOpen={(id) => void openResult(id)}
       opening={opening} navigationError={error} />
   );
   if (view === 'history') return (
@@ -181,7 +191,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
         </div>
         {colorMode === 'category' && <TreemapLegend />}
         {comparing && <DiffLegend />}
-        {mapView === 'sunburst' ? <SunburstCanvas /> : <TreemapCanvas />}
+        <DiskMapCanvas />
       </section>}
       {!search && !mapOnly && <Splitter value={split} min={0.45} max={0.82} onChange={onSplitChange} />}
       <section id="result-browser" hidden={mapOnly && !search} className="explorer-sidebar" aria-label="Scan results">
@@ -208,10 +218,7 @@ export function Explorer({ root, scanId, split, onSplitChange }: {
         </div>
       </section>
       {!search && !mapOnly && <Splitter horizontal value={treeShare} min={0.25} max={0.8} onChange={setTreeShare} />}
-      {!search && !mapOnly && <aside className="inspector">
-        <h2>{selected !== null ? 'Selection details' : focusId === root.id ? 'Scan details' : 'Folder details'}</h2>
-        <NodeDetailsPanel key={`${selected ?? focusId ?? root.id}:${generation}`} scanId={scanId} id={selected ?? focusId ?? root.id} scanSize={root.size} />
-      </aside>}
+      {!search && !mapOnly && <InspectorPane scanId={scanId} rootId={root.id} scanSize={root.size} />}
     </main>
   );
 }

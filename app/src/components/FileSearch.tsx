@@ -6,6 +6,7 @@ import {
   type Breakdown,
   type FileCategory,
   type FileFilter,
+  type FileMatch,
   type SearchKind,
   type SearchResults,
 } from '../api';
@@ -13,7 +14,7 @@ import { toggleQueued, useDiscardPile } from '../discardPile';
 import { formatBytes, formatInt } from '../format';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { SEARCH_PRESET_IDS, presetFilter, type SearchPresetId } from '../searchPresets';
-import { useAppStore } from '../store';
+import { useAppStore, type SearchPreset } from '../store';
 import { strings } from '../strings';
 import { CATEGORIES, categoryColor, type Theme } from '../treemapPaint';
 import { FileKindIcon } from './FileKindIcon';
@@ -84,47 +85,132 @@ interface PresetStat {
   bytes: number;
 }
 
-export function FileSearch({ scanId, active, onOpen, opening, navigationError }: {
+interface FileSearchProps {
   scanId: number;
   active: boolean;
   onOpen: (id: number) => void;
   opening: boolean;
   navigationError: string | null;
+}
+
+function FileMatchRow({ file, scanId, isLive, writable, revealLabel, onOpen, onError }: {
+  file: FileMatch;
+  scanId: number;
+  isLive: boolean;
+  writable: boolean;
+  revealLabel: string;
+  onOpen: (id: number) => void;
+  onError: (message: string | null) => void;
+}) {
+  const isQueued = useDiscardPile((s) => s.idSet.has(file.id));
+  const busy = useDiscardPile((s) => s.busy);
+  const parentDir = parentPathOf(file.path, file.name);
+  return (
+    <tr className={isQueued ? 'is-queued' : undefined}>
+      <td>
+        <div className="match-lead">
+          {writable && (
+            <input
+              type="checkbox"
+              checked={isQueued}
+              disabled={busy}
+              aria-label={`Select ${file.path} for cleanup`}
+              onChange={() => toggleQueued(file.id)}
+            />
+          )}
+          <button
+            type="button"
+            className="match-name"
+            onClick={() => onOpen(file.id)}
+            title={`Show in disk map: ${file.name}`}
+          >
+            <FileKindIcon node={file.id} name={file.name} directory={file.is_dir} />
+            <span className="match-title">{file.name}</span>
+            {file.is_dir && <em className="result-kind">{strings.searchFolderMarker}</em>}
+          </button>
+        </div>
+      </td>
+      <td className="cell-location" title={file.path}>{parentDir}</td>
+      <td className="cell-size">{formatBytes(file.size)}</td>
+      <td className="cell-actions">
+        <div className="row-actions">
+          {isLive && (
+            <button
+              type="button"
+              className="icon-btn row-action"
+              title={revealLabel}
+              aria-label={`${revealLabel}: ${file.name}`}
+              onClick={() => {
+                onError(null);
+                void revealNodeInFileManager(scanId, file.id).catch((err: unknown) =>
+                  onError(String(err)),
+                );
+              }}
+            >
+              <Icon icon={FolderOpen} size={15} />
+            </button>
+          )}
+          {writable && (
+            <button
+              type="button"
+              className={`icon-btn row-action ${isQueued ? 'active' : ''}`}
+              disabled={busy}
+              aria-pressed={isQueued}
+              title={isQueued ? strings.removeFromDiscardPile : strings.addToDiscardPile}
+              aria-label={`${isQueued ? strings.removeFromDiscardPile : strings.addToDiscardPile}: ${file.name}`}
+              onClick={() => toggleQueued(file.id)}
+            >
+              <Icon icon={Trash2} size={15} />
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function SelectionFooter() {
+  const count = useDiscardPile((s) => s.ids.length);
+  if (count === 0) return null;
+  return (
+    <footer className="selection-bar">
+      <span>{formatInt(count)} selected for cleanup</span>
+      <button
+        type="button"
+        className="btn primary"
+        onClick={() => useAppStore.setState({ resultView: 'cleanup' })}
+      >
+        Review selection
+      </button>
+    </footer>
+  );
+}
+
+export function FileSearch(props: FileSearchProps) {
+  const preset = useAppStore((s) => s.searchPreset);
+  return <FileSearchBody key={preset?.seq ?? 0} {...props} initialPreset={preset} />;
+}
+
+function FileSearchBody({ scanId, active, onOpen, opening, navigationError, initialPreset }: FileSearchProps & {
+  initialPreset: SearchPreset | null;
 }) {
   const theme = useColorScheme();
   const isMac = useAppStore((s) => s.isMac);
   const isLive = useAppStore((s) => s.resultSource.kind === 'live');
   const writable = useAppStore((s) => !s.scanning && s.resultSource.kind === 'live');
-  const busy = useDiscardPile((s) => s.busy);
-  const queued = useDiscardPile((s) => s.idSet);
 
   const [name, setName] = useState('');
-  const [extension, setExtension] = useState('');
+  const [extension, setExtension] = useState(() => initialPreset?.extension ?? '');
   const [minSize, setMinSize] = useState(0);
-  const [category, setCategory] = useState<FileCategory | ''>('');
-  const [scope, setScope] = useState<{ id: number; name: string } | null>(null);
-  const [kind, setKind] = useState<SearchKind>('files');
-  const [names, setNames] = useState<string[]>([]);
+  const [category, setCategory] = useState<FileCategory | ''>(() => initialPreset?.category ?? '');
+  const [scope, setScope] = useState<{ id: number; name: string } | null>(() => initialPreset?.under ?? null);
+  const [kind, setKind] = useState<SearchKind>(() => (initialPreset?.caches ? 'folders' : 'files'));
+  const [names, setNames] = useState<string[]>(() => (initialPreset?.caches ? presetFilter('caches').names : []));
   const [extensions, setExtensions] = useState<string[]>([]);
-  const [activePreset, setActivePreset] = useState<SearchPresetId | null>(null);
+  const [activePreset, setActivePreset] = useState<SearchPresetId | null>(() =>
+    initialPreset?.caches ? 'caches' : null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
-
-  const preset = useAppStore((s) => s.searchPreset);
-  const [appliedSeq, setAppliedSeq] = useState(0);
-  // A new preset replaces the filters (adjusting state while rendering, not in an effect).
-  if (preset && preset.seq !== appliedSeq) {
-    setAppliedSeq(preset.seq);
-    setName('');
-    setMinSize(0);
-    setCategory(preset.category ?? '');
-    setExtension(preset.extension ?? '');
-    setScope(preset.under);
-    setKind(preset.caches ? 'folders' : 'files');
-    setNames(preset.caches ? presetFilter('caches').names : []);
-    setExtensions([]);
-    setActivePreset(preset.caches ? 'caches' : null);
-    setActionError(null);
-  }
 
   const [response, setResponse] = useState<RequestResult | null>(null);
   const generation = useAppStore((s) => s.generation);
@@ -471,90 +557,23 @@ export function FileSearch({ scanId, active, onOpen, opening, navigationError }:
             </tr>
           </thead>
           <tbody>
-            {results?.files.map((file) => {
-              const isQueued = queued.has(file.id);
-              const parentDir = parentPathOf(file.path, file.name);
-              return (
-                <tr key={file.id} className={isQueued ? 'is-queued' : undefined}>
-                  <td>
-                    <div className="match-lead">
-                      {writable && (
-                        <input
-                          type="checkbox"
-                          checked={isQueued}
-                          disabled={busy}
-                          aria-label={`Select ${file.path} for cleanup`}
-                          onChange={() => toggleQueued(file.id)}
-                        />
-                      )}
-                      <button
-                        type="button"
-                        className="match-name"
-                        onClick={() => onOpen(file.id)}
-                        title={`Show in disk map: ${file.name}`}
-                      >
-                        <FileKindIcon node={file.id} name={file.name} directory={file.is_dir} />
-                        <span className="match-title">{file.name}</span>
-                        {file.is_dir && (
-                          <em className="result-kind">{strings.searchFolderMarker}</em>
-                        )}
-                      </button>
-                    </div>
-                  </td>
-                  <td className="cell-location" title={file.path}>{parentDir}</td>
-                  <td className="cell-size">{formatBytes(file.size)}</td>
-                  <td className="cell-actions">
-                    <div className="row-actions">
-                      {isLive && (
-                        <button
-                          type="button"
-                          className="icon-btn row-action"
-                          title={revealLabel}
-                          aria-label={`${revealLabel}: ${file.name}`}
-                          onClick={() => {
-                            setActionError(null);
-                            void revealNodeInFileManager(scanId, file.id).catch((err: unknown) =>
-                              setActionError(String(err)),
-                            );
-                          }}
-                        >
-                          <Icon icon={FolderOpen} size={15} />
-                        </button>
-                      )}
-                      {writable && (
-                        <button
-                          type="button"
-                          className={`icon-btn row-action ${isQueued ? 'active' : ''}`}
-                          disabled={busy}
-                          aria-pressed={isQueued}
-                          title={isQueued ? strings.removeFromDiscardPile : strings.addToDiscardPile}
-                          aria-label={`${isQueued ? strings.removeFromDiscardPile : strings.addToDiscardPile}: ${file.name}`}
-                          onClick={() => toggleQueued(file.id)}
-                        >
-                          <Icon icon={Trash2} size={15} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {results?.files.map((file) => (
+              <FileMatchRow
+                key={file.id}
+                file={file}
+                scanId={scanId}
+                isLive={isLive}
+                writable={writable}
+                revealLabel={revealLabel}
+                onOpen={onOpen}
+                onError={setActionError}
+              />
+            ))}
           </tbody>
         </table>
       </div>
 
-      {writable && queued.size > 0 && (
-        <footer className="selection-bar">
-          <span>{formatInt(queued.size)} selected for cleanup</span>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => useAppStore.setState({ resultView: 'cleanup' })}
-          >
-            Review selection
-          </button>
-        </footer>
-      )}
+      {writable && active && <SelectionFooter />}
     </section>
   );
 }

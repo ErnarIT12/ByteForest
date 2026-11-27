@@ -340,6 +340,7 @@ export const strings = {
   dupesShowInMap: (name: string) => `Show in disk map: ${name}`,
   dupesSelectedCount: (count: string) => `${count} selected for cleanup`,
   dupesReviewSelection: 'Review selection',
+  dupesShowMore: (next: string, remaining: string) => `Show ${next} more (${remaining} remaining)`,
 
   // View switch
   mapViewLabel: 'Disk map',
