@@ -53,7 +53,7 @@ These are single-machine numbers, not a formal benchmark; measure your own with 
 - **Scan exclusions**: in Settings, leave out names and wildcards (`*` and `?`, such as `node_modules` or `*.tmp`) that match in any folder, or an absolute path under the scan root. Excluded items are not counted in any total, and the status bar shows how much was left out.
 - **Search the whole scan** in **Largest Files** by name, extension and minimum size, or use one-click presets for common space hogs (`node_modules`, `target`, `.venv`, `.git`, disk images, files over 1 GB) that show the total size you could reclaim.
 - **CSV and JSON reports** of any folder for spreadsheets and scripts (**Export report…**).
-- **Command-line tool** for drives, scans, snapshots, exclusions, reports and benchmarks.
+- **Command-line tool** for drives, scans, duplicates, snapshots, exclusions, reports and benchmarks.
 
 ## Interactive Treemap and Sunburst exploration
 
@@ -67,7 +67,8 @@ These are single-machine numbers, not a formal benchmark; measure your own with 
 
 ## Cleanup, auto-snapshots and diff
 
-- **Cleanup**: queue files and folders from the tree, the maps or the inspector (Delete key or right-click), review the running total in Cleanup, then move everything to the Recycle Bin/Trash in one confirmed step. Nothing is deleted until you confirm, and items that cannot be moved stay queued with the reason.
+- **Cleanup**: queue files and folders from the tree, the maps, Duplicates or the inspector (Delete key or right-click), review the running total in Cleanup, then move everything to the Recycle Bin/Trash in one confirmed step. Nothing is deleted until you confirm, and items that cannot be moved stay queued with the reason.
+- **Duplicates**: open **Duplicates** in the sidebar (or choose **Find duplicates here** on any folder) to verify exact duplicate files with BLAKE3 hashing, filter by category, size or name, pick a keep preset (oldest, newest or shortest path) and queue the extra copies for Cleanup.
 - **Snapshots**: save a scan to a small `.bfsnap` file and compare a later scan with it to see what grew, shrank or is new. A Changes view lists the biggest increases.
 - **Diff highlights on both maps**: while comparing, grown, new and shrunk items are outlined in the treemap and the sunburst (solid, dotted and dashed, with the size change as a label).
 - **Automatic snapshots**: every finished scan is saved in the background (the last 10 are kept by default; 0 to 50 or Off in Settings). Reopen one from the sidebar instantly and read-only, without rescanning, or compare it with the current scan.
@@ -119,6 +120,7 @@ byteforest scan C: --save-snapshot before.bfsnap                         # save 
 byteforest scan C: --diff before.bfsnap                                  # show what changed since the snapshot
 byteforest scan C: --exclude node_modules --exclude "C:\Windows\WinSxS"  # skip names and paths
 byteforest scan D:\Projects --export report.csv --export-depth 3         # write a CSV report (.json also works)
+byteforest dupes D:\Photos --min-size 10M --top 20                       # find exact duplicate files
 ```
 
 Run the CLI from an elevated terminal to use the MFT scanner.

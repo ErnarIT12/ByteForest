@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Duplicate Finder: find exact duplicate files from the **Duplicates** view in the sidebar or "Find duplicates here" on any folder. Estimates candidates instantly in memory, verifies matches in three steps (size → partial hash → full BLAKE3 on a bounded I/O thread pool) while skipping hardlinks, reparse points and cloud placeholders, and supports an optional hidden/system file toggle, category/size/name filters, auto-select presets (Keep oldest, Keep newest, Keep shortest path) with an all-copies-queued warning, cached results that prune automatically after cleanup, and direct Cleanup queue integration. The CLI gets `byteforest dupes <target>` with `--min-size`, `--top`, `--exclude`, `--include-hidden` and `--json`.
+
 - Show available space on the scan start screen, with a compact refresh control in the results toolbar. The capacity ring and disk maps appear with short transitions that follow system motion preferences.
 
 - Explore largest files in a full-width table with type counts, size filters, file icons and a reviewed cleanup selection. Windows can display executable icons from the shell.
