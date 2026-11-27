@@ -59,8 +59,13 @@ fn bench_folder_json_has_fields() {
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(v["runs"].as_array().unwrap().len(), 2);
     assert!(v["nodes"].as_u64().unwrap() >= 2);
-    assert!(v["peak_working_set"].as_u64().unwrap() > 0);
-    assert!(v["bytes_per_node"].as_f64().unwrap() > 0.0);
+    assert!(v["peak_working_set"].is_u64());
+    assert!(v["bytes_per_node"].is_f64());
+    #[cfg(any(windows, target_os = "macos"))]
+    {
+        assert!(v["peak_working_set"].as_u64().unwrap() > 0);
+        assert!(v["bytes_per_node"].as_f64().unwrap() > 0.0);
+    }
 }
 
 #[test]
@@ -422,4 +427,242 @@ fn scan_export_applies_exclusions() {
     let text = std::fs::read_to_string(&report).unwrap();
     assert!(!text.contains("node_modules"));
     assert!(text.contains("main.rs"));
+}
+
+fn is_blake3_hex(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+#[test]
+fn dupes_json_finds_duplicates_and_reports_summary_and_hash() {
+    let dir = temp_dir();
+    std::fs::create_dir(dir.path().join("sub")).unwrap();
+    // Group 1: two identical 2048-byte files, plus one different 2048-byte file.
+    std::fs::write(dir.path().join("big_a.bin"), vec![0xAA; 2048]).unwrap();
+    std::fs::write(dir.path().join("sub").join("big_b.bin"), vec![0xAA; 2048]).unwrap();
+    std::fs::write(dir.path().join("unique.bin"), vec![0xCC; 2048]).unwrap();
+    // Group 2: three identical 1024-byte files.
+    std::fs::write(dir.path().join("small_1.bin"), vec![0xBB; 1024]).unwrap();
+    std::fs::write(dir.path().join("small_2.bin"), vec![0xBB; 1024]).unwrap();
+    std::fs::write(dir.path().join("sub").join("small_3.bin"), vec![0xBB; 1024]).unwrap();
+
+    let out = bin()
+        .arg("dupes")
+        .arg(dir.path())
+        .args(["--min-size", "1K", "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{:?}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("stdout is one JSON");
+    assert_eq!(v["stats"]["files"], 6);
+    assert_eq!(v["summary"]["groups"], 2);
+    assert_eq!(v["summary"]["files"], 5);
+    assert_eq!(v["summary"]["reclaimable_bytes"], 4096);
+    assert_eq!(v["summary"]["skipped"], 0);
+    assert_eq!(v["summary"]["min_size"], 1024);
+    assert_eq!(v["summary"]["candidates_files"], 6);
+    assert_eq!(v["summary"]["candidates_bytes"], 2048 * 3 + 1024 * 3);
+    assert!(v["summary"]["bytes_read"].as_u64().unwrap() > 0);
+
+    let groups = v["groups"].as_array().unwrap();
+    assert_eq!(groups.len(), 2);
+
+    // Equal reclaimable (2048), tie-broken by larger file size first.
+    assert_eq!(groups[0]["size"], 2048);
+    assert_eq!(groups[0]["reclaimable"], 2048);
+    assert!(is_blake3_hex(groups[0]["hash"].as_str().unwrap()));
+    let files0: Vec<&str> = groups[0]["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f.as_str().unwrap())
+        .collect();
+    assert_eq!(files0.len(), 2);
+    assert!(files0.iter().any(|p| p.ends_with("big_a.bin")));
+    assert!(files0.iter().any(|p| p.ends_with("big_b.bin")));
+    assert!(!files0.iter().any(|p| p.ends_with("unique.bin")));
+
+    assert_eq!(groups[1]["size"], 1024);
+    assert_eq!(groups[1]["reclaimable"], 2048);
+    assert!(is_blake3_hex(groups[1]["hash"].as_str().unwrap()));
+    assert_eq!(groups[1]["files"].as_array().unwrap().len(), 3);
+}
+
+#[test]
+fn dupes_json_respects_min_size_and_top() {
+    let dir = temp_dir();
+    std::fs::write(dir.path().join("large_1.bin"), vec![1u8; 4096]).unwrap();
+    std::fs::write(dir.path().join("large_2.bin"), vec![1u8; 4096]).unwrap();
+    std::fs::write(dir.path().join("small_1.bin"), vec![2u8; 1024]).unwrap();
+    std::fs::write(dir.path().join("small_2.bin"), vec![2u8; 1024]).unwrap();
+
+    // --min-size 2K skips the 1024-byte pair.
+    let out = bin()
+        .arg("dupes")
+        .arg(dir.path())
+        .args(["--min-size", "2K", "--json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["summary"]["groups"], 1);
+    assert_eq!(v["summary"]["reclaimable_bytes"], 4096);
+    assert_eq!(v["summary"]["min_size"], 2048);
+    assert_eq!(v["groups"].as_array().unwrap().len(), 1);
+
+    // --top 1 limits returned groups, while summary still covers all confirmed groups.
+    let out = bin()
+        .arg("dupes")
+        .arg(dir.path())
+        .args(["--min-size", "1K", "--top", "1", "--json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["summary"]["groups"], 2);
+    assert_eq!(v["summary"]["files"], 4);
+    assert_eq!(v["summary"]["reclaimable_bytes"], 5120);
+    let groups = v["groups"].as_array().unwrap();
+    assert_eq!(groups.len(), 1);
+    assert_eq!(groups[0]["size"], 4096);
+}
+
+#[test]
+fn dupes_json_respects_exclude() {
+    let dir = temp_dir();
+    std::fs::create_dir(dir.path().join("node_modules")).unwrap();
+    std::fs::create_dir(dir.path().join("src")).unwrap();
+    std::fs::write(
+        dir.path().join("node_modules").join("dup.js"),
+        vec![7u8; 512],
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("src").join("dup.js"), vec![7u8; 512]).unwrap();
+    std::fs::write(dir.path().join("src").join("keep_a.rs"), vec![8u8; 300]).unwrap();
+    std::fs::write(dir.path().join("src").join("keep_b.rs"), vec![8u8; 300]).unwrap();
+
+    let out = bin()
+        .arg("dupes")
+        .arg(dir.path())
+        .args(["--min-size", "100", "--exclude", "node_modules", "--json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["stats"]["excluded"]["items"], 1);
+    assert_eq!(v["summary"]["groups"], 1);
+    assert_eq!(v["summary"]["reclaimable_bytes"], 300);
+    let files = v["groups"][0]["files"].as_array().unwrap();
+    assert_eq!(files.len(), 2);
+    assert!(
+        files
+            .iter()
+            .all(|f| !f.as_str().unwrap().contains("node_modules"))
+    );
+}
+
+#[test]
+fn dupes_json_respects_include_hidden() {
+    let dir = temp_dir();
+    std::fs::write(dir.path().join(".dot_a"), vec![3u8; 500]).unwrap();
+    std::fs::write(dir.path().join(".dot_b"), vec![3u8; 500]).unwrap();
+    std::fs::create_dir(dir.path().join(".hidden_dir")).unwrap();
+    std::fs::write(dir.path().join(".hidden_dir").join("a.bin"), vec![4u8; 600]).unwrap();
+    std::fs::write(dir.path().join(".hidden_dir").join("b.bin"), vec![4u8; 600]).unwrap();
+
+    // Hidden dot-files and dot-folders are excluded by default.
+    let out = bin()
+        .arg("dupes")
+        .arg(dir.path())
+        .args(["--min-size", "100", "--json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["summary"]["groups"], 0);
+    assert!(v["groups"].as_array().unwrap().is_empty());
+
+    // With --include-hidden they are checked.
+    let out = bin()
+        .arg("dupes")
+        .arg(dir.path())
+        .args(["--min-size", "100", "--include-hidden", "--json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["summary"]["groups"], 2);
+    assert_eq!(v["summary"]["files"], 4);
+    assert_eq!(v["summary"]["reclaimable_bytes"], 1100);
+}
+
+#[test]
+fn dupes_json_skips_hardlinks() {
+    let dir = temp_dir();
+    let orig = dir.path().join("orig.bin");
+    let link = dir.path().join("link.bin");
+    std::fs::write(&orig, vec![9u8; 2048]).unwrap();
+    std::fs::hard_link(&orig, &link).unwrap();
+
+    let out = bin()
+        .arg("dupes")
+        .arg(dir.path())
+        .args(["--min-size", "100", "--json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["summary"]["groups"], 0);
+    assert!(v["groups"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn dupes_text_prints_summary_and_group_paths() {
+    let dir = temp_dir();
+    let sub = dir.path().join("sub");
+    std::fs::create_dir(&sub).unwrap();
+    std::fs::write(sub.join("copy1.bin"), vec![5u8; 2048]).unwrap();
+    std::fs::write(dir.path().join("copy2.bin"), vec![5u8; 2048]).unwrap();
+
+    let expected_sub = format!("sub{}copy1.bin", std::path::MAIN_SEPARATOR);
+    bin()
+        .arg("dupes")
+        .arg(dir.path())
+        .args(["--min-size", "1K"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Walk"))
+        .stdout(predicate::str::contains(
+            "duplicates: 1 groups, 2 files, 2.0 KB reclaimable",
+        ))
+        .stdout(predicate::str::contains("2.0 KB x 2"))
+        .stdout(predicate::str::contains(expected_sub))
+        .stdout(predicate::str::contains("copy2.bin"));
+
+    // Empty / no duplicates message.
+    let empty_dir = temp_dir();
+    std::fs::write(empty_dir.path().join("only.bin"), vec![6u8; 2048]).unwrap();
+    bin()
+        .arg("dupes")
+        .arg(empty_dir.path())
+        .args(["--min-size", "1K"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("no duplicate files found"));
+}
+
+#[test]
+fn dupes_invalid_min_size_exits_2() {
+    let dir = temp_dir();
+    bin()
+        .arg("dupes")
+        .arg(dir.path())
+        .args(["--min-size", "10nope"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("invalid size unit"));
 }

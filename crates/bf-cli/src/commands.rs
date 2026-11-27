@@ -1,4 +1,4 @@
-//! The `drives`, `scan` and `bench` commands.
+//! The `drives`, `scan`, `dupes` and `bench` commands.
 
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
@@ -6,17 +6,22 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bf_core::{
-    DiffStatus, Excluded, ExclusionSet, NodeView, ReportOptions, Snapshot, SnapshotDiff,
-    SnapshotLimits, SortKey, Tree, diff, read_snapshot_with_limits, write_csv, write_snapshot,
+    DiffStatus, DuplicateCandidates, DuplicateFilter, Excluded, ExclusionSet, NodeId, NodeView,
+    ReportOptions, Snapshot, SnapshotDiff, SnapshotLimits, SortKey, Tree, diff,
+    read_snapshot_with_limits, write_csv, write_snapshot,
 };
 use bf_scan::{
-    CancelToken, ScanProgress, ScanRoot, ScanStats, VolumeSummary, is_elevated, list_volumes,
+    CancelToken, DuplicateOutcome, HashOptions, HashPhase, HashProgress, ScanProgress, ScanRoot,
+    ScanStats, VolumeSummary, find_duplicates, is_elevated, list_volumes, native_path_of,
     scan_auto,
 };
 use serde_json::json;
 
 use crate::cli::Command;
-use crate::format::{human_size, signed_size, top_table, utc_minute};
+use crate::format::{
+    DupesGroupOutput, DupesSummary, dupes_groups_text, dupes_summary_line, hex_encode, human_size,
+    signed_size, top_table, utc_minute,
+};
 use crate::mem::peak_working_set;
 use crate::target::parse_target;
 
@@ -44,6 +49,21 @@ pub fn run(command: Command) -> Result<(), String> {
             export: export.as_deref(),
             export_depth,
             export_rows: usize::try_from(export_rows).unwrap_or(usize::MAX),
+        }),
+        Command::Dupes {
+            target,
+            min_size,
+            top,
+            exclude,
+            include_hidden,
+            json,
+        } => dupes(&DupesArgs {
+            target: &target,
+            min_size,
+            top: top.clamp(1, 1000),
+            exclude: &exclude,
+            include_hidden,
+            json,
         }),
         Command::Bench { target, runs, json } => bench(&target, runs, json),
     }
@@ -85,7 +105,7 @@ fn drives_table(volumes: &[VolumeSummary]) -> String {
 fn volume_target(volume: &VolumeSummary) -> String {
     #[cfg(windows)]
     return format!("{}:", volume.letter);
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     return volume.path.clone();
 }
 
@@ -393,6 +413,140 @@ fn scan_header(stats: &ScanStats) -> String {
         out.push_str(&format!("note: {reason}\n"));
     }
     out
+}
+
+struct DupesArgs<'a> {
+    target: &'a str,
+    min_size: u64,
+    top: usize,
+    exclude: &'a [String],
+    include_hidden: bool,
+    json: bool,
+}
+
+fn hash_candidates(
+    tree: &Tree,
+    candidates: &DuplicateCandidates,
+    show_progress: bool,
+) -> Result<DuplicateOutcome, String> {
+    let progress = move |p: HashProgress| {
+        if show_progress {
+            let phase = match p.phase {
+                HashPhase::Partial => "partial hash",
+                HashPhase::Full => "full hash",
+            };
+            let mut err = std::io::stderr();
+            let _ = write!(
+                err,
+                "\r{phase}: {}/{} files, {}/{}   ",
+                p.files_done,
+                p.files_total,
+                human_size(p.bytes_done),
+                human_size(p.bytes_total),
+            );
+            let _ = err.flush();
+        }
+    };
+    let result = find_duplicates(
+        candidates,
+        &|id| native_path_of(tree, id),
+        &HashOptions::default(),
+        &progress,
+        &CancelToken::new(),
+    );
+    if show_progress {
+        eprint!("\r{:72}\r", "");
+    }
+    result.map_err(|e| e.to_string())
+}
+
+fn display_path(tree: &Tree, id: NodeId) -> String {
+    native_path_of(tree, id)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|| tree.path_of(id))
+}
+
+fn dupes(args: &DupesArgs) -> Result<(), String> {
+    let root = parse_target(args.target)?;
+    let show_progress = !args.json && std::io::stderr().is_terminal();
+    let (mut tree, mut stats) = scan_once(&root, show_progress)?;
+    let excluded = (!args.exclude.is_empty())
+        .then(|| apply_exclusions(&mut tree, &mut stats, &root, args.exclude));
+
+    let filter = DuplicateFilter {
+        min_size: args.min_size,
+        include_hidden: args.include_hidden,
+        ..Default::default()
+    };
+    let candidates = tree.duplicate_candidates(&filter);
+    let outcome = hash_candidates(&tree, &candidates, show_progress)?;
+
+    let summary = DupesSummary {
+        groups: outcome.groups.len() as u64,
+        files: outcome.groups.iter().map(|g| g.ids.len() as u64).sum(),
+        reclaimable_bytes: outcome
+            .groups
+            .iter()
+            .fold(0u64, |acc, g| acc.saturating_add(g.reclaimable())),
+        skipped: outcome.skipped,
+        bytes_read: outcome.bytes_read,
+        min_size: args.min_size,
+        candidates_files: candidates.files,
+        candidates_bytes: candidates.bytes,
+    };
+
+    let shown: Vec<DupesGroupOutput> = outcome
+        .groups
+        .iter()
+        .take(args.top)
+        .map(|g| DupesGroupOutput {
+            size: g.size,
+            reclaimable: g.reclaimable(),
+            hash: hex_encode(&g.hash),
+            files: g.ids.iter().map(|&id| display_path(&tree, id)).collect(),
+        })
+        .collect();
+
+    if args.json {
+        let groups_json: Vec<_> = shown
+            .iter()
+            .map(|g| {
+                json!({
+                    "size": g.size,
+                    "reclaimable": g.reclaimable,
+                    "hash": g.hash,
+                    "files": g.files,
+                })
+            })
+            .collect();
+        let mut value = json!({
+            "stats": stats,
+            "summary": {
+                "groups": summary.groups,
+                "files": summary.files,
+                "reclaimable_bytes": summary.reclaimable_bytes,
+                "skipped": summary.skipped,
+                "bytes_read": summary.bytes_read,
+                "min_size": summary.min_size,
+                "candidates_files": summary.candidates_files,
+                "candidates_bytes": summary.candidates_bytes,
+            },
+            "groups": groups_json,
+        });
+        if let Some(ex) = &excluded {
+            value["stats"]["excluded"] = json!({ "items": ex.items, "bytes": ex.bytes });
+        }
+        return print_json(&value);
+    }
+
+    print!("{}", scan_header(&stats));
+    if let Some(ex) = excluded.filter(|ex| ex.items > 0) {
+        println!("excluded: {} items, {}", ex.items, human_size(ex.bytes));
+    }
+    print!("{}", dupes_summary_line(&summary));
+    println!();
+    print!("{}", dupes_groups_text(&shown, &summary));
+    Ok(())
 }
 
 /// Median of a non-empty list (mean of the two middle values for an even count).

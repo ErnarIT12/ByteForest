@@ -51,6 +51,27 @@ pub enum Command {
         #[arg(long, default_value_t = 10_000, value_parser = clap::value_parser!(u32).range(1..=1_000_000))]
         export_rows: u32,
     },
+    /// Find duplicate files by exact size and BLAKE3 content hash.
+    Dupes {
+        /// Drive (`C:`) or folder path.
+        target: String,
+        /// Minimum file size to check (e.g. `512`, `100K`, `1M`, `2GiB`).
+        #[arg(long, default_value = "1M", value_name = "SIZE", value_parser = crate::format::parse_size)]
+        min_size: u64,
+        /// How many duplicate groups to show (clamped to 1..=1000).
+        #[arg(long, default_value_t = 20)]
+        top: usize,
+        /// Leave out a name (`node_modules`, `*.tmp`) or an absolute path below the target
+        /// (`C:\Windows\WinSxS`). Repeatable.
+        #[arg(long, value_name = "PATTERN")]
+        exclude: Vec<String>,
+        /// Also check hidden, system, and dot-files/folders.
+        #[arg(long)]
+        include_hidden: bool,
+        /// Print one JSON object instead of text.
+        #[arg(long)]
+        json: bool,
+    },
     /// Scan several times and report timing and memory use.
     Bench {
         /// Drive (`C:`) or folder path.

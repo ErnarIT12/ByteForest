@@ -26,3 +26,8 @@ pub fn peak_working_set() -> Option<u64> {
     // Darwin reports ru_maxrss in bytes.
     u64::try_from(unsafe { usage.assume_init() }.ru_maxrss).ok()
 }
+
+#[cfg(all(unix, not(target_os = "macos")))]
+pub fn peak_working_set() -> Option<u64> {
+    None
+}
