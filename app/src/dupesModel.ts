@@ -1,7 +1,122 @@
-/** Pure selection helpers for the Duplicate Finder view. */
-import type { DuplicateCopy, DuplicateGroup } from './api';
+/** Pure selection, job-gating, and pagination helpers for the Duplicate Finder view. */
+import type { DuplicateCopy, DuplicateGroup, HashProgress } from './api';
 
 export type KeepRule = 'oldest' | 'newest' | 'shortestPath';
+
+/** Number of duplicate groups rendered per batch before clicking "Show more". */
+export const DUPES_PAGE_SIZE = 50;
+
+/**
+ * Tracks the active duplicate-hashing job so out-of-order IPC resolves, cancelled attempts,
+ * and stale events from superseded jobs or older tree generations are handled deterministically.
+ */
+export interface DupesJobGate {
+  /** Monotonic counter bumped on every start or stop to ignore superseded `startDuplicates` resolves. */
+  attempt: number;
+  /** True between calling `startDuplicates` and receiving its `job_id` (or its completion event). */
+  pending: boolean;
+  jobId: number | null;
+  lastKnown: number;
+  lastFinished: number;
+  filterKey: string;
+  /** Tree `generation` captured before `startDuplicates` was invoked. */
+  startedGeneration: number;
+}
+
+export function createDupesJobGate(): DupesJobGate {
+  return {
+    attempt: 0,
+    pending: false,
+    jobId: null,
+    lastKnown: 0,
+    lastFinished: 0,
+    filterKey: '',
+    startedGeneration: 0,
+  };
+}
+
+/** Prepares the gate for a new `startDuplicates` call, capturing `generation` before hashing starts. */
+export function beginDupesJob(
+  gate: DupesJobGate,
+  filterKey: string,
+  generation: number,
+): DupesJobGate {
+  return {
+    attempt: gate.attempt + 1,
+    pending: true,
+    jobId: null,
+    lastKnown: gate.lastKnown,
+    lastFinished: gate.lastFinished,
+    filterKey,
+    startedGeneration: generation,
+  };
+}
+
+/** Stops tracking the active job (e.g. when filters change), invalidating any in-flight invoke. */
+export function stopDupesJob(gate: DupesJobGate): DupesJobGate {
+  return {
+    ...gate,
+    attempt: gate.attempt + 1,
+    pending: false,
+    jobId: null,
+    filterKey: '',
+  };
+}
+
+/** Whether a backend event tagged with `jobId` belongs to the job the UI is currently waiting for. */
+export function acceptDupesJob(gate: DupesJobGate, jobId: number): boolean {
+  if (gate.pending) return jobId > gate.lastKnown;
+  return gate.jobId !== null && jobId === gate.jobId;
+}
+
+/**
+ * Records the `jobId` returned by `startDuplicates`. Returns whether the job is still active
+ * (false if the attempt was superseded or its terminal event already arrived).
+ */
+export function resolveDupesJob(
+  gate: DupesJobGate,
+  attempt: number,
+  jobId: number,
+): { gate: DupesJobGate; active: boolean; superseded: boolean } {
+  const lastKnown = Math.max(gate.lastKnown, jobId);
+  if (gate.attempt !== attempt) {
+    return { gate: { ...gate, lastKnown }, active: false, superseded: true };
+  }
+  const alreadyFinished = gate.lastFinished === jobId;
+  return {
+    gate: {
+      ...gate,
+      lastKnown,
+      jobId: alreadyFinished ? null : jobId,
+      pending: false,
+    },
+    active: !alreadyFinished,
+    superseded: false,
+  };
+}
+
+/** Marks a terminal event (`done` or `error`) for an accepted `jobId`. */
+export function finishDupesJob(gate: DupesJobGate, jobId: number): DupesJobGate {
+  return {
+    ...gate,
+    pending: false,
+    jobId: null,
+    lastKnown: Math.max(gate.lastKnown, jobId),
+    lastFinished: jobId,
+  };
+}
+
+/** Completion percentage (0..100) for a hashing progress snapshot. */
+export function progressPercent(progress: HashProgress | null): number {
+  if (!progress) return 0;
+  if (progress.bytes_total > 0) {
+    return Math.min(100, Math.round((progress.bytes_done * 100) / progress.bytes_total));
+  }
+  if (progress.files_total > 0) {
+    return Math.min(100, Math.round((progress.files_done * 100) / progress.files_total));
+  }
+  return 0;
+}
 
 function hasKnownMtime(copy: DuplicateCopy): boolean {
   return Number.isFinite(copy.mtime) && copy.mtime > 0;

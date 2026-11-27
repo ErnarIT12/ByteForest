@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { DuplicateCopy, DuplicateGroup } from './api';
-import { allCopiesQueued, pickCopyToKeep, planAutoSelect } from './dupesModel';
+import {
+  DUPES_PAGE_SIZE,
+  acceptDupesJob,
+  allCopiesQueued,
+  beginDupesJob,
+  createDupesJobGate,
+  finishDupesJob,
+  pickCopyToKeep,
+  planAutoSelect,
+  progressPercent,
+  resolveDupesJob,
+  stopDupesJob,
+} from './dupesModel';
 
 const copy = (id: number, path: string, mtime: number): DuplicateCopy => ({
   id,
@@ -106,5 +118,64 @@ describe('allCopiesQueued', () => {
     expect(allCopiesQueued(pair, new Set([1]))).toBe(false);
     expect(allCopiesQueued(pair, new Set([1, 2]))).toBe(true);
     expect(allCopiesQueued(pair, new Set([1, 2, 3]))).toBe(true);
+  });
+});
+
+describe('DupesJobGate', () => {
+  it('captures startedGeneration before hashing and tracks job lifecycle', () => {
+    let gate = createDupesJobGate();
+    expect(acceptDupesJob(gate, 1)).toBe(false);
+
+    gate = beginDupesJob(gate, 'scan1:min1M', 7);
+    expect(gate.startedGeneration).toBe(7);
+    expect(gate.filterKey).toBe('scan1:min1M');
+    expect(acceptDupesJob(gate, 1)).toBe(true);
+
+    const resolved = resolveDupesJob(gate, gate.attempt, 1);
+    expect(resolved.active).toBe(true);
+    expect(resolved.superseded).toBe(false);
+    gate = resolved.gate;
+    expect(acceptDupesJob(gate, 1)).toBe(true);
+    expect(acceptDupesJob(gate, 2)).toBe(false);
+
+    gate = finishDupesJob(gate, 1);
+    expect(acceptDupesJob(gate, 1)).toBe(false);
+    expect(gate.lastKnown).toBe(1);
+    expect(gate.lastFinished).toBe(1);
+  });
+
+  it('handles terminal events arriving before startDuplicates resolves', () => {
+    let gate = beginDupesJob(createDupesJobGate(), 'k', 3);
+    const attempt = gate.attempt;
+    expect(acceptDupesJob(gate, 5)).toBe(true);
+    gate = finishDupesJob(gate, 5);
+
+    const resolved = resolveDupesJob(gate, attempt, 5);
+    expect(resolved.active).toBe(false);
+    expect(resolved.superseded).toBe(false);
+    expect(resolved.gate.jobId).toBeNull();
+  });
+
+  it('rejects superseded startDuplicates resolves even when the same filter is re-selected', () => {
+    const first = beginDupesJob(createDupesJobGate(), 'same-filter', 1);
+    const stopped = stopDupesJob(first);
+    const resolved = resolveDupesJob(stopped, first.attempt, 10);
+    expect(resolved.superseded).toBe(true);
+    expect(resolved.active).toBe(false);
+    expect(resolved.gate.lastKnown).toBe(10);
+    // Stale events for job 10 are ignored even after a new job starts.
+    const next = beginDupesJob(resolved.gate, 'same-filter', 2);
+    expect(acceptDupesJob(next, 10)).toBe(false);
+    expect(acceptDupesJob(next, 11)).toBe(true);
+  });
+});
+
+describe('progressPercent and pagination', () => {
+  it('computes percentages from bytes first, then files, clamped to 100', () => {
+    expect(DUPES_PAGE_SIZE).toBe(50);
+    expect(progressPercent(null)).toBe(0);
+    expect(progressPercent({ phase: 'Partial', files_done: 1, files_total: 4, bytes_done: 50, bytes_total: 200 })).toBe(25);
+    expect(progressPercent({ phase: 'Full', files_done: 3, files_total: 4, bytes_done: 0, bytes_total: 0 })).toBe(75);
+    expect(progressPercent({ phase: 'Full', files_done: 10, files_total: 4, bytes_done: 500, bytes_total: 200 })).toBe(100);
   });
 });
