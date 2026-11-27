@@ -33,5 +33,7 @@ fn log_dir() -> Option<PathBuf> {
     let base = PathBuf::from(std::env::var_os("LOCALAPPDATA")?);
     #[cfg(target_os = "macos")]
     let base = std::env::home_dir()?.join("Library/Logs");
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let base = std::env::home_dir()?.join(".local/share");
     Some(base.join("ByteForest").join("logs"))
 }

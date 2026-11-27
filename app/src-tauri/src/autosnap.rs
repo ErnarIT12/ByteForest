@@ -15,8 +15,9 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::{
-    current_source, current_tree, drop_baseline, file_name_part_ascii, install_baseline,
-    load_baseline, read_snapshot_file, unix_ms_now, utc_stamp, write_snapshot_file,
+    current_source, current_tree, drop_baseline, drop_dupes, file_name_part_ascii,
+    install_baseline, load_baseline, read_snapshot_file, unix_ms_now, utc_stamp,
+    write_snapshot_file,
 };
 use crate::dto::{BaselineInfo, SourceDto};
 use crate::state::{AppState, CompletedScan, Source};
@@ -290,6 +291,7 @@ pub async fn open_snapshot(
         source: Source::Snapshot { created_unix_ms },
     });
     drop_baseline(&state);
+    drop_dupes(&state);
     drop(slot);
     Ok(OpenedSnapshot {
         scan_id,

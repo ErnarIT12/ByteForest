@@ -6,22 +6,28 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use bf_core::{
-    ExclusionSet, FileFilter, MAX_SUNBURST_DEPTH, NodeFlags, NodeId, OTHER_ARC_ID, Rect,
-    ReportOptions, SnapshotDiff, SnapshotLimits, SortKey, SunburstArc, SunburstOptions, Tree,
-    TreemapOptions, diff, read_snapshot_with_limits, write_csv, write_snapshot,
+    DuplicateFilter, ExclusionSet, FileFilter, MAX_SUNBURST_DEPTH, NodeFlags, NodeId, OTHER_ARC_ID,
+    Rect, ReportOptions, SnapshotDiff, SnapshotLimits, SortKey, SunburstArc, SunburstOptions, Tree,
+    TreemapOptions, category_of, diff, read_snapshot_with_limits, sort_duplicate_groups, write_csv,
+    write_snapshot,
 };
-use bf_scan::{CancelToken, ScanError, ScanRoot, ScanStats, VolumeSummary};
+use bf_scan::{
+    CancelToken, DuplicateOutcome, HashOptions, ScanError, ScanRoot, ScanStats, VolumeSummary,
+    native_path_of,
+};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::dto::{
-    BaselineInfo, ChangeDto, ExcludedInfo, NodeViewDto, ScanDone, ScanErrorEvent,
-    ScanProgressEvent, SunburstArcDto, TreemapRect, diff_dto,
+    BaselineInfo, ChangeDto, DupesDoneEvent, DupesErrorEvent, DupesProgressEvent,
+    DuplicateCandidatesDto, DuplicateCopyDto, DuplicateGroupDto, DuplicateResultDto, ExcludedInfo,
+    NodeViewDto, ScanDone, ScanErrorEvent, ScanProgressEvent, SunburstArcDto, TreemapRect,
+    diff_dto,
 };
 #[cfg(windows)]
 use crate::elevation::{self, ElevateError};
 use crate::settings::{self as store, Settings};
-use crate::state::{AppState, Baseline, CompletedScan, Source};
+use crate::state::{AppState, Baseline, CompletedScan, DupesCache, Source};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 /// Largest page `get_children` returns.
@@ -222,6 +228,24 @@ pub(crate) fn drop_baseline(state: &AppState) {
         .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
 }
 
+/// Cancels any running duplicate search and clears cached duplicate results.
+/// Callers hold at most the `scan` and `tree` locks (lock order: `dupes_job`, then `dupes_cache`).
+pub(crate) fn drop_dupes(state: &AppState) {
+    let mut slot = state
+        .dupes_job
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(token) = slot.token.take() {
+        token.cancel();
+    }
+    slot.job_id += 1;
+    slot.running = false;
+    *state
+        .dupes_cache
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+}
+
 /// `C:` for a volume, the absolute path for a folder.
 fn scan_label(root: &ScanRoot) -> String {
     match root {
@@ -274,7 +298,7 @@ pub async fn pick_folder(app: AppHandle) -> Result<Option<String>, String> {
     .map_err(|err| err.to_string())?
 }
 
-#[cfg(windows)]
+#[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn pick_folder() -> Result<Option<String>, String> {
     Err("Folder picker is available on macOS.".to_owned())
@@ -344,7 +368,7 @@ pub fn restart_elevated(app: AppHandle, target: Option<String>) -> Result<(), St
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(not(windows))]
 #[tauri::command]
 pub fn restart_elevated() -> Result<(), String> {
     Err("Elevation is available on Windows.".to_owned())
@@ -392,8 +416,9 @@ pub fn start_scan(
         }
         slot.id += 1;
         slot.running = true;
-        // The comparison belongs to the previous scan's tree.
+        // The comparison and duplicate cache belong to the previous scan's tree.
         drop_baseline(&state);
+        drop_dupes(&state);
         slot.id
     };
     tracing::info!("scan {scan_id} started: {root:?}");
@@ -482,6 +507,7 @@ fn finish_scan(
                     Err(_) => return Some(("internal error: state poisoned".to_string(), None)),
                 }
                 drop_baseline(state);
+                drop_dupes(state);
                 Some((
                     String::new(),
                     Some(ScanDone {
@@ -1702,6 +1728,304 @@ pub async fn top_changes(
     .map_err(|err| err.to_string())
 }
 
+/// Most duplicate groups returned in one IPC payload.
+const MAX_DUPLICATE_GROUPS: usize = 500;
+
+/// Lowercase 64-character hex encoding of a 32-byte hash.
+fn hex_hash(hash: &[u8; 32]) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(64);
+    for byte in hash {
+        let _ = write!(&mut out, "{byte:02x}");
+    }
+    out
+}
+
+/// Returns the live scan tree for `scan_id`, refusing snapshot sources.
+fn live_tree(state: &AppState, scan_id: u64) -> Result<Arc<Tree>, String> {
+    let guard = state
+        .tree
+        .read()
+        .map_err(|_| "internal error: state poisoned")?;
+    let scan = guard.as_ref().ok_or("no scan yet")?;
+    if scan.id != scan_id {
+        return Err("scan results have changed".to_string());
+    }
+    if scan.source != Source::Live {
+        return Err(SNAPSHOT_READ_ONLY.to_owned());
+    }
+    Ok(Arc::clone(&scan.tree))
+}
+
+/// Builds a front-end duplicate result from `outcome`, pruning copies removed from `tree`,
+/// dropping groups left with fewer than two copies, and recomputing totals across all surviving
+/// groups while capping the returned list at [`MAX_DUPLICATE_GROUPS`].
+fn build_duplicate_result(tree: &Tree, outcome: &DuplicateOutcome) -> DuplicateResultDto {
+    let mut pruned = tree.prune_duplicate_groups(&outcome.groups);
+    sort_duplicate_groups(&mut pruned);
+    let total_groups = pruned.len();
+    let total_files = pruned.iter().fold(0u64, |acc, group| {
+        acc.saturating_add(group.ids.len() as u64)
+    });
+    let reclaimable_bytes = pruned
+        .iter()
+        .fold(0u64, |acc, group| acc.saturating_add(group.reclaimable()));
+    let groups = pruned
+        .into_iter()
+        .take(MAX_DUPLICATE_GROUPS)
+        .map(|group| {
+            let reclaimable = group.reclaimable();
+            let copies = group
+                .ids
+                .into_iter()
+                .map(|id| {
+                    let name = tree.name(id).to_owned();
+                    let category = category_of(&name, tree.flags(id));
+                    DuplicateCopyDto {
+                        id: id.0,
+                        name,
+                        path: display_path(tree, id),
+                        mtime: tree.mtime(id),
+                        category,
+                    }
+                })
+                .collect();
+            DuplicateGroupDto {
+                size: group.size,
+                reclaimable,
+                hash: hex_hash(&group.hash),
+                copies,
+            }
+        })
+        .collect();
+    DuplicateResultDto {
+        groups,
+        total_groups,
+        total_files,
+        reclaimable_bytes,
+        skipped: outcome.skipped,
+        bytes_read: outcome.bytes_read,
+    }
+}
+
+/// Instant size-grouping estimate for `filter` on the live scan `scan_id`.
+#[tauri::command]
+pub async fn duplicate_candidates(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    filter: DuplicateFilter,
+) -> Result<DuplicateCandidatesDto, String> {
+    let tree = live_tree(&state, scan_id)?;
+    let filter_for_work = filter.clone();
+    let candidates =
+        tauri::async_runtime::spawn_blocking(move || tree.duplicate_candidates(&filter_for_work))
+            .await
+            .map_err(|err| err.to_string())?;
+    let cached = state
+        .dupes_cache
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .as_ref()
+        .is_some_and(|c| c.scan_id == scan_id && c.filter == filter);
+    Ok(DuplicateCandidatesDto {
+        groups: candidates.groups.len(),
+        files: candidates.files,
+        bytes: candidates.bytes,
+        cached,
+    })
+}
+
+/// Returns the cached duplicate result for `(scan_id, filter)`, pruned against the latest tree
+/// so files moved to the trash disappear immediately without re-hashing.
+#[tauri::command]
+pub async fn get_cached_duplicates(
+    state: State<'_, AppState>,
+    scan_id: u64,
+    filter: DuplicateFilter,
+) -> Result<Option<DuplicateResultDto>, String> {
+    let tree = current_tree(&state, Some(scan_id))?;
+    let outcome = state
+        .dupes_cache
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .as_ref()
+        .filter(|c| c.scan_id == scan_id && c.filter == filter)
+        .map(|c| c.outcome.clone());
+    let Some(outcome) = outcome else {
+        return Ok(None);
+    };
+    tauri::async_runtime::spawn_blocking(move || build_duplicate_result(&tree, &outcome))
+        .await
+        .map(Some)
+        .map_err(|err| err.to_string())
+}
+
+/// Starts a background duplicate search for `filter` on live scan `scan_id` and returns its
+/// `job_id`. Cancels any previous duplicate search first.
+#[tauri::command(async)]
+pub fn start_duplicates(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    scan_id: u64,
+    filter: DuplicateFilter,
+) -> Result<u64, String> {
+    let tree = live_tree(&state, scan_id)?;
+    let token = CancelToken::new();
+    let job_id = {
+        let mut slot = state
+            .dupes_job
+            .lock()
+            .map_err(|_| "internal error: state poisoned")?;
+        if let Some(previous) = slot.token.replace(token.clone()) {
+            previous.cancel();
+        }
+        slot.job_id += 1;
+        slot.running = true;
+        slot.job_id
+    };
+    tracing::info!("dupes job {job_id} started for scan {scan_id}");
+    std::thread::spawn(move || run_duplicates(app, job_id, scan_id, tree, filter, token));
+    Ok(job_id)
+}
+
+/// Body of the duplicate-hashing background thread.
+fn run_duplicates(
+    app: AppHandle,
+    job_id: u64,
+    scan_id: u64,
+    tree: Arc<Tree>,
+    filter: DuplicateFilter,
+    token: CancelToken,
+) {
+    let progress_app = app.clone();
+    let progress_token = token.clone();
+    let progress = move |progress| {
+        if !progress_token.is_cancelled() {
+            let _ = progress_app.emit(
+                "dupes://progress",
+                DupesProgressEvent {
+                    job_id,
+                    scan_id,
+                    progress,
+                },
+            );
+        }
+    };
+    let outcome = catch_unwind(AssertUnwindSafe(|| {
+        let candidates = tree.duplicate_candidates(&filter);
+        let result = bf_scan::find_duplicates(
+            &candidates,
+            &|id| native_path_of(&tree, id),
+            &HashOptions::default(),
+            &progress,
+            &token,
+        );
+        finish_duplicates(&app, job_id, scan_id, filter, &token, result);
+    }));
+    if outcome.is_err() {
+        tracing::error!("dupes job {job_id} panicked");
+        report_dupes_error(
+            &app,
+            job_id,
+            scan_id,
+            "internal error: duplicate search crashed".to_string(),
+        );
+    }
+}
+
+/// Stores the duplicate cache and emits `dupes://done` or `dupes://error` if `job_id` is still
+/// current. Acquires locks in strict order: `tree` (released) before `dupes_job` -> `dupes_cache`.
+fn finish_duplicates(
+    app: &AppHandle,
+    job_id: u64,
+    scan_id: u64,
+    filter: DuplicateFilter,
+    token: &CancelToken,
+    result: Result<DuplicateOutcome, ScanError>,
+) {
+    match result {
+        Ok(outcome) if !token.is_cancelled() => {
+            let state = app.state::<AppState>();
+            let Ok(latest_tree) = live_tree(&state, scan_id) else {
+                let mut slot = state
+                    .dupes_job
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if slot.job_id == job_id {
+                    slot.running = false;
+                }
+                return;
+            };
+            let dto = build_duplicate_result(&latest_tree, &outcome);
+            let mut slot = state
+                .dupes_job
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if slot.job_id != job_id {
+                return;
+            }
+            slot.running = false;
+            *state
+                .dupes_cache
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(DupesCache {
+                scan_id,
+                filter,
+                outcome,
+            });
+            let _ = app.emit(
+                "dupes://done",
+                DupesDoneEvent {
+                    job_id,
+                    scan_id,
+                    result: dto,
+                },
+            );
+        }
+        Ok(_) | Err(ScanError::Cancelled) => {
+            report_dupes_error(app, job_id, scan_id, "cancelled".to_string());
+        }
+        Err(err) => {
+            tracing::warn!("dupes job {job_id} failed: {err}");
+            report_dupes_error(app, job_id, scan_id, err.to_string());
+        }
+    }
+}
+
+/// Emits `dupes://error` if `job_id` is still the current duplicate search.
+fn report_dupes_error(app: &AppHandle, job_id: u64, scan_id: u64, message: String) {
+    let state = app.state::<AppState>();
+    let mut slot = state
+        .dupes_job
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if slot.job_id != job_id {
+        return;
+    }
+    slot.running = false;
+    let _ = app.emit(
+        "dupes://error",
+        DupesErrorEvent {
+            job_id,
+            scan_id,
+            message,
+        },
+    );
+}
+
+/// Cancels the running duplicate search, if any.
+#[tauri::command]
+pub fn cancel_duplicates(state: State<'_, AppState>) -> Result<(), String> {
+    let slot = state
+        .dupes_job
+        .lock()
+        .map_err(|_| "internal error: state poisoned")?;
+    if let Some(token) = slot.token.as_ref() {
+        token.cancel();
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2068,7 +2392,12 @@ mod tests {
         };
         let none = exclude_from_scan(&mut tree, &mut stats, "C:", &[]);
         assert!(none.is_none());
-        let cut = exclude_from_scan(&mut tree, &mut stats, "C:", &["*.TXT".to_string()]);
+        let pattern = if case_insensitive_names() {
+            "*.TXT"
+        } else {
+            "*.txt"
+        };
+        let cut = exclude_from_scan(&mut tree, &mut stats, "C:", &[pattern.to_string()]);
         assert_eq!(
             cut,
             Some(ExcludedInfo {
@@ -2161,5 +2490,141 @@ mod tests {
         assert!(baseline_diff(&state, 4).is_none());
         drop_baseline(&state);
         assert!(baseline_diff(&state, 3).is_none());
+    }
+
+    #[test]
+    fn build_duplicate_result_prunes_removed_nodes_and_recalculates_totals() {
+        let mut b = TreeBuilder::new(1, "C:");
+        for (key, name, size, mtime) in [
+            (2, "a1.mp4", 1000, 100),
+            (3, "a2.mp4", 1000, 200),
+            (4, "a3.mp4", 1000, 300),
+            (5, "b1.zip", 500, 400),
+            (6, "b2.zip", 500, 500),
+        ] {
+            b.push(EntryRecord {
+                key,
+                parent_key: 1,
+                name: name.into(),
+                flags: NodeFlags::empty(),
+                size,
+                alloc: size,
+                mtime,
+            });
+        }
+        let mut tree = b.finish();
+        let id_of = |name: &str| {
+            tree.children_ids(tree.root())
+                .find(|&id| tree.name(id) == name)
+                .unwrap()
+        };
+        let a1 = id_of("a1.mp4");
+        let a2 = id_of("a2.mp4");
+        let a3 = id_of("a3.mp4");
+        let b1 = id_of("b1.zip");
+        let b2 = id_of("b2.zip");
+
+        let outcome = DuplicateOutcome {
+            groups: vec![
+                bf_core::DuplicateGroup {
+                    size: 1000,
+                    hash: [0xab; 32],
+                    ids: vec![a1, a2, a3],
+                },
+                bf_core::DuplicateGroup {
+                    size: 500,
+                    hash: [0x01; 32],
+                    ids: vec![b1, b2],
+                },
+            ],
+            skipped: 2,
+            bytes_read: 4000,
+        };
+
+        let initial = build_duplicate_result(&tree, &outcome);
+        assert_eq!(initial.total_groups, 2);
+        assert_eq!(initial.total_files, 5);
+        assert_eq!(initial.reclaimable_bytes, 2500);
+        assert_eq!(initial.skipped, 2);
+        assert_eq!(initial.bytes_read, 4000);
+        assert_eq!(initial.groups[0].hash, "ab".repeat(32));
+        assert_eq!(initial.groups[0].reclaimable, 2000);
+        assert_eq!(
+            initial.groups[0].copies[0].category,
+            bf_core::FileCategory::Video
+        );
+        assert_eq!(initial.groups[1].hash, "01".repeat(32));
+        assert_eq!(
+            initial.groups[1].copies[0].category,
+            bf_core::FileCategory::Archive
+        );
+
+        // Removing one copy from group A leaves 2 copies (reclaimable drops from 2000 to 1000).
+        // Removing one copy from group B drops group B completely (< 2 copies remaining).
+        tree.remove_subtree(a2).unwrap();
+        tree.remove_subtree(b1).unwrap();
+
+        let pruned = build_duplicate_result(&tree, &outcome);
+        assert_eq!(pruned.total_groups, 1);
+        assert_eq!(pruned.total_files, 2);
+        assert_eq!(pruned.reclaimable_bytes, 1000);
+        assert_eq!(pruned.groups.len(), 1);
+        assert_eq!(pruned.groups[0].reclaimable, 1000);
+        let copy_ids: Vec<u32> = pruned.groups[0].copies.iter().map(|c| c.id).collect();
+        assert_eq!(copy_ids, [a1.0, a3.0]);
+    }
+
+    #[test]
+    fn live_tree_rejects_snapshot_sources_with_read_only_error() {
+        let state = AppState::default();
+        *state.tree.write().unwrap() = Some(CompletedScan {
+            id: 5,
+            tree: Arc::new(tiny_tree()),
+            target: "C:".into(),
+            source: Source::Snapshot {
+                created_unix_ms: 123,
+            },
+        });
+        assert_eq!(
+            live_tree(&state, 5).err().as_deref(),
+            Some(SNAPSHOT_READ_ONLY)
+        );
+        assert_eq!(
+            live_tree(&state, 4).err().as_deref(),
+            Some("scan results have changed")
+        );
+
+        *state.tree.write().unwrap() = Some(CompletedScan {
+            id: 5,
+            tree: Arc::new(tiny_tree()),
+            target: "C:".into(),
+            source: Source::Live,
+        });
+        assert!(live_tree(&state, 5).is_ok());
+    }
+
+    #[test]
+    fn drop_dupes_cancels_running_job_and_clears_cache() {
+        let state = AppState::default();
+        let token = CancelToken::new();
+        {
+            let mut slot = state.dupes_job.lock().unwrap();
+            slot.job_id = 2;
+            slot.running = true;
+            slot.token = Some(token.clone());
+        }
+        *state.dupes_cache.write().unwrap() = Some(DupesCache {
+            scan_id: 1,
+            filter: DuplicateFilter::default(),
+            outcome: DuplicateOutcome::default(),
+        });
+
+        drop_dupes(&state);
+        assert!(token.is_cancelled());
+        let slot = state.dupes_job.lock().unwrap();
+        assert!(!slot.running);
+        assert!(slot.token.is_none());
+        assert_eq!(slot.job_id, 3);
+        assert!(state.dupes_cache.read().unwrap().is_none());
     }
 }

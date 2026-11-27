@@ -84,6 +84,9 @@ pub fn settings_path() -> Option<PathBuf> {
     let base = std::env::var_os("APPDATA");
     #[cfg(target_os = "macos")]
     let base = std::env::home_dir().map(|p| p.join("Library/Application Support").into_os_string());
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .or_else(|| std::env::home_dir().map(|p| p.join(".config").into_os_string()));
     path_in(base)
 }
 
