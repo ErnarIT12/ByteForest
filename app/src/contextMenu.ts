@@ -42,6 +42,7 @@ export function nextEnabledIndex(enabled: boolean[], current: number, key: MenuK
 
 export type MenuAction =
   | 'open'
+  | 'findDupes'
   | 'reveal'
   | 'copy'
   | 'discardAdd'
@@ -79,7 +80,17 @@ export function buildMenuEntries(
   const readOnly = opts.readOnly === true;
   const entries: MenuEntry[] = [];
   if (details.node.is_dir) {
-    entries.push({ type: 'item', action: 'open', label: strings.openFolder, disabled: false, danger: false });
+    entries.push(
+      { type: 'item', action: 'open', label: strings.openFolder, disabled: false, danger: false },
+      {
+        type: 'item',
+        action: 'findDupes',
+        label: strings.findDupesHere,
+        disabled: readOnly,
+        danger: false,
+        title: readOnly ? strings.snapshotReadOnly : undefined,
+      },
+    );
   }
   entries.push(
     {

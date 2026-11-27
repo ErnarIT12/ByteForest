@@ -38,6 +38,8 @@ interface DiscardState {
   has(id: number): boolean;
   add(ids: readonly number[]): void;
   remove(id: number): void;
+  /** Removes `toRemove` and adds `toAdd` in a single batch refresh. */
+  updateBatch(toAdd: readonly number[], toRemove: readonly number[]): void;
   clear(): void;
   /** Ties the queue to a scan result; a different one starts an empty queue. */
   bindScan(scanId: number | null): void;
@@ -86,6 +88,15 @@ export const useDiscardPile = create<DiscardState>()((set, get) => {
     remove: (id) => {
       if (get().busy) return;
       setIds(removeId(get().ids, id));
+    },
+
+    updateBatch: (toAdd, toRemove) => {
+      if (get().scanId === null || get().busy) return;
+      let next = toRemove.length > 0 ? removeIds(get().ids, new Set(toRemove)) : get().ids;
+      if (toAdd.length > 0 && canChangeDisk(useAppStore.getState().resultSource)) {
+        next = addIds(next, toAdd, useAppStore.getState().rootId);
+      }
+      setIds(next);
     },
 
     clear: () => {

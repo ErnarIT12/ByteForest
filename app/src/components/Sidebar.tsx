@@ -10,6 +10,7 @@ import { useAppStore } from '../store';
 import { strings } from '../strings';
 import { useDiscardSync } from './DiscardPileDock';
 import {
+  Copy,
   Trash2,
   History,
   LayoutGrid,
@@ -34,6 +35,7 @@ export const SIDEBAR_NARROW_QUERY = '(max-width: 999px)';
 const VIEWS = [
   { label: 'Disk map', icon: LayoutGrid, viewId: 'map' },
   { label: 'Largest files', icon: FileText, viewId: 'files' },
+  { label: strings.dupesTitle, icon: Copy, viewId: 'dupes' },
   { label: 'Scan history', icon: History, viewId: 'history' },
   { label: 'Cleanup', icon: Trash2, viewId: 'cleanup' },
 ] as const;

@@ -85,6 +85,14 @@ export interface SearchPreset {
   under: { id: number; name: string };
 }
 
+/** Pre-filled duplicate search scoped to a folder. */
+export interface DupesPreset {
+  /** Bumped for every request so the same folder scope can be re-applied. */
+  seq: number;
+  /** Folder the duplicate search is limited to. */
+  under: { id: number; name: string };
+}
+
 interface AppState {
   drives: VolumeSummary[] | null;
   drivesError: string | null;
@@ -93,7 +101,7 @@ interface AppState {
   /** Finished scans, newest first (persisted). */
   recentScans: RecentScan[];
   /** Disk map shown in the explorer (persisted). */
-  resultView: 'map' | 'files' | 'cleanup' | 'history';
+  resultView: 'map' | 'files' | 'dupes' | 'cleanup' | 'history';
   mapView: MapView;
   /** Location picked in the sidebar: a drive letter ("C") or a folder path. */
   target: string | null;
@@ -137,6 +145,8 @@ interface AppState {
   invalidation: TreeInvalidation | null;
   /** Latest request to open the search pane with these filters. */
   searchPreset: SearchPreset | null;
+  /** Latest request to open the duplicate finder scoped to a folder. */
+  dupesPreset: DupesPreset | null;
   error: string | null;
   /** Heading of the error toast; null means the default scan failure title. */
   errorTitle: string | null;
@@ -185,6 +195,8 @@ interface AppActions {
   setBaseline(info: BaselineInfo | null): void;
   /** Asks the explorer to show the file search with the filters of `preset`. */
   openSearch(preset: Omit<SearchPreset, 'seq'>): void;
+  /** Opens the Duplicates view, optionally scoped to `under`. */
+  openDupes(under?: { id: number; name: string }): void;
   dismissError(): void;
   setElevating(elevating: boolean): void;
   /** Shows a non-scan failure of the restart as administrator in the toast. */
@@ -229,6 +241,7 @@ const initialState: AppState = {
   invalidation: null,
   resultView: 'map',
   searchPreset: null,
+  dupesPreset: null,
   error: null,
   errorTitle: null,
   elevating: false,
@@ -374,6 +387,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       invalidation: null,
       resultView: 'map',
       searchPreset: null,
+      dupesPreset: null,
     });
   },
 
@@ -429,6 +443,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       invalidation: null,
       resultView: 'map',
       searchPreset: null,
+      dupesPreset: null,
     });
   },
 
@@ -524,6 +539,11 @@ export const useAppStore = create<AppStore>()((set, get) => ({
 
   openSearch: (preset) =>
     set((s) => ({ resultView: 'files', searchPreset: { ...preset, seq: (s.searchPreset?.seq ?? 0) + 1 } })),
+  openDupes: (under) =>
+    set((s) => ({
+      resultView: 'dupes',
+      dupesPreset: under ? { seq: (s.dupesPreset?.seq ?? 0) + 1, under } : null,
+    })),
   dismissError: () => set({ error: null, errorTitle: null }),
   setElevating: (elevating) => set({ elevating }),
   elevationFailed: (message) =>

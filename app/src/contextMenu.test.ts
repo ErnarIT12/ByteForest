@@ -53,9 +53,9 @@ describe('buildMenuEntries', () => {
   const actions = (entries: ReturnType<typeof buildMenuEntries>) =>
     entries.map((e) => (e.type === 'item' ? e.action : '-'));
 
-  it('offers open only for folders and trash last as a danger item', () => {
+  it('offers open and findDupes only for folders and trash last as a danger item', () => {
     expect(actions(buildMenuEntries(details(true), { isMac: false, isRoot: false }))).toEqual([
-      'open', 'reveal', 'copy', '-', 'discardAdd', 'trash',
+      'open', 'findDupes', 'reveal', 'copy', '-', 'discardAdd', 'trash',
     ]);
     const file = buildMenuEntries(details(false), { isMac: false, isRoot: false });
     expect(actions(file)).toEqual(['reveal', 'copy', '-', 'discardAdd', 'trash']);
@@ -77,7 +77,7 @@ describe('buildMenuEntries', () => {
   });
   it('never offers to trash or queue the root', () => {
     expect(actions(buildMenuEntries(details(true), { isMac: false, isRoot: true }))).toEqual([
-      'open', 'reveal', 'copy',
+      'open', 'findDupes', 'reveal', 'copy',
     ]);
   });
   it('disables path based entries without a native path but keeps open', () => {
@@ -126,21 +126,26 @@ describe('buildSnapshotEntries', () => {
 });
 
 describe('read-only snapshot view', () => {
-  it('disables queueing and trashing with the reason, but keeps copy and reveal', () => {
-    const entries = buildMenuEntries(details(false), { isMac: false, isRoot: false, readOnly: true });
+  it('disables queueing, trashing, and findDupes with the reason, but keeps copy and reveal', () => {
+    const entries = buildMenuEntries(details(true), { isMac: false, isRoot: false, readOnly: true });
     const byAction = (action: string) =>
       entries.find((e) => e.type === 'item' && e.action === action);
+    expect(byAction('findDupes')).toMatchObject({
+      disabled: true,
+      title: 'This view is a snapshot; rescan to make changes.',
+    });
     expect(byAction('discardAdd')).toMatchObject({
       disabled: true,
       title: 'This view is a snapshot; rescan to make changes.',
     });
     expect(byAction('trash')).toMatchObject({ disabled: true });
+    expect(byAction('open')).toMatchObject({ disabled: false });
     expect(byAction('copy')).toMatchObject({ disabled: false });
     expect(byAction('reveal')).toMatchObject({ disabled: false });
   });
 
   it('leaves the entries enabled for a live result', () => {
-    const entries = buildMenuEntries(details(false), { isMac: false, isRoot: false });
+    const entries = buildMenuEntries(details(true), { isMac: false, isRoot: false });
     expect(entries.every((e) => e.type === 'separator' || !e.disabled)).toBe(true);
   });
 });

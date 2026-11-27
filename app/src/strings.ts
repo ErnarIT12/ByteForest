@@ -289,6 +289,58 @@ export const strings = {
   discardFailedItem: (name: string, reason: string) => `${name}: ${reason}`,
   discardBatchFailed: (reason: string) => `Could not move the items: ${reason}`,
 
+  // Duplicates
+  dupesTitle: 'Duplicates',
+  dupesAria: 'Duplicate files',
+  findDupesHere: 'Find duplicates here',
+  dupesSnapshotNotice:
+    'Duplicate checking reads file contents from disk and is unavailable for saved snapshots. Rescan this location to find duplicates.',
+  dupesScopeLabel: 'Duplicate search scope',
+  dupesInFolder: (name: string) => `in ${name}`,
+  dupesSearchEntireScan: 'Search entire scan',
+  dupesFileName: 'File name',
+  dupesFileNamePlaceholder: 'Filter by file name',
+  dupesMinSize: 'Minimum size',
+  dupesIncludeHidden: 'Include hidden and system files',
+  dupesFind: 'Find duplicates',
+  dupesRecheck: 'Re-check',
+  dupesCancel: 'Cancel',
+  dupesCancelling: 'Cancelling…',
+  dupesEstimating: 'Checking candidates…',
+  dupesCandidatesEstimate: (files: string, groups: string, bytes: string) =>
+    `${files} candidate files in ${groups} size groups (${bytes} to check)`,
+  dupesCandidatesNone: 'No files share an exact size with these filters.',
+  dupesPhase: {
+    Partial: 'Checking file headers',
+    Full: 'Hashing duplicates',
+  },
+  dupesProgressDetail: (
+    phase: string,
+    done: string,
+    total: string,
+    bytesDone: string,
+    bytesTotal: string,
+  ) => `${phase}: ${done} of ${total} files (${bytesDone} / ${bytesTotal})`,
+  dupesResultSummary: (groups: string, oneGroup: boolean, files: string, reclaimable: string) =>
+    `${groups} ${oneGroup ? 'group' : 'groups'} · ${files} files · ${reclaimable} reclaimable`,
+  dupesResultCapped: (shown: string, total: string) =>
+    `Showing top ${shown} of ${total} groups by reclaimable space.`,
+  dupesSkippedNotice: (skipped: string, one: boolean) =>
+    `${skipped} ${one ? 'file was' : 'files were'} skipped (unreadable, changed, linked, or cloud-only).`,
+  dupesNoneFound: 'No duplicate files found with these filters.',
+  dupesKeepOldest: 'Keep oldest',
+  dupesKeepNewest: 'Keep newest',
+  dupesKeepShortestPath: 'Keep shortest path',
+  dupesAutoSelectLabel: 'Auto-select extra copies for cleanup',
+  dupesGroupCopies: (count: string) => `${count} copies`,
+  dupesGroupReclaimable: (size: string) => `${size} reclaimable`,
+  dupesAllCopiesQueued: 'All copies queued for cleanup',
+  dupesHashTitle: (hash: string) => `BLAKE3: ${hash}`,
+  dupesSelectCopy: (path: string) => `Select ${path} for cleanup`,
+  dupesShowInMap: (name: string) => `Show in disk map: ${name}`,
+  dupesSelectedCount: (count: string) => `${count} selected for cleanup`,
+  dupesReviewSelection: 'Review selection',
+
   // View switch
   mapViewLabel: 'Disk map',
   mapViewTreemap: 'Treemap',
