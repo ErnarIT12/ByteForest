@@ -26,13 +26,9 @@
 
 ## Largest files
 
-Open **Largest files** to filter the current scan by type or size. Select files, then open **Cleanup** to review their paths before moving them to the Recycle Bin or Trash.
+Open **Largest files** to filter the current scan by name, extension, type, or size, or click one of the slim space-hog/cache preset pills (`Caches`, `node_modules`, `target`, `.venv`, `.git`, `Disk images`, `>1 GB`) showing reclaimable space. Select files, then open **Cleanup** to review their paths before moving them to the Recycle Bin or Trash.
 
-![Largest files](docs/screenshots/windows-largest-files.png)
-
-![ByteForest on macOS with Treemap, folder tree, and inspector in Graphite](docs/screenshots/macos-treemap-graphite.png)
-
-*Captured on macOS with fictional demo data.*
+![Largest files and cache presets in Graphite](docs/screenshots/windows-largest-files.png)
 
 ## Blazing-fast scanning: MFT and directory walk, with exclusions
 
@@ -63,9 +59,13 @@ These are single-machine numbers, not a formal benchmark; measure your own with 
 - **File-type breakdown** of the selected folder (categories and top extensions) and a **Folders / File types** color mode for the maps, with a legend.
 - **Right-click context menu** (also Shift+F10) on the tree and the maps: open, show in Explorer/Finder, copy the path, or move to the Recycle Bin/Trash after confirmation. Everything updates instantly, without a rescan.
 
-![ByteForest on macOS with the Sunburst chart and inspector in Silver](docs/screenshots/macos-sunburst-silver.png)
+![ByteForest with Treemap, folder tree, and inspector in Graphite](docs/screenshots/macos-treemap-graphite.png)
 
-## Cleanup, auto-snapshots and diff
+![ByteForest with the Sunburst chart and inspector in Silver](docs/screenshots/macos-sunburst-silver.png)
+
+*Captured with fictional demo data.*
+
+## Cleanup, Duplicates, auto-snapshots and diff
 
 - **Cleanup**: queue files and folders from the tree, the maps, Duplicates or the inspector (Delete key or right-click), review the running total in Cleanup, then move everything to the Recycle Bin/Trash in one confirmed step. Nothing is deleted until you confirm, and items that cannot be moved stay queued with the reason.
 - **Duplicates**: open **Duplicates** in the sidebar (or choose **Find duplicates here** on any folder) to verify exact duplicate files with BLAKE3 hashing, filter by category, size or name, pick a keep preset (oldest, newest or shortest path) and queue the extra copies for Cleanup.
@@ -74,10 +74,12 @@ These are single-machine numbers, not a formal benchmark; measure your own with 
 - **Automatic snapshots**: every finished scan is saved in the background (the last 10 are kept by default; 0 to 50 or Off in Settings). Reopen one from the sidebar instantly and read-only, without rescanning, or compare it with the current scan.
 - **CLI diffs**: `byteforest scan <target> --save-snapshot <FILE>` and `--diff <FILE>` (see [Usage](#usage)).
 
+![Duplicate finder with verified BLAKE3 groups in Graphite](docs/screenshots/duplicates-graphite.png)
+
 ## Minimalist UI and 100% offline privacy
 
-- **Radix-inspired, minimalist interface** with a unified left sidebar: your drives, Desktop, Downloads and Documents, recent scans and the Cleanup, collapsing to an icon rail.
-- **Graphite (dark, the default) and Silver (light) themes**, or follow the system, with WCAG AA contrast. Hover effects respect the reduced-motion setting.
+- **Signature obsidian-graphite and frosted-silver interface** inspired by the ByteForest pine mark, with restrained translucent glass on floating chrome and inspector cards, opaque high-contrast tables and maps, and a collapsible left sidebar.
+- **Graphite (dark, the default) and Silver (light) themes**, or follow the system, with WCAG AA contrast. Hover effects and transitions respect the reduced-motion setting.
 - **Works fully offline.** There is no telemetry, no account and no update check, and the code makes no network requests. The app window may only talk to the local Rust backend; the Content Security Policy allows nothing else.
 - **Your data stays on your machine.** Settings are stored in `%APPDATA%\ByteForest\settings.json` and logs in `%LOCALAPPDATA%\ByteForest\logs`. Automatic snapshots (names and sizes of scanned items) are stored in `%LOCALAPPDATA%\dev.byteforest.app\snapshots\auto` (`~/Library/Application Support/dev.byteforest.app/snapshots/auto` on macOS) and can be turned off or limited in Settings.
 
